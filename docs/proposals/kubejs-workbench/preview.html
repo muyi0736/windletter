@@ -1,0 +1,1385 @@
+<style>
+  .kjs-preview {
+    --kjs-bg: #0e141a;
+    --kjs-surface: #161e26;
+    --kjs-surface-2: #1b242e;
+    --kjs-surface-3: #212c37;
+    --kjs-text: #e8eef5;
+    --kjs-text-2: #a7b4c2;
+    --kjs-text-3: #718091;
+    --kjs-border: rgba(255, 255, 255, 0.08);
+    --kjs-border-strong: rgba(255, 255, 255, 0.14);
+    --kjs-accent: #33ccda;
+    --kjs-accent-soft: rgba(51, 204, 218, 0.12);
+    --kjs-accent-border: rgba(51, 204, 218, 0.34);
+    --kjs-green: #43c79a;
+    --kjs-orange: #e3aa4e;
+    --kjs-red: #ef7c76;
+    --kjs-violet: #ab92ec;
+    --kjs-mono: "Cascadia Mono", "Cascadia Code", Consolas, "JetBrains Mono", ui-monospace, monospace;
+    --kjs-sans: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    width: 100%;
+    max-width: 1380px;
+    margin: 0 auto;
+    color: var(--kjs-text);
+    font-family: var(--kjs-sans);
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: left;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .kjs-preview *,
+  .kjs-preview *::before,
+  .kjs-preview *::after {
+    box-sizing: border-box;
+  }
+
+  .kjs-preview button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .kjs-shell {
+    position: relative;
+    display: flex;
+    height: 760px;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--kjs-border-strong);
+    border-radius: 16px;
+    background:
+      radial-gradient(120% 80% at 12% 0%, rgba(51, 204, 218, 0.06), transparent 52%),
+      linear-gradient(180deg, #121920 0%, var(--kjs-bg) 100%);
+    box-shadow: 0 30px 90px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.25) inset;
+  }
+
+  .kjs-top {
+    display: flex;
+    height: 48px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--kjs-border);
+    background: rgba(18, 25, 32, 0.72);
+    backdrop-filter: blur(12px);
+  }
+
+  .kjs-mark {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid var(--kjs-accent-border);
+    border-radius: 7px;
+    background: linear-gradient(145deg, rgba(51, 204, 218, 0.2), rgba(51, 204, 218, 0.04));
+    color: var(--kjs-accent);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .kjs-top-title {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 9px;
+  }
+
+  .kjs-top-title strong {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .kjs-top-title span {
+    overflow: hidden;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kjs-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .kjs-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 7px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 5px;
+    background: var(--kjs-surface-2);
+    color: var(--kjs-text-3);
+    font-size: 9.5px;
+    white-space: nowrap;
+  }
+
+  .kjs-chip.is-accent {
+    border-color: var(--kjs-accent-border);
+    background: var(--kjs-accent-soft);
+    color: var(--kjs-accent);
+  }
+
+  .kjs-chip b {
+    color: var(--kjs-text-2);
+    font-family: var(--kjs-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+  }
+
+  .kjs-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--kjs-green);
+    box-shadow: 0 0 0 3px rgba(67, 199, 154, 0.12);
+  }
+
+  .kjs-tabs {
+    display: flex;
+    height: 40px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--kjs-border);
+    background: rgba(22, 30, 38, 0.6);
+  }
+
+  .kjs-tab {
+    display: inline-flex;
+    height: 27px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--kjs-text-3);
+    font-size: 10px;
+  }
+
+  .kjs-tab:hover {
+    color: var(--kjs-text-2);
+  }
+
+  .kjs-tab.is-active {
+    border-color: var(--kjs-border);
+    background: var(--kjs-surface);
+    color: var(--kjs-text);
+    box-shadow: 0 2px 10px -6px rgba(0, 0, 0, 0.8);
+  }
+
+  .kjs-tab em {
+    padding: 0 4px;
+    border-radius: 3px;
+    background: var(--kjs-surface-3);
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+    font-style: normal;
+  }
+
+  .kjs-layout {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: 208px minmax(0, 1fr) 326px;
+  }
+
+  .kjs-files {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    border-right: 1px solid var(--kjs-border);
+    background: rgba(22, 30, 38, 0.55);
+  }
+
+  .kjs-pane-head {
+    display: flex;
+    height: 38px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--kjs-border);
+  }
+
+  .kjs-pane-head strong {
+    color: var(--kjs-text-2);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .kjs-pane-head small {
+    margin-left: auto;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8.5px;
+  }
+
+  .kjs-icon-btn {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--kjs-text-3);
+  }
+
+  .kjs-icon-btn:hover {
+    background: var(--kjs-surface-3);
+    color: var(--kjs-text);
+  }
+
+  .kjs-search {
+    display: flex;
+    height: 28px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    margin: 9px 9px 4px;
+    padding: 0 8px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 6px;
+    background: var(--kjs-surface);
+    color: var(--kjs-text-3);
+    font-size: 9.5px;
+  }
+
+  .kjs-search kbd {
+    margin-left: auto;
+    padding: 1px 4px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 3px;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 7.5px;
+  }
+
+  .kjs-tree {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    padding: 4px 7px 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--kjs-surface-3) transparent;
+  }
+
+  .kjs-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 7px 0 2px;
+    padding: 2px 6px;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.02em;
+  }
+
+  .kjs-group.is-nested {
+    margin-left: 13px;
+  }
+
+  .kjs-group em {
+    margin-left: auto;
+    color: var(--kjs-text-3);
+    font-size: 8px;
+    font-style: normal;
+  }
+
+  .kjs-chev {
+    display: inline-block;
+    width: 8px;
+    color: var(--kjs-text-3);
+    font-size: 8px;
+    transform: rotate(90deg);
+    transition: transform 160ms ease;
+  }
+
+  .kjs-chev.is-closed {
+    transform: rotate(0);
+  }
+
+  .kjs-file {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    height: 26px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 7px 0 17px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--kjs-text-2);
+    font-size: 9.5px;
+    text-align: left;
+  }
+
+  .kjs-file:hover {
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .kjs-file.is-active {
+    border-color: var(--kjs-accent-border);
+    background: var(--kjs-accent-soft);
+    color: var(--kjs-accent);
+  }
+
+  .kjs-file.is-nested {
+    padding-left: 30px;
+  }
+
+  .kjs-file span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kjs-file i {
+    width: 4px;
+    height: 4px;
+    margin-left: auto;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--kjs-orange);
+  }
+
+  .kjs-file-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 8px 9px;
+    border-top: 1px solid var(--kjs-border);
+  }
+
+  .kjs-mini-btn {
+    display: inline-flex;
+    height: 24px;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 5px;
+    background: var(--kjs-surface-2);
+    color: var(--kjs-text-2);
+    font-size: 9px;
+  }
+
+  .kjs-mini-btn:hover {
+    border-color: var(--kjs-border-strong);
+    color: var(--kjs-text);
+  }
+
+  .kjs-main {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    background: #10171e;
+  }
+
+  .kjs-editor-tabs {
+    display: flex;
+    height: 36px;
+    flex: 0 0 auto;
+    align-items: stretch;
+    gap: 1px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--kjs-border);
+    background: var(--kjs-surface);
+  }
+
+  .kjs-etab {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    padding: 0 11px;
+    border: 0;
+    border-right: 1px solid var(--kjs-border);
+    background: transparent;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 9px;
+  }
+
+  .kjs-etab.is-active {
+    background: #10171e;
+    color: var(--kjs-text);
+    box-shadow: inset 0 2px 0 var(--kjs-accent);
+  }
+
+  .kjs-etab span {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kjs-etab i {
+    width: 5px;
+    height: 5px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--kjs-orange);
+  }
+
+  .kjs-etab b {
+    color: var(--kjs-text-3);
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  .kjs-editor-bar {
+    display: flex;
+    height: 30px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--kjs-border);
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8.5px;
+  }
+
+  .kjs-editor-bar b {
+    color: var(--kjs-text-2);
+    font-weight: 400;
+  }
+
+  .kjs-editor-bar .kjs-crumb {
+    color: var(--kjs-text-3);
+  }
+
+  .kjs-editor-bar .kjs-dirty {
+    margin-left: auto;
+    color: var(--kjs-orange);
+  }
+
+  .kjs-code {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    padding: 10px 0 24px;
+    font-family: var(--kjs-mono);
+    font-size: 10.5px;
+    line-height: 1.75;
+    scrollbar-width: thin;
+    scrollbar-color: var(--kjs-surface-3) transparent;
+    tab-size: 2;
+  }
+
+  .kjs-line {
+    display: flex;
+    min-width: max-content;
+    padding-right: 18px;
+  }
+
+  .kjs-line:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .kjs-ln {
+    width: 46px;
+    flex: 0 0 46px;
+    padding-right: 12px;
+    color: #4c5b6a;
+    font-size: 9px;
+    text-align: right;
+    user-select: none;
+  }
+
+  .kjs-line.is-warn .kjs-ln {
+    color: var(--kjs-orange);
+  }
+
+  .kjs-line.is-warn {
+    background: linear-gradient(90deg, rgba(227, 170, 78, 0.075), transparent 70%);
+    box-shadow: inset 2px 0 0 rgba(227, 170, 78, 0.55);
+  }
+
+  .kjs-code-text {
+    color: #c8d4e0;
+    white-space: pre;
+  }
+
+  .kjs-k {
+    color: var(--kjs-violet);
+  }
+
+  .kjs-f {
+    color: #7fd4e0;
+  }
+
+  .kjs-s {
+    color: #9bd49a;
+  }
+
+  .kjs-n {
+    color: #e3aa4e;
+  }
+
+  .kjs-c {
+    color: #607181;
+  }
+
+  .kjs-p {
+    color: #aab8c6;
+  }
+
+  .kjs-unk {
+    position: relative;
+    color: #f2b3ad;
+    text-decoration: underline wavy rgba(239, 124, 118, 0.75);
+    text-underline-offset: 3px;
+  }
+
+  .kjs-gutter-mark {
+    display: inline-block;
+    width: 13px;
+    margin-right: 2px;
+    color: var(--kjs-orange);
+    font-size: 9px;
+  }
+
+  .kjs-status {
+    display: flex;
+    height: 28px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+    border-top: 1px solid var(--kjs-border);
+    background: var(--kjs-surface-2);
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+  }
+
+  .kjs-status .kjs-ok {
+    color: var(--kjs-green);
+  }
+
+  .kjs-status .kjs-warn {
+    color: var(--kjs-orange);
+  }
+
+  .kjs-status .kjs-spacer {
+    flex: 1;
+  }
+
+  .kjs-save {
+    display: inline-flex;
+    height: 20px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 7px;
+    border: 1px solid var(--kjs-accent-border);
+    border-radius: 4px;
+    background: var(--kjs-accent-soft);
+    color: var(--kjs-accent);
+    font-family: var(--kjs-sans);
+    font-size: 8.5px;
+  }
+
+  .kjs-side {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    border-left: 1px solid var(--kjs-border);
+    background: rgba(22, 30, 38, 0.66);
+  }
+
+  .kjs-side-tabs {
+    display: flex;
+    height: 38px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 2px;
+    padding: 0 7px;
+    border-bottom: 1px solid var(--kjs-border);
+  }
+
+  .kjs-side-tab {
+    display: inline-flex;
+    height: 25px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 7px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--kjs-text-3);
+    font-size: 9.5px;
+  }
+
+  .kjs-side-tab:hover {
+    color: var(--kjs-text-2);
+  }
+
+  .kjs-side-tab.is-active {
+    border-color: var(--kjs-border);
+    background: var(--kjs-surface);
+    color: var(--kjs-text);
+  }
+
+  .kjs-side-tab em {
+    color: var(--kjs-orange);
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+    font-style: normal;
+  }
+
+  .kjs-side-body {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--kjs-surface-3) transparent;
+  }
+
+  .kjs-panel {
+    display: none;
+    padding: 10px;
+  }
+
+  .kjs-panel.is-active {
+    display: block;
+  }
+
+  .kjs-search-big {
+    display: flex;
+    height: 29px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 1px solid var(--kjs-accent-border);
+    border-radius: 6px;
+    background: var(--kjs-surface);
+    color: var(--kjs-text-3);
+    font-size: 9.5px;
+  }
+
+  .kjs-search-big span {
+    color: var(--kjs-text);
+  }
+
+  .kjs-search-big kbd {
+    margin-left: auto;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 7.5px;
+  }
+
+  .kjs-subtabs {
+    display: flex;
+    gap: 3px;
+    margin: 8px 0 7px;
+  }
+
+  .kjs-subtab {
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--kjs-text-3);
+    font-size: 8.5px;
+  }
+
+  .kjs-subtab.is-active {
+    border-color: var(--kjs-accent-border);
+    background: var(--kjs-accent-soft);
+    color: var(--kjs-accent);
+  }
+
+  .kjs-result {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 7px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    text-align: left;
+  }
+
+  .kjs-result:hover {
+    border-color: var(--kjs-border);
+    background: var(--kjs-surface-2);
+  }
+
+  .kjs-result.is-selected {
+    border-color: var(--kjs-accent-border);
+    background: var(--kjs-accent-soft);
+  }
+
+  .kjs-item-icon {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid var(--kjs-border);
+    border-radius: 4px;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 55%),
+      #27313b;
+    color: var(--kjs-text-2);
+    font-family: var(--kjs-sans);
+    font-size: 12px;
+    font-weight: 500;
+    image-rendering: pixelated;
+  }
+
+  .kjs-item-icon.is-iron {
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.14), transparent 55%),
+      #58636d;
+    color: #dfe7ed;
+  }
+
+  .kjs-item-icon.is-hopper {
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.1), transparent 55%),
+      #3b454e;
+    color: #c4d0da;
+  }
+
+  .kjs-result-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .kjs-result-copy strong {
+    overflow: hidden;
+    color: var(--kjs-text);
+    font-size: 9.5px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kjs-result-copy span {
+    overflow: hidden;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kjs-insert {
+    flex: 0 0 auto;
+    padding: 2px 5px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 4px;
+    background: var(--kjs-surface);
+    color: var(--kjs-text-3);
+    font-size: 8px;
+  }
+
+  .kjs-insert:hover {
+    border-color: var(--kjs-accent-border);
+    color: var(--kjs-accent);
+  }
+
+  .kjs-section {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 12px 2px 5px;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .kjs-section em {
+    margin-left: auto;
+    color: var(--kjs-text-3);
+    font-style: normal;
+  }
+
+  .kjs-recipe-card {
+    padding: 9px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 7px;
+    background: var(--kjs-surface);
+  }
+
+  .kjs-recipe-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .kjs-recipe-head .kjs-item-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .kjs-recipe-title {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .kjs-recipe-title strong {
+    color: var(--kjs-text);
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .kjs-recipe-title span {
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+  }
+
+  .kjs-badge {
+    padding: 1px 5px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 3px;
+    background: var(--kjs-surface-2);
+    color: var(--kjs-text-3);
+    font-size: 7.5px;
+    white-space: nowrap;
+  }
+
+  .kjs-badge.is-green {
+    border-color: rgba(67, 199, 154, 0.3);
+    background: rgba(67, 199, 154, 0.1);
+    color: var(--kjs-green);
+  }
+
+  .kjs-recipe-grid {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 9px;
+    padding-top: 8px;
+    border-top: 1px solid var(--kjs-border);
+    color: var(--kjs-text-3);
+    font-size: 8px;
+  }
+
+  .kjs-ingredient {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 5px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 4px;
+    background: var(--kjs-surface-2);
+    color: var(--kjs-text-2);
+    font-family: var(--kjs-mono);
+    font-size: 7.5px;
+  }
+
+  .kjs-arrow {
+    color: var(--kjs-text-3);
+    font-size: 10px;
+  }
+
+  .kjs-recipe-actions {
+    display: flex;
+    gap: 5px;
+    margin-top: 8px;
+  }
+
+  .kjs-action {
+    display: inline-flex;
+    height: 22px;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 4px;
+    background: var(--kjs-surface-2);
+    color: var(--kjs-text-2);
+    font-size: 8px;
+  }
+
+  .kjs-action:hover {
+    border-color: var(--kjs-border-strong);
+    color: var(--kjs-text);
+  }
+
+  .kjs-action.is-danger {
+    color: #f1a7a2;
+  }
+
+  .kjs-action.is-danger:hover {
+    border-color: rgba(239, 124, 118, 0.4);
+    background: rgba(239, 124, 118, 0.08);
+  }
+
+  .kjs-index-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    margin-top: 11px;
+    padding: 7px 8px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--kjs-text-3);
+    font-size: 8px;
+    line-height: 1.55;
+  }
+
+  .kjs-index-note b {
+    color: var(--kjs-green);
+    font-weight: 500;
+  }
+
+  .kjs-explain-summary {
+    padding: 9px;
+    border: 1px solid var(--kjs-border);
+    border-radius: 7px;
+    background: var(--kjs-surface);
+  }
+
+  .kjs-explain-summary strong {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--kjs-text);
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .kjs-explain-summary p {
+    margin: 0;
+    color: var(--kjs-text-2);
+    font-size: 9px;
+    line-height: 1.6;
+  }
+
+  .kjs-explain-source {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 7px;
+    color: var(--kjs-text-3);
+    font-size: 8px;
+  }
+
+  .kjs-explain-source em {
+    padding: 1px 5px;
+    border: 1px solid rgba(67, 199, 154, 0.25);
+    border-radius: 3px;
+    background: rgba(67, 199, 154, 0.08);
+    color: var(--kjs-green);
+    font-style: normal;
+  }
+
+  .kjs-point {
+    display: flex;
+    gap: 7px;
+    padding: 6px 3px;
+    border-bottom: 1px solid var(--kjs-border);
+  }
+
+  .kjs-point:last-child {
+    border-bottom: 0;
+  }
+
+  .kjs-point-line {
+    flex: 0 0 27px;
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+    text-align: right;
+  }
+
+  .kjs-point-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .kjs-point-copy strong {
+    color: var(--kjs-text-2);
+    font-size: 9px;
+    font-weight: 500;
+  }
+
+  .kjs-point-copy span {
+    color: var(--kjs-text-3);
+    font-size: 8.5px;
+    line-height: 1.5;
+  }
+
+  .kjs-ai-btn {
+    display: flex;
+    width: 100%;
+    height: 27px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 9px;
+    border: 1px solid var(--kjs-accent-border);
+    border-radius: 5px;
+    background: var(--kjs-accent-soft);
+    color: var(--kjs-accent);
+    font-size: 9px;
+  }
+
+  .kjs-problem-summary {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 9px;
+    border: 1px solid rgba(227, 170, 78, 0.25);
+    border-radius: 6px;
+    background: rgba(227, 170, 78, 0.07);
+    color: var(--kjs-orange);
+    font-size: 9px;
+  }
+
+  .kjs-problem-summary strong {
+    font-family: var(--kjs-mono);
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .kjs-problem {
+    display: flex;
+    gap: 7px;
+    padding: 8px 3px;
+    border-bottom: 1px solid var(--kjs-border);
+  }
+
+  .kjs-problem-mark {
+    display: grid;
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 4px;
+    font-family: var(--kjs-mono);
+    font-size: 8px;
+    font-weight: 600;
+  }
+
+  .kjs-problem-mark.is-warn {
+    background: rgba(227, 170, 78, 0.14);
+    color: var(--kjs-orange);
+  }
+
+  .kjs-problem-mark.is-error {
+    background: rgba(239, 124, 118, 0.14);
+    color: var(--kjs-red);
+  }
+
+  .kjs-problem-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .kjs-problem-copy strong {
+    color: var(--kjs-text-2);
+    font-size: 9px;
+    font-weight: 500;
+  }
+
+  .kjs-problem-copy span {
+    color: var(--kjs-text-3);
+    font-size: 8.5px;
+    line-height: 1.5;
+  }
+
+  .kjs-problem-copy em {
+    color: var(--kjs-text-3);
+    font-family: var(--kjs-mono);
+    font-size: 7.5px;
+    font-style: normal;
+  }
+
+  @media (max-width: 1100px) {
+    .kjs-layout {
+      grid-template-columns: 188px minmax(0, 1fr) 300px;
+    }
+    .kjs-code {
+      font-size: 10px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .kjs-shell {
+      height: 720px;
+    }
+    .kjs-layout {
+      grid-template-columns: 178px minmax(0, 1fr) 276px;
+    }
+    .kjs-meta .kjs-chip:first-child {
+      display: none;
+    }
+  }
+</style>
+
+<div class="kjs-preview">
+  <div class="kjs-shell">
+    <header class="kjs-top">
+      <div class="kjs-mark">风</div>
+      <div class="kjs-top-title">
+        <strong>KubeJS 工作台</strong>
+        <span>整合包工坊 / miao</span>
+      </div>
+      <div class="kjs-meta">
+        <span class="kjs-chip is-accent"><span class="kjs-dot"></span>索引就绪</span>
+        <span class="kjs-chip">Forge 1.20.1</span>
+        <span class="kjs-chip">KubeJS <b>2001.6.5</b></span>
+      </div>
+    </header>
+
+    <div class="kjs-tabs">
+      <button class="kjs-tab" type="button">模组筛选 <em>308</em></button>
+      <button class="kjs-tab is-active" type="button">KubeJS 工作台 <em>60</em></button>
+      <span class="kjs-chip" style="margin-left:auto; background:transparent; border-color:transparent; color:#5b6a79;">方案示意 · 非最终 UI</span>
+    </div>
+
+    <div class="kjs-layout">
+      <aside class="kjs-files">
+        <div class="kjs-pane-head">
+          <strong>文件</strong>
+          <button class="kjs-icon-btn" type="button" title="新建文件">+</button>
+          <small>60</small>
+        </div>
+        <div class="kjs-search">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+          搜索文件
+          <kbd>Ctrl P</kbd>
+        </div>
+        <div class="kjs-tree">
+          <div class="kjs-group"><span class="kjs-chev">›</span>server_scripts<em>18</em></div>
+          <button class="kjs-file is-active" type="button">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+            <span>recipes_remove.js</span><i></i>
+          </button>
+          <button class="kjs-file" type="button">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+            <span>tag.js</span>
+          </button>
+          <button class="kjs-file" type="button">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+            <span>bedrock.js</span>
+          </button>
+          <div class="kjs-group is-nested"><span class="kjs-chev">›</span>craft custom<em>12</em></div>
+          <button class="kjs-file is-nested" type="button">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+            <span>avaritia_craft.js</span>
+          </button>
+          <button class="kjs-file is-nested" type="button">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+            <span>projecte_craft.js</span>
+          </button>
+          <div class="kjs-group"><span class="kjs-chev is-closed">›</span>client_scripts<em>2</em></div>
+          <div class="kjs-group"><span class="kjs-chev is-closed">›</span>startup_scripts<em>3</em></div>
+          <div class="kjs-group"><span class="kjs-chev is-closed">›</span>data<em>6</em></div>
+        </div>
+        <div class="kjs-file-actions">
+          <button class="kjs-mini-btn" type="button">模板</button>
+          <button class="kjs-mini-btn" type="button">历史</button>
+          <button class="kjs-mini-btn" type="button">目录</button>
+        </div>
+      </aside>
+
+      <main class="kjs-main">
+        <div class="kjs-editor-tabs">
+          <button class="kjs-etab is-active" type="button"><span>recipes_remove.js</span><i></i></button>
+          <button class="kjs-etab" type="button"><span>tag.js</span></button>
+          <button class="kjs-etab" type="button"><span>avaritia_craft.js</span></button>
+          <button class="kjs-etab" type="button"><b>+</b></button>
+        </div>
+        <div class="kjs-editor-bar">
+          <span class="kjs-crumb">server_scripts</span><span>/</span><b>recipes_remove.js</b>
+          <span class="kjs-dirty">未保存</span>
+        </div>
+        <div class="kjs-code">
+          <div class="kjs-line"><span class="kjs-ln">1</span><span class="kjs-code-text"><span class="kjs-k">ServerEvents</span><span class="kjs-p">.</span><span class="kjs-f">recipes</span><span class="kjs-p">(</span><span class="kjs-k">event</span> <span class="kjs-k">=&gt;</span> <span class="kjs-p">{</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">2</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-k">event</span><span class="kjs-p">.</span><span class="kjs-f">remove</span><span class="kjs-p">({</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">3</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-p">  </span><span class="kjs-s">output</span><span class="kjs-p">:</span> <span class="kjs-s">'minecraft:hopper'</span></span></div>
+          <div class="kjs-line is-warn"><span class="kjs-ln">4</span><span class="kjs-code-text"><span class="kjs-gutter-mark">!</span>  <span class="kjs-p">  </span><span class="kjs-s">input</span><span class="kjs-p">:</span> <span class="kjs-s">'minecraft:</span><span class="kjs-unk">hooper</span><span class="kjs-s">'</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">5</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-p">})</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">6</span><span class="kjs-code-text"></span></div>
+          <div class="kjs-line"><span class="kjs-ln">7</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-c">// 按模组整体删除，范围较大</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">8</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-k">event</span><span class="kjs-p">.</span><span class="kjs-f">remove</span><span class="kjs-p">({</span> <span class="kjs-s">mod</span><span class="kjs-p">:</span> <span class="kjs-s">'avaritia'</span> <span class="kjs-p">})</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">9</span><span class="kjs-code-text"></span></div>
+          <div class="kjs-line"><span class="kjs-ln">10</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-k">event</span><span class="kjs-p">.</span><span class="kjs-f">remove</span><span class="kjs-p">({</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">11</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-p">  </span><span class="kjs-s">output</span><span class="kjs-p">:</span> <span class="kjs-f">Item</span><span class="kjs-p">.</span><span class="kjs-f">of</span><span class="kjs-p">(</span><span class="kjs-s">'avaritia:infinity_clock'</span><span class="kjs-p">,</span> <span class="kjs-s">'{mode:{}}'</span><span class="kjs-p">)</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">12</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-p">})</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">13</span><span class="kjs-code-text"></span></div>
+          <div class="kjs-line"><span class="kjs-ln">14</span><span class="kjs-code-text">  <span class="kjs-p">  </span><span class="kjs-k">event</span><span class="kjs-p">.</span><span class="kjs-f">remove</span><span class="kjs-p">({</span> <span class="kjs-s">type</span><span class="kjs-p">:</span> <span class="kjs-s">'minecraft:crafting_shapeless'</span> <span class="kjs-p">})</span></span></div>
+          <div class="kjs-line"><span class="kjs-ln">15</span><span class="kjs-code-text"><span class="kjs-p">})</span></span></div>
+        </div>
+        <div class="kjs-status">
+          <span>Ln 4, Col 22</span><span>UTF-8</span><span>LF</span><span>JavaScript</span>
+          <span class="kjs-ok">语法 OK</span><span class="kjs-warn">问题 3</span>
+          <span class="kjs-spacer"></span>
+          <span>已备份 16:42</span>
+          <button class="kjs-save" type="button">保存 Ctrl+S</button>
+        </div>
+      </main>
+
+      <aside class="kjs-side">
+        <div class="kjs-side-tabs">
+          <button class="kjs-side-tab is-active" type="button" data-panel="knowledge">知识</button>
+          <button class="kjs-side-tab" type="button" data-panel="explain">释意</button>
+          <button class="kjs-side-tab" type="button" data-panel="problems">问题 <em>3</em></button>
+        </div>
+        <div class="kjs-side-body">
+          <section class="kjs-panel is-active" data-panel="knowledge">
+            <div class="kjs-search-big">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              <span>漏斗</span>
+              <kbd>@minecraft</kbd>
+            </div>
+            <div class="kjs-subtabs">
+              <button class="kjs-subtab is-active" type="button">物品 <em>2</em></button>
+              <button class="kjs-subtab" type="button">配方 <em>6</em></button>
+              <button class="kjs-subtab" type="button">标签</button>
+            </div>
+            <button class="kjs-result is-selected" type="button">
+              <span class="kjs-item-icon is-hopper">漏</span>
+              <span class="kjs-result-copy"><strong>漏斗</strong><span>minecraft:hopper · 原版</span></span>
+              <span class="kjs-insert">插入</span>
+            </button>
+            <button class="kjs-result" type="button">
+              <span class="kjs-item-icon is-iron">铁</span>
+              <span class="kjs-result-copy"><strong>铁锭</strong><span>minecraft:iron_ingot · 原版</span></span>
+              <span class="kjs-insert">插入</span>
+            </button>
+            <div class="kjs-section">产出配方 <em>6 条</em></div>
+            <div class="kjs-recipe-card">
+              <div class="kjs-recipe-head">
+                <span class="kjs-item-icon is-hopper">漏</span>
+                <span class="kjs-recipe-title"><strong>漏斗 × 1</strong><span>minecraft:hopper</span></span>
+                <span class="kjs-badge is-green">有序合成</span>
+              </div>
+              <div class="kjs-recipe-grid">
+                <span class="kjs-ingredient">铁锭 × 5</span>
+                <span class="kjs-arrow">→</span>
+                <span class="kjs-ingredient">箱子 × 1</span>
+              </div>
+              <div class="kjs-recipe-actions">
+                <button class="kjs-action is-danger" type="button">删除此配方</button>
+                <button class="kjs-action" type="button">插入 ID</button>
+              </div>
+            </div>
+            <div class="kjs-index-note"><b>静态索引</b> 33,188 条配方 · 27,864 个物品；来自 308 个模组 jar 与 kubejs/data。运行时脚本生成的配方可能不在列表中。</div>
+          </section>
+
+          <section class="kjs-panel" data-panel="explain">
+            <div class="kjs-explain-source"><em>本地释意</em><span>·</span><span>4 个要点</span></div>
+            <div class="kjs-explain-summary">
+              <strong>这段脚本主要做：删除 37 条配方。</strong>
+              <p>按输出、输入、类型和整模组删除配方；第 4 行有一个疑似拼写错误。</p>
+            </div>
+            <div class="kjs-point">
+              <span class="kjs-point-line">L1</span>
+              <span class="kjs-point-copy"><strong>注册服务端配方事件</strong><span>ServerEvents.recipes 在服务端资源重载时执行。</span></span>
+            </div>
+            <div class="kjs-point">
+              <span class="kjs-point-line">L2-5</span>
+              <span class="kjs-point-copy"><strong>按输出 + 输入删除</strong><span>删除所有产出漏斗、且输入为 hooper 的配方；但 hooper 不是有效物品 ID。</span></span>
+            </div>
+            <div class="kjs-point">
+              <span class="kjs-point-line">L8</span>
+              <span class="kjs-point-copy"><strong>删除整个模组</strong><span>删除 avaritia 命名空间下的全部配方，范围较大。</span></span>
+            </div>
+            <div class="kjs-point">
+              <span class="kjs-point-line">L11</span>
+              <span class="kjs-point-copy"><strong>带 NBT 的输出匹配</strong><span>返回 Item.of 的物品 ID，同时保留 NBT 字符串。</span></span>
+            </div>
+            <button class="kjs-ai-btn" type="button">AI 深释意（显式点击）</button>
+          </section>
+
+          <section class="kjs-panel" data-panel="problems">
+            <div class="kjs-problem-summary"><strong>1 错误 · 2 警告</strong><span>·</span><span>静态预检</span></div>
+            <div class="kjs-problem">
+              <span class="kjs-problem-mark is-warn">!</span>
+              <span class="kjs-problem-copy"><strong>未知物品 ID</strong><span>minecraft:hooper 不在索引中，可能是 hopper 的拼写错误。</span><em>recipes_remove.js · L4</em></span>
+            </div>
+            <div class="kjs-problem">
+              <span class="kjs-problem-mark is-warn">!</span>
+              <span class="kjs-problem-copy"><strong>按模组删除范围较大</strong><span>删除 avaritia 的全部配方前，请确认没有其他脚本依赖它们。</span><em>recipes_remove.js · L8</em></span>
+            </div>
+            <div class="kjs-problem">
+              <span class="kjs-problem-mark is-error">×</span>
+              <span class="kjs-problem-copy"><strong>空选择器</strong><span>event.remove({}) 不会匹配任何配方，检查是否漏写了条件。</span><em>tag.js · L22</em></span>
+            </div>
+            <div class="kjs-index-note"><b>提示</b> 预检是静态分析，不会执行脚本；运行时生成的 ID 可能被标为“未知”。</div>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    var root = document.querySelector('.kjs-preview');
+    if (!root) return;
+    var tabs = root.querySelectorAll('.kjs-side-tab');
+    var panels = root.querySelectorAll('.kjs-panel');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var target = tab.getAttribute('data-panel');
+        tabs.forEach(function (item) {
+          item.classList.toggle('is-active', item === tab);
+        });
+        panels.forEach(function (panel) {
+          panel.classList.toggle('is-active', panel.getAttribute('data-panel') === target);
+        });
+      });
+    });
+    var subtabs = root.querySelectorAll('.kjs-subtab');
+    subtabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        subtabs.forEach(function (item) {
+          item.classList.toggle('is-active', item === tab);
+        });
+      });
+    });
+    var files = root.querySelectorAll('.kjs-file');
+    files.forEach(function (file) {
+      file.addEventListener('click', function () {
+        files.forEach(function (item) {
+          item.classList.toggle('is-active', item === file);
+        });
+      });
+    });
+  })();
+</script>

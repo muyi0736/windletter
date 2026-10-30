@@ -1,0 +1,95 @@
+/* ---------- Tag generator (0.52.0) ---------- */
+.kjs-tag-host[hidden] {
+  display: none;
+}
+
+.kjs-tag {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.kjs-tag-id-row {
+  display: flex;
+  gap: 5px;
+}
+
+.kjs-tag-search-btn {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.kjs-tag-search-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+
+.kjs-tag-existing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+}
+
+.kjs-tag-existing-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: 9px;
+}
+
+.kjs-tag-existing-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.kjs-tag-chip {
+  display: inline-flex;
+  max-width: 100%;
+  height: 22px;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-tag-chip .kjs-recipe-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.kjs-tag-chip.is-more {
+  color: var(--text-3);
+}
+
+.kjs-tag-modes {
+  width: fit-content;
+}
+
+.kjs-tag-modes button {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 9px;
+}

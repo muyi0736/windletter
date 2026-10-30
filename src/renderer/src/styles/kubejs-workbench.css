@@ -1,0 +1,3193 @@
+/* ---------- KubeJS workbench (0.44.0 P1) ---------- */
+.kjs-workbench {
+  position: relative;
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: 216px minmax(0, 1fr) 324px;
+  grid-template-rows: minmax(0, 1fr) 30px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.kjs-icon-btn {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.kjs-icon-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.kjs-icon-btn.is-accent {
+  color: var(--accent-ink);
+}
+
+.kjs-icon-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* Left file tree */
+.kjs-sidebar {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.kjs-sidebar-head {
+  display: flex;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px 0 11px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-sidebar-head strong {
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.kjs-sidebar-head > span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.kjs-sidebar-head .kjs-icon-btn:first-of-type {
+  margin-left: auto;
+}
+
+.kjs-file-search {
+  display: flex;
+  height: 27px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 8px 3px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-3);
+}
+
+.kjs-file-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 9px;
+  outline: none;
+}
+
+.kjs-file-search .kjs-icon-btn {
+  width: 18px;
+  height: 18px;
+}
+
+.kjs-new-file {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  margin: 0 8px 4px;
+}
+
+.kjs-new-file input {
+  min-width: 0;
+  height: 26px;
+  flex: 1;
+  padding: 0 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  outline: none;
+}
+
+.kjs-tree {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 4px 6px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+.kjs-tree-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kjs-tree-row {
+  display: flex;
+  width: 100%;
+  height: 25px;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 9.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-tree-row:hover {
+  background: var(--surface-3);
+}
+
+.kjs-tree-row.is-dir {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+}
+
+.kjs-tree-row.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-tree-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-tree-row em {
+  margin-left: auto;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-style: normal;
+}
+
+.kjs-tree-row i {
+  width: 4px;
+  height: 4px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--warning-ink);
+}
+
+.kjs-tree-row .is-open {
+  transform: rotate(90deg);
+}
+
+.kjs-tree-loading,
+.kjs-tree-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 24px 12px;
+  color: var(--text-3);
+  font-size: 8.5px;
+  text-align: center;
+}
+
+.kjs-tree-empty small {
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1.6;
+}
+
+.kjs-sidebar-foot {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.kjs-side-foot-btn {
+  display: inline-flex;
+  height: 24px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.kjs-side-foot-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* Editor column */
+.kjs-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.kjs-tabs {
+  display: flex;
+  height: 35px;
+  flex: 0 0 auto;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  scrollbar-width: thin;
+}
+
+.kjs-tab {
+  display: flex;
+  min-width: 0;
+  max-width: 230px;
+  flex: 0 0 auto;
+  align-items: stretch;
+  border-right: 1px solid var(--border);
+  background: transparent;
+}
+
+.kjs-tab.is-active {
+  background: var(--surface);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.kjs-tab-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  cursor: pointer;
+}
+
+.kjs-tab.is-active .kjs-tab-name {
+  color: var(--text);
+}
+
+.kjs-tab-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-tab-name i {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--warning-ink);
+}
+
+.kjs-tab-close {
+  display: grid;
+  width: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.kjs-tab:hover .kjs-tab-close,
+.kjs-tab.is-active .kjs-tab-close {
+  opacity: 1;
+}
+
+.kjs-tab-close:hover {
+  color: var(--danger-ink);
+}
+
+.kjs-tab-add {
+  display: grid;
+  width: 30px;
+  height: 100%;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.kjs-tab-add:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.kjs-editor-head {
+  display: flex;
+  min-height: 35px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-editor-path {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kjs-editor-path strong {
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-editor-path span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-rename {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+}
+
+.kjs-rename input {
+  min-width: 160px;
+  max-width: 460px;
+  height: 24px;
+  flex: 1;
+  padding: 0 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  outline: none;
+}
+
+.kjs-editor-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+}
+
+.kjs-template-select {
+  width: 108px;
+  height: 25px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 8px;
+  outline: none;
+}
+
+.kjs-action-btn {
+  display: inline-flex;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.kjs-action-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.kjs-action-btn.is-icon {
+  width: 25px;
+  padding: 0;
+}
+
+.kjs-action-btn.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-action-btn.is-danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  color: var(--danger-ink);
+}
+
+.kjs-action-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.kjs-action-divider {
+  width: 1px;
+  height: 15px;
+  margin: 0 2px;
+  background: var(--border);
+}
+
+.kjs-font-size {
+  min-width: 14px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  text-align: center;
+}
+
+.kjs-editor-stage {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.kjs-cm {
+  height: 100%;
+}
+
+.kjs-cm .cm-editor {
+  height: 100%;
+  font-size: var(--kjs-code-size, 12px);
+}
+
+.kjs-cm .cm-editor.cm-focused {
+  outline: none;
+}
+
+.kjs-cm .cm-content {
+  font-size: var(--kjs-code-size, 12px);
+}
+
+.kjs-cm .cm-gutters {
+  font-size: 9px;
+}
+
+.kjs-cm .cm-lintRange-error {
+  background-image: none;
+  text-decoration: underline wavy var(--danger);
+  text-underline-offset: 3px;
+}
+
+.kjs-cm .cm-gutter-lint .cm-gutterElement {
+  color: var(--danger-ink);
+}
+
+.kjs-editor-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--text-3);
+  font-size: 9px;
+  backdrop-filter: blur(2px);
+}
+
+.kjs-editor-empty {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 24px;
+  color: var(--text-3);
+  font-size: 9px;
+  text-align: center;
+}
+
+.kjs-editor-empty strong {
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.kjs-editor-empty span {
+  max-width: 340px;
+  line-height: 1.6;
+}
+
+.kjs-statusbar {
+  display: flex;
+  height: 30px;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.kjs-statusbar .is-ok {
+  color: var(--success-ink);
+}
+
+.kjs-status-spacer {
+  flex: 1;
+}
+
+.kjs-status-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.kjs-status-link:hover {
+  color: var(--text);
+}
+
+.kjs-status-link.is-warn {
+  color: var(--warning-ink);
+}
+
+.kjs-save-btn {
+  display: inline-flex;
+  height: 21px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  cursor: pointer;
+}
+
+.kjs-save-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.kjs-inline-error {
+  position: absolute;
+  right: 10px;
+  bottom: 36px;
+  left: 10px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 6px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 8.5px;
+  box-shadow: var(--shadow-sm);
+}
+
+.kjs-inline-error > span {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Syntax token colors, theme-aware */
+.kjs-cm .kjs-tok-keyword {
+  color: var(--violet-ink);
+}
+.kjs-cm .kjs-tok-definition {
+  color: var(--accent-ink);
+}
+.kjs-cm .kjs-tok-function {
+  color: var(--accent-ink);
+}
+.kjs-cm .kjs-tok-type {
+  color: var(--violet-ink);
+}
+.kjs-cm .kjs-tok-bool,
+.kjs-cm .kjs-tok-number {
+  color: var(--warning-ink);
+}
+.kjs-cm .kjs-tok-string {
+  color: var(--success-ink);
+}
+.kjs-cm .kjs-tok-operator {
+  color: var(--text-2);
+}
+.kjs-cm .kjs-tok-property {
+  color: var(--text);
+}
+.kjs-cm .kjs-tok-comment {
+  color: var(--text-3);
+  font-style: italic;
+}
+.kjs-cm .kjs-tok-invalid {
+  color: var(--danger-ink);
+  text-decoration: underline wavy var(--danger);
+}
+
+/* Right inspector */
+.kjs-inspector {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.kjs-inspector-tabs {
+  display: flex;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 0 7px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-inspector-tab {
+  display: inline-flex;
+  height: 25px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.kjs-inspector-tab:hover {
+  color: var(--text-2);
+}
+
+.kjs-inspector-tab.is-active {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.kjs-inspector-tab em {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-style: normal;
+}
+
+.kjs-inspector-body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 9px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+/* Explain panel */
+.kjs-explain {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kjs-explain-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.kjs-panel-chip {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 8px;
+}
+
+.kjs-explain-toolbar .kjs-icon-btn {
+  margin-left: auto;
+}
+
+.kjs-explain-summary {
+  display: flex;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.kjs-explain-summary > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent-ink);
+}
+
+.kjs-explain-summary > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kjs-explain-summary strong {
+  color: var(--text);
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.kjs-explain-summary span {
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.kjs-explain-points {
+  display: flex;
+  flex-direction: column;
+}
+
+.kjs-explain-point {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+  padding: 6px 3px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-explain-point:hover {
+  background: var(--surface);
+}
+
+.kjs-explain-point:last-child {
+  border-bottom: 0;
+}
+
+.kjs-explain-point > em {
+  flex: 0 0 26px;
+  padding-top: 1px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-style: normal;
+  text-align: right;
+}
+
+.kjs-explain-point > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kjs-explain-point strong {
+  color: var(--text-2);
+  font-size: 8.8px;
+  font-weight: 500;
+}
+
+.kjs-explain-point small {
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.kjs-explain-notes {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
+  border-radius: 5px;
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.kjs-explain-notes svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.kjs-explain-notes span {
+  white-space: pre-wrap;
+}
+
+.kjs-explain-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: 7.5px;
+  line-height: 1.55;
+}
+
+.kjs-explain-tip svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--success-ink);
+}
+
+.kjs-explain-actions {
+  display: flex;
+  margin-top: auto;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 7px;
+}
+
+.kjs-ai-btn {
+  display: flex;
+  width: 100%;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--accent-border);
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 8.5px;
+  cursor: pointer;
+}
+
+.kjs-ai-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.kjs-explain-actions small {
+  color: var(--text-3);
+  font-size: 7.5px;
+  text-align: center;
+}
+
+.kjs-explain-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.kjs-explain-empty {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  color: var(--text-3);
+  font-size: 8.5px;
+  text-align: center;
+}
+
+.kjs-explain-empty.is-inline {
+  min-height: 0;
+}
+
+.kjs-explain-empty strong {
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.kjs-explain-empty span {
+  line-height: 1.6;
+}
+
+.kjs-explain-empty-text {
+  color: var(--text-3);
+  font-size: 8.5px;
+  line-height: 1.6;
+}
+
+/* Problems panel */
+.kjs-problems-empty {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  color: var(--text-3);
+  font-size: 8.5px;
+  text-align: center;
+}
+
+.kjs-problems-empty svg {
+  color: var(--success-ink);
+}
+
+.kjs-problems-empty strong {
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.kjs-problems-empty span {
+  line-height: 1.6;
+}
+
+.kjs-problems {
+  display: flex;
+  flex-direction: column;
+}
+
+.kjs-problems-head {
+  padding: 0 2px 7px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-problem {
+  display: flex;
+  width: 100%;
+  gap: 7px;
+  padding: 7px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-problem:hover {
+  background: var(--surface);
+}
+
+.kjs-problem-line {
+  flex: 0 0 24px;
+  color: var(--danger-ink);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-problem > span:last-child {
+  color: var(--text-2);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+/* Static check + runtime log panel */
+.kjs-check {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.kjs-check-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.kjs-check-tab {
+  display: inline-flex;
+  height: 23px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 8.5px;
+  cursor: pointer;
+}
+
+.kjs-check-tab:hover {
+  color: var(--text-2);
+}
+
+.kjs-check-tab.is-active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.kjs-check-tab em,
+.kjs-check-group-head em {
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-style: normal;
+  line-height: 13px;
+  text-align: center;
+}
+
+.kjs-check-tab em.is-error,
+.kjs-check-group-head em.is-error {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+
+.kjs-check-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.kjs-check-scope {
+  display: inline-flex;
+  padding: 1px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.kjs-check-scope button {
+  height: 19px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.kjs-check-scope button.is-active {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.kjs-check-filter {
+  height: 21px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.kjs-check-filter[data-active='true'] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink, var(--text));
+}
+
+.kjs-check-spacer {
+  flex: 1;
+}
+
+.kjs-check-scan {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.kjs-check-scan:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--text);
+}
+
+.kjs-check-scan:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.kjs-check-summary {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  line-height: 1.5;
+}
+
+.kjs-check-summary.is-muted {
+  color: var(--text-3);
+  font-size: 7px;
+}
+
+.kjs-check-summary.is-inline {
+  display: inline-flex;
+  text-align: left;
+}
+
+.kjs-check-note {
+  color: var(--text-3);
+  font-size: 7.5px;
+  line-height: 1.5;
+}
+
+.kjs-check-error {
+  padding: 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--danger-ink) 26%, transparent);
+  border-radius: 5px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.kjs-check-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.kjs-check-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-check-group-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  text-align: left;
+}
+
+.kjs-check-group-head:hover {
+  color: var(--text-2);
+}
+
+.kjs-check-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-check-group-body {
+  padding-bottom: 3px;
+}
+
+.kjs-problem.is-error .kjs-problem-line {
+  color: var(--danger-ink);
+}
+
+.kjs-problem.is-warning .kjs-problem-line {
+  color: var(--warning-ink);
+}
+
+.kjs-problem-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-2);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.kjs-problem-tags {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.kjs-problem-tags em {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  font-style: normal;
+  line-height: 12px;
+}
+
+.kjs-sev {
+  padding: 0 3px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  font-style: normal;
+  line-height: 12px;
+}
+
+.kjs-sev.is-error {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+
+.kjs-sev.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+
+.kjs-sev.is-info {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+.kjs-inspector-tab em.is-error {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+
+.kjs-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kjs-log-entry {
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-log-head {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 2px 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.kjs-log-head:hover {
+  background: var(--surface);
+}
+
+.kjs-log-time {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  line-height: 13px;
+}
+
+.kjs-log-source {
+  flex: 0 0 auto;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  line-height: 13px;
+}
+
+.kjs-log-message {
+  display: -webkit-box;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 8px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.kjs-log-chevron {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  line-height: 13px;
+}
+
+.kjs-log-jump {
+  padding: 0 2px 5px;
+}
+
+.kjs-log-path {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--accent-ink, var(--text-2));
+  font-family: var(--font-mono);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.kjs-log-path:hover {
+  text-decoration: underline;
+}
+
+.kjs-log-path.is-missing {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.kjs-log-details {
+  padding: 0 2px 6px;
+}
+
+.kjs-log-frames {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 4px;
+}
+
+.kjs-log-frame {
+  display: block;
+  width: 100%;
+  padding: 2px 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  line-height: 1.45;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-log-frame.is-link {
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.kjs-log-frame.is-link:hover {
+  background: var(--surface-3);
+}
+
+.kjs-log-raw {
+  max-height: 180px;
+  margin: 0;
+  padding: 5px 6px;
+  overflow: auto;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* History modal */
+.kjs-history {
+  display: grid;
+  min-height: 430px;
+  grid-template-columns: 220px 180px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.kjs-history-files,
+.kjs-history-snapshots {
+  display: flex;
+  min-height: 0;
+  max-height: 540px;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  scrollbar-width: thin;
+}
+
+.kjs-history-caption {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px 5px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.kjs-history-file {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-history-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-history-file em {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 7.5px;
+  font-style: normal;
+}
+
+.kjs-history-file:hover {
+  background: var(--surface);
+}
+
+.kjs-history-file.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-history-snapshot {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-history-snapshot:hover {
+  background: var(--surface);
+}
+
+.kjs-history-snapshot.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.kjs-history-snapshot strong {
+  flex: 1;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.kjs-history-snapshot span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.kjs-history-detail {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  overflow: auto;
+}
+
+.kjs-history-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 2px 4px;
+}
+
+.kjs-history-detail-head > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kjs-history-detail-head strong {
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-history-detail-head span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-history-detail-head em {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: 7.5px;
+  font-style: normal;
+}
+
+.kjs-history-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+}
+
+.kjs-history-footer > span {
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.kjs-history-footer > div {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.kjs-history-loading {
+  display: flex;
+  min-height: 260px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--text-3);
+  font-size: 9px;
+}
+
+.kjs-history-loading.is-inline {
+  min-height: 120px;
+}
+
+.kjs-history-empty {
+  display: flex;
+  min-height: 300px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: 8.5px;
+  text-align: center;
+}
+
+.kjs-history-empty strong {
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.kjs-history-empty span {
+  line-height: 1.6;
+}
+
+.kjs-history-empty.is-inline {
+  min-height: 160px;
+}
+
+.kjs-history-missing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border));
+  border-radius: 5px;
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+  font-size: 7.5px;
+}
+
+/* Diff */
+.kjs-diff-wrap {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.kjs-diff-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-diff-head > span:first-child,
+.kjs-diff-head > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-diff-stats {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.kjs-diff-stats em {
+  font-style: normal;
+}
+
+.kjs-diff-stats .is-add {
+  color: var(--success-ink);
+}
+
+.kjs-diff-stats .is-del {
+  color: var(--danger-ink);
+}
+
+.kjs-diff {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  line-height: 1.55;
+  scrollbar-width: thin;
+}
+
+.kjs-diff-row {
+  display: grid;
+  min-width: max-content;
+  grid-template-columns: 34px 34px 14px minmax(0, 1fr);
+  gap: 4px;
+  padding: 0 6px 0 0;
+}
+
+.kjs-diff-row.is-add {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.kjs-diff-row.is-del {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.kjs-diff-line {
+  padding-right: 5px;
+  color: var(--text-3);
+  text-align: right;
+  user-select: none;
+}
+
+.kjs-diff-sign {
+  color: var(--text-3);
+  text-align: center;
+  user-select: none;
+}
+
+.kjs-diff-row.is-add .kjs-diff-sign {
+  color: var(--success-ink);
+}
+
+.kjs-diff-row.is-del .kjs-diff-sign {
+  color: var(--danger-ink);
+}
+
+.kjs-diff-text {
+  color: var(--text-2);
+  white-space: pre;
+}
+
+.kjs-diff-row.is-add .kjs-diff-text {
+  color: var(--success-ink);
+}
+
+.kjs-diff-row.is-del .kjs-diff-text {
+  color: var(--danger-ink);
+}
+
+.kjs-diff-empty {
+  display: flex;
+  min-height: 160px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  color: var(--text-3);
+  font-size: 8.5px;
+  text-align: center;
+}
+
+/* Conflict dialog */
+.kjs-conflict-actions {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.kjs-conflict-copy {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 9.5px;
+  line-height: 1.7;
+}
+
+.kjs-conflict-note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+@media (max-width: 1180px) {
+  .kjs-workbench {
+    grid-template-columns: 202px minmax(0, 1fr) 300px;
+  }
+  .kjs-template-select {
+    width: 92px;
+  }
+}
+
+@media (max-width: 980px) {
+  .kjs-workbench {
+    grid-template-columns: 184px minmax(0, 1fr) 280px;
+  }
+  .kjs-editor-actions {
+    gap: 2px;
+  }
+  .kjs-statusbar {
+    gap: 8px;
+    font-size: 7.5px;
+  }
+}
+
+/* AI authoring panel */
+.kjs-ai-panel {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kjs-ai-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-ink);
+}
+
+.kjs-ai-head strong {
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.kjs-ai-head span {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 7.5px;
+}
+
+.kjs-ai-copy {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1.6;
+}
+
+.kjs-ai-prompt {
+  width: 100%;
+  min-height: 78px;
+  resize: vertical;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 8.5px;
+  line-height: 1.6;
+  outline: none;
+}
+
+.kjs-ai-prompt:focus {
+  border-color: var(--accent-border);
+}
+
+.kjs-ai-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kjs-ai-target {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-ai-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.kjs-ai-result {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.kjs-ai-result-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-ai-result-head em {
+  margin-left: auto;
+  font-style: normal;
+}
+
+.kjs-ai-result pre {
+  max-height: 270px;
+  margin: 0;
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1.6;
+  white-space: pre;
+  scrollbar-width: thin;
+}
+
+.kjs-ai-diff {
+  display: flex;
+  min-height: 0;
+  max-height: 260px;
+}
+
+.kjs-ai-diff .kjs-diff-wrap {
+  max-height: 260px;
+  border-radius: 5px;
+}
+
+.kjs-ai-diff .kjs-diff {
+  font-size: 7.5px;
+}
+
+.kjs-ai-result p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 7.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.kjs-ai-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.kjs-ai-result small {
+  color: var(--text-3);
+  font-size: 7px;
+}
+
+.kjs-ai-empty {
+  display: flex;
+  min-height: 100px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px;
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+/* Index / knowledge panel */
+.kjs-index-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 34px 12px;
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.kjs-index-build {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 2px;
+}
+
+.kjs-index-build-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--accent-border);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-index-build > strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.kjs-index-build > p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1.65;
+}
+
+.kjs-index-build-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.kjs-index-build-actions small {
+  color: var(--text-3);
+  font-size: 7.5px;
+  line-height: 1.55;
+}
+
+.kjs-index-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.kjs-index-progress-head {
+  display: flex;
+  gap: 6px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-index-progress-head span:first-child {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-index-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.kjs-index {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.kjs-index-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.kjs-index-head > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kjs-index-head strong {
+  color: var(--text-2);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.kjs-index-head span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  line-height: 1.5;
+}
+
+.kjs-index-search {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-3);
+}
+
+.kjs-index-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 8.5px;
+  outline: none;
+}
+
+.kjs-index-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kjs-index-filter select {
+  min-width: 0;
+  height: 24px;
+  flex: 1;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 7.5px;
+  outline: none;
+}
+
+.kjs-index-filter > span {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.kjs-index-kinds {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.kjs-index-kinds button {
+  display: inline-flex;
+  height: 24px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.kjs-index-kinds button.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-index-kinds em {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-style: normal;
+}
+
+.kjs-index-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kjs-index-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 4px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-index-row:hover {
+  background: var(--surface);
+}
+
+.kjs-index-tile {
+  position: relative;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 55%),
+    var(--surface-3);
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.kjs-index-row-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kjs-index-row-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 9px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-index-row-copy span {
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-index-insert {
+  flex: 0 0 auto;
+  height: 21px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 7.5px;
+  cursor: pointer;
+}
+
+.kjs-index-insert:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+
+.kjs-index-chevron {
+  flex: 0 0 auto;
+  color: var(--text-3);
+}
+
+.kjs-index-recipe {
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.kjs-index-recipe.is-expanded {
+  border-color: var(--accent-border);
+  background: var(--surface);
+}
+
+.kjs-index-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 2px 7px 7px 36px;
+}
+
+.kjs-index-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.kjs-index-inputs span {
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 6.8px;
+}
+
+.kjs-index-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.kjs-index-code-btn {
+  height: 21px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 7.5px;
+  cursor: pointer;
+}
+
+.kjs-index-code-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+
+.kjs-index-code-btn.is-danger {
+  color: var(--danger-ink);
+}
+
+.kjs-index-code-btn.is-danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
+.kjs-index-detail small {
+  color: var(--text-3);
+  font-size: 7px;
+  line-height: 1.5;
+}
+
+.kjs-index-empty {
+  display: flex;
+  min-height: 130px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 16px;
+  color: var(--text-3);
+  font-size: 8px;
+  text-align: center;
+}
+
+.kjs-index-empty strong {
+  color: var(--text-2);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.kjs-index-empty span {
+  line-height: 1.55;
+}
+
+.kjs-index-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.kjs-index-foot > span {
+  flex: 1;
+}
+
+.kjs-index-more {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: 7.5px;
+  cursor: pointer;
+}
+
+.kjs-index-more:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+
+.kjs-index-note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 7px;
+  line-height: 1.55;
+}
+
+.kjs-index-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  image-rendering: pixelated;
+}
+
+/* ---------- Readability pass (0.48.1) ---------- */
+/* The inspector previously used 7–9px labels; raise the primary text sizes
+   so diagnostics, knowledge and AI panels stay readable at 125–150% DPI. */
+.kjs-workbench {
+  grid-template-columns: 232px minmax(0, 1fr) 360px;
+}
+
+.kjs-sidebar-head strong {
+  font-size: 11.5px;
+}
+
+.kjs-sidebar-head > span {
+  font-size: 9.5px;
+}
+
+.kjs-file-search input {
+  font-size: 10.5px;
+}
+
+.kjs-tree-row {
+  height: 28px;
+  font-size: 10.5px;
+}
+
+.kjs-tree-row.is-dir {
+  font-size: 9.5px;
+}
+
+.kjs-tree-row em {
+  font-size: 9px;
+}
+
+.kjs-tree-loading,
+.kjs-tree-empty {
+  font-size: 10.5px;
+}
+
+.kjs-tree-empty small {
+  font-size: 9.5px;
+}
+
+.kjs-side-foot-btn {
+  height: 27px;
+  font-size: 10px;
+}
+
+.kjs-tab-name {
+  font-size: 11px;
+}
+
+.kjs-editor-path strong {
+  font-size: 10px;
+}
+
+.kjs-editor-path span {
+  font-size: 9px;
+}
+
+.kjs-template-select {
+  font-size: 10px;
+}
+
+.kjs-action-btn {
+  height: 28px;
+  font-size: 10px;
+}
+
+.kjs-font-size {
+  font-size: 9.5px;
+}
+
+.kjs-statusbar,
+.kjs-status-link {
+  font-size: 9.5px;
+}
+
+.kjs-inspector-tabs {
+  height: 42px;
+  padding: 0 8px;
+  gap: 3px;
+}
+
+.kjs-inspector-tab {
+  height: 30px;
+  padding: 0 10px;
+  gap: 5px;
+  font-size: 11.5px;
+}
+
+.kjs-inspector-tab em {
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+}
+
+.kjs-inspector-body {
+  padding: 11px;
+}
+
+/* Problems */
+.kjs-check {
+  gap: 9px;
+}
+
+.kjs-check-tabs {
+  padding: 3px;
+}
+
+.kjs-check-tab {
+  height: 29px;
+  font-size: 11px;
+}
+
+.kjs-check-tab em,
+.kjs-check-group-head em {
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 16px;
+}
+
+.kjs-check-scope button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 10.5px;
+}
+
+.kjs-check-filter {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 10.5px;
+}
+
+.kjs-check-scan {
+  height: 28px;
+  padding: 0 9px;
+  font-size: 10.5px;
+}
+
+.kjs-check-summary {
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.kjs-check-summary.is-muted {
+  font-size: 9px;
+}
+
+.kjs-check-note {
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.kjs-check-error {
+  font-size: 10.5px;
+}
+
+.kjs-check-group-head {
+  padding: 7px 2px;
+  gap: 5px;
+}
+
+.kjs-check-path {
+  font-size: 10px;
+}
+
+.kjs-problems-head {
+  font-size: 9.5px;
+  padding-bottom: 8px;
+}
+
+.kjs-problem {
+  gap: 8px;
+  padding: 8px 2px;
+}
+
+.kjs-problem-line {
+  flex-basis: 28px;
+  font-size: 9.5px;
+}
+
+.kjs-problem-body {
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.kjs-problem-tags em,
+.kjs-sev {
+  padding: 0 4px;
+  font-size: 8.5px;
+  line-height: 15px;
+}
+
+.kjs-problems-empty {
+  gap: 8px;
+  font-size: 11px;
+}
+
+.kjs-problems-empty strong {
+  font-size: 13px;
+}
+
+.kjs-problems-empty span {
+  line-height: 1.65;
+}
+
+/* Logs */
+.kjs-log-head {
+  gap: 5px;
+  padding: 7px 2px 4px;
+}
+
+.kjs-log-time,
+.kjs-log-source {
+  font-size: 9px;
+  line-height: 17px;
+}
+
+.kjs-log-message {
+  font-size: 11px;
+  line-height: 1.55;
+  -webkit-line-clamp: 4;
+}
+
+.kjs-log-chevron {
+  line-height: 17px;
+}
+
+.kjs-log-path {
+  font-size: 9.5px;
+}
+
+.kjs-log-frame {
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.kjs-log-raw {
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+/* Knowledge */
+.kjs-index-loading,
+.kjs-index-build {
+  font-size: 10.5px;
+}
+
+.kjs-index-build > strong {
+  font-size: 13px;
+}
+
+.kjs-index-build > p {
+  font-size: 10px;
+}
+
+.kjs-index-build-actions small {
+  font-size: 9px;
+}
+
+.kjs-index-progress-head {
+  font-size: 9.5px;
+}
+
+.kjs-index-progress-meta {
+  font-size: 9px;
+}
+
+.kjs-index-head strong {
+  font-size: 12px;
+}
+
+.kjs-index-head span {
+  font-size: 9.5px;
+}
+
+.kjs-index-search {
+  height: 32px;
+}
+
+.kjs-index-search input {
+  font-size: 10.5px;
+}
+
+.kjs-index-filter select {
+  height: 28px;
+  font-size: 10px;
+}
+
+.kjs-index-filter > span {
+  font-size: 9px;
+}
+
+.kjs-index-kinds button {
+  height: 28px;
+  font-size: 10px;
+}
+
+.kjs-index-kinds em {
+  font-size: 9px;
+}
+
+.kjs-index-row {
+  gap: 8px;
+  padding: 7px 5px;
+  font-size: 12px;
+}
+
+.kjs-index-row-copy strong {
+  font-size: 11px;
+}
+
+.kjs-index-row-copy span {
+  font-size: 9px;
+}
+
+.kjs-index-insert {
+  height: 25px;
+  font-size: 9.5px;
+}
+
+.kjs-index-inputs span {
+  padding: 2px 5px;
+  font-size: 9px;
+}
+
+.kjs-index-detail small {
+  font-size: 9px;
+}
+
+.kjs-index-code-btn {
+  height: 25px;
+  font-size: 9.5px;
+}
+
+.kjs-index-empty {
+  font-size: 10.5px;
+}
+
+.kjs-index-empty strong {
+  font-size: 12px;
+}
+
+.kjs-index-foot {
+  font-size: 9px;
+}
+
+.kjs-index-more {
+  font-size: 9.5px;
+}
+
+.kjs-index-note {
+  font-size: 9.5px;
+}
+
+.kjs-index-tile {
+  font-size: 13px;
+}
+
+/* Explain */
+.kjs-panel-chip {
+  height: 24px;
+  padding: 0 7px;
+  font-size: 9.5px;
+}
+
+.kjs-explain-summary strong {
+  font-size: 11.5px;
+}
+
+.kjs-explain-summary span {
+  font-size: 10px;
+}
+
+.kjs-explain-point > em {
+  flex-basis: 30px;
+  font-size: 9px;
+}
+
+.kjs-explain-point strong {
+  font-size: 10.5px;
+}
+
+.kjs-explain-point small {
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.kjs-explain-notes,
+.kjs-explain-tip {
+  font-size: 9.5px;
+}
+
+.kjs-explain-actions small {
+  font-size: 9px;
+}
+
+.kjs-ai-btn {
+  height: 30px;
+  font-size: 10.5px;
+}
+
+.kjs-explain-loading {
+  font-size: 10.5px;
+}
+
+.kjs-explain-empty {
+  font-size: 10.5px;
+}
+
+.kjs-explain-empty strong {
+  font-size: 12px;
+}
+
+.kjs-explain-empty-text {
+  font-size: 10px;
+}
+
+/* AI write / rewrite */
+.kjs-ai-head strong {
+  font-size: 12px;
+}
+
+.kjs-ai-head span {
+  font-size: 9.5px;
+}
+
+.kjs-ai-copy {
+  font-size: 10.5px;
+}
+
+.kjs-ai-prompt {
+  min-height: 96px;
+  font-size: 11px;
+}
+
+.kjs-ai-target {
+  font-size: 9.5px;
+}
+
+.kjs-ai-loading {
+  font-size: 10.5px;
+}
+
+.kjs-ai-result-head {
+  font-size: 10px;
+}
+
+.kjs-ai-result pre {
+  font-size: 10.5px;
+}
+
+.kjs-ai-result p {
+  font-size: 10px;
+}
+
+.kjs-ai-result small {
+  font-size: 9.5px;
+}
+
+.kjs-ai-empty {
+  font-size: 10.5px;
+}
+
+.kjs-ai-diff .kjs-diff {
+  font-size: 9.5px;
+}
+
+.kjs-diff-head {
+  font-size: 9.5px;
+}
+
+.kjs-diff-row {
+  grid-template-columns: 40px 40px 16px minmax(0, 1fr);
+}
+
+@media (max-width: 1180px) {
+  .kjs-workbench {
+    grid-template-columns: 214px minmax(0, 1fr) 330px;
+  }
+}
+
+@media (max-width: 980px) {
+  .kjs-workbench {
+    grid-template-columns: 196px minmax(0, 1fr) 304px;
+  }
+  .kjs-statusbar {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .kjs-inspector-tab svg {
+    display: none;
+  }
+  .kjs-inspector-tab {
+    padding: 0 7px;
+    font-size: 11px;
+  }
+}
+
+.kjs-tab-help {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  width: 34px;
+  height: 100%;
+  flex: 0 0 34px;
+  margin-left: auto;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.kjs-tab-help:hover {
+  background: var(--surface-2);
+  color: var(--accent-ink);
+}
+
+/* 7 个右栏标签（问答加入后）在 330px 窄栏也不溢出：保留文字标签可读性，隐藏装饰图标。 */
+.kjs-inspector-tabs {
+  padding: 0 6px;
+  gap: 2px;
+}
+
+.kjs-inspector-tab {
+  padding: 0 7px;
+  gap: 3px;
+}
+
+.kjs-inspector-tab svg {
+  display: none;
+}
+
+/* ---------- KubeJS 问题一键修复 ---------- */
+.kjs-check-fix {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kjs-check-fix:hover {
+  background: var(--accent-soft-2);
+}
+
+.kjs-problem-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-problem-wrap .kjs-problem {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.kjs-problem-move {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: center;
+  gap: 3px;
+  height: 22px;
+  margin-right: 3px;
+  padding: 0 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.kjs-problem-move:hover {
+  background: var(--accent-soft-2);
+}
+
+.kjs-problem-fixable {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--accent-soft) !important;
+  color: var(--accent-ink) !important;
+}
+
+.kjs-fix-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kjs-fix-selectbar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+.kjs-fix-selectbar > span {
+  margin-right: auto;
+}
+
+.kjs-fix-list {
+  display: flex;
+  max-height: 220px;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.kjs-fix-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.kjs-fix-item:hover {
+  border-color: var(--border-strong);
+}
+
+.kjs-fix-item input {
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.kjs-fix-item-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kjs-fix-item-copy strong {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.kjs-fix-item-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  color: var(--text-3);
+}
+
+.kjs-fix-item code {
+  flex: 0 0 auto;
+  max-width: 45%;
+  overflow: hidden;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-fix-empty {
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  color: var(--text-3);
+  font-size: 9px;
+  text-align: center;
+}
+
+.kjs-fix-modal .kjs-diff-wrap {
+  max-height: 310px;
+  flex: none;
+}
+
+.kjs-fix-modal .kjs-diff {
+  max-height: 270px;
+}

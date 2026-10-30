@@ -1,0 +1,253 @@
+/* ---------- JVM presets ---------- */
+.jvm-preset-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jvm-preset-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.jvm-preset-toolbar > span:last-child {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.jvm-preset-toolbar .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.jvm-preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jvm-preset-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.jvm-preset-card-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jvm-preset-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jvm-preset-card-head strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jvm-preset-tag {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.03em;
+}
+
+.jvm-preset-tag.is-builtin {
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+
+.jvm-preset-tag.is-java {
+  color: var(--warning-ink);
+}
+
+.jvm-preset-card-main p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+
+.jvm-preset-card-main code {
+  display: block;
+  max-height: 34px;
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.jvm-preset-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.jvm-preset-loading,
+.jvm-preset-empty {
+  display: flex;
+  min-height: 70px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.jvm-preset-empty {
+  min-height: 42px;
+  justify-content: flex-start;
+  padding: 0 2px;
+}
+
+.jvm-preset-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 2px;
+}
+
+.jvm-preset-save {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+}
+
+.jvm-preset-save > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jvm-preset-save strong {
+  color: var(--text-2);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.jvm-preset-save small {
+  color: var(--text-3);
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+
+.jvm-preset-save-row {
+  display: flex;
+  gap: 7px;
+}
+
+.jvm-preset-save-row input {
+  min-width: 0;
+  flex: 1;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 10px;
+  outline: none;
+}
+
+.jvm-preset-save-row input:focus {
+  border-color: var(--accent-border);
+}
+
+.jvm-preset-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 9px;
+}
+
+.jvm-preset-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.jvm-preset-footer > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jvm-preset-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.jvm-preset-actions > span {
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+@media (max-width: 620px) {
+  .jvm-preset-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .jvm-preset-card-actions {
+    align-self: flex-end;
+  }
+
+  .jvm-preset-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .jvm-preset-footer > span {
+    max-width: 100%;
+  }
+}

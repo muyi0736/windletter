@@ -1,0 +1,348 @@
+.kjs-help {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.kjs-help-safety {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.kjs-help-safety > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.kjs-help-safety svg {
+  color: var(--accent-ink);
+}
+
+.kjs-help-safety strong {
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.kjs-help-safety span {
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.kjs-help-layout {
+  display: grid;
+  height: min(52vh, 510px);
+  min-height: 320px;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.kjs-help-nav {
+  display: flex;
+  min-width: 0;
+  padding: 6px;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  scrollbar-width: thin;
+}
+
+.kjs-help-nav button {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-help-nav button:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.kjs-help-nav button.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-help-nav svg {
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.kjs-help-content {
+  position: relative;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 7px;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.kjs-help-section {
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-help-section + .kjs-help-section {
+  padding-top: 14px;
+}
+
+.kjs-help-section:last-of-type {
+  border-bottom: 0;
+}
+
+.kjs-help-section > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kjs-help-section-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-help-section h3 {
+  margin: 1px 0 2px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kjs-help-section header p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.kjs-help-text {
+  margin: 0 0 7px;
+  color: var(--text-2);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.kjs-help-subhead {
+  margin: 9px 0 4px;
+  color: var(--text-2);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.kjs-help-steps {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: 5px;
+  list-style: none;
+}
+
+.kjs-help-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--text-2);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.kjs-help-steps em {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.kjs-help-list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+}
+
+.kjs-help-list li {
+  position: relative;
+  padding-left: 11px;
+  color: var(--text-2);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.kjs-help-list li::before {
+  position: absolute;
+  top: 0.68em;
+  left: 1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: '';
+}
+
+.kjs-help code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.kjs-help-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.kjs-help-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent-ink);
+}
+
+.kjs-help-note.is-warn {
+  border-color: color-mix(in srgb, #d9a441 55%, var(--border));
+  background: color-mix(in srgb, #d9a441 12%, var(--surface));
+}
+
+.kjs-help-note.is-warn svg {
+  color: #b37a1f;
+}
+
+.kjs-help-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.kjs-help-keys > div {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--border);
+  color: var(--text-3);
+  font-size: 9.5px;
+}
+
+.kjs-help-keys > div:last-child {
+  border-bottom: 0;
+}
+
+.kjs-help-keys kbd {
+  justify-self: start;
+  padding: 2px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.kjs-help-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 0 2px;
+  color: var(--text-3);
+  font-size: 9px;
+}
+
+.kjs-help-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kjs-help-footer > span {
+  color: var(--text-3);
+  font-size: 9px;
+}
+
+.kjs-help-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+@media (max-width: 760px) {
+  .kjs-help-safety {
+    grid-template-columns: 1fr;
+  }
+
+  .kjs-help-layout {
+    height: auto;
+    min-height: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .kjs-help-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .kjs-help-nav button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .kjs-help-content {
+    max-height: 46vh;
+  }
+}

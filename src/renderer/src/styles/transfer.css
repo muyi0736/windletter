@@ -1,0 +1,305 @@
+/* ---------- Instance transfer ---------- */
+.transfer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.transfer-source {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.transfer-source > span,
+.transfer-section-head > span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.transfer-source strong {
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-source small {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transfer-mode button {
+  display: flex;
+  min-height: 62px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.transfer-mode button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.transfer-mode button.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.transfer-mode button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.transfer-mode strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.transfer-mode small {
+  color: var(--text-3);
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+
+.transfer-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.transfer-section-head .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.transfer-targets {
+  display: flex;
+  max-height: 250px;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+}
+
+.transfer-target {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.transfer-target:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.transfer-target.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.transfer-target:disabled {
+  cursor: default;
+}
+
+.transfer-target-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.transfer-target.is-active .transfer-target-icon {
+  color: var(--accent-ink);
+}
+
+.transfer-target-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.transfer-target-copy strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-target-copy strong em {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-style: normal;
+}
+
+.transfer-target-copy small {
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-target-meta {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.transfer-name {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.transfer-name > span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.transfer-name input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+}
+
+.transfer-name input:focus {
+  border-color: var(--accent-border);
+}
+
+.transfer-note {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.transfer-note.is-warning {
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+
+.transfer-error {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.transfer-loading,
+.transfer-empty {
+  display: flex;
+  min-height: 90px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.transfer-empty {
+  flex-direction: column;
+}
+
+.transfer-empty p {
+  margin: 0;
+}
+
+.transfer-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transfer-footer-hint {
+  color: var(--text-3);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.transfer-footer > div {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+@media (max-width: 620px) {
+  .transfer-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .transfer-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

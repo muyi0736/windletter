@@ -1,0 +1,465 @@
+.kjs-qa-host {
+  height: 100%;
+  min-height: 0;
+}
+
+.kjs-qa {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.kjs-qa-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-2);
+}
+
+.kjs-qa-head strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.kjs-qa-head > span {
+  color: var(--text-3);
+  font-size: 8px;
+}
+
+.kjs-qa-clear {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.kjs-qa-clear:hover {
+  background: var(--surface-3);
+  color: var(--danger-ink);
+}
+
+.kjs-qa-copy {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+
+.kjs-qa-log {
+  min-height: 80px;
+  flex: 1;
+  padding-right: 3px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.kjs-qa-intro {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 14px 8px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.kjs-qa-intro > svg {
+  color: var(--accent-ink);
+}
+
+.kjs-qa-intro strong {
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.kjs-qa-intro > span {
+  max-width: 280px;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.kjs-qa-intro small {
+  max-width: 280px;
+  color: var(--text-3);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.kjs-qa-suggestions {
+  display: flex;
+  width: 100%;
+  max-width: 300px;
+  flex-direction: column;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.kjs-qa-suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kjs-qa-suggestions button:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.kjs-qa-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kjs-qa-turn:last-child {
+  border-bottom: 0;
+}
+
+.kjs-qa-question {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 6px 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.kjs-qa-question > span {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 8px;
+}
+
+.kjs-qa-question > div {
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+.kjs-qa-loading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  color: var(--text-3);
+  font-size: 9px;
+}
+
+.kjs-qa-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 6px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.kjs-qa-error > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.kjs-qa-error div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kjs-qa-error button,
+.kjs-qa-empty-result button {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  font-size: 8.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.kjs-qa-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+.kjs-qa-answer-text {
+  color: var(--text-2);
+  font-size: 9.7px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.kjs-qa-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid color-mix(in srgb, #d9a441 50%, var(--border));
+  border-radius: 5px;
+  background: color-mix(in srgb, #d9a441 12%, var(--surface));
+  color: var(--text-2);
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+
+.kjs-qa-warning > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #b37a1f;
+}
+
+.kjs-qa-warning div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kjs-qa-counts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  color: var(--text-3);
+  font-size: 8px;
+}
+
+.kjs-qa-counts em {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.kjs-qa-model {
+  margin-left: auto;
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.kjs-qa-citation-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.kjs-qa-citation-head {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.kjs-qa-citation-head em {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-style: normal;
+}
+
+.kjs-qa-citations {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kjs-qa-citation {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.kjs-qa-citation:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.kjs-qa-tile {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.kjs-qa-tile.is-tag {
+  color: var(--accent-ink);
+}
+
+.kjs-qa-tile.is-recipe {
+  color: var(--text-3);
+}
+
+.kjs-qa-tile.is-fallback {
+  color: var(--text-3);
+}
+
+.kjs-qa-citation-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kjs-qa-citation-copy strong {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 8.7px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-qa-citation-copy small {
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-qa-copy-btn {
+  display: inline-flex;
+  height: 20px;
+  min-width: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 7.5px;
+  cursor: pointer;
+}
+
+.kjs-qa-copy-btn:hover {
+  background: var(--surface-3);
+  color: var(--accent-ink);
+}
+
+.kjs-qa-empty-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.kjs-qa-input-wrap {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+.kjs-qa-input {
+  width: 100%;
+  min-height: 48px;
+  max-height: 110px;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9.5px;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+}
+
+.kjs-qa-input:focus {
+  border-color: var(--accent-border);
+}
+
+.kjs-qa-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.kjs-qa-input-actions > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kjs-qa-input-actions .button {
+  flex: 0 0 auto;
+}
+
+.kjs-qa-foot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: 7.5px;
+}

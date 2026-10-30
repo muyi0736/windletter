@@ -1,0 +1,347 @@
+/* ---------- 备份管理 ---------- */
+.backup-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.backup-summary {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.backup-summary-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.backup-summary-main > span {
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+}
+
+.backup-summary-main strong {
+  font-size: 25px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.backup-summary-main small {
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+.backup-summary-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+.backup-summary-meta > span {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--danger-soft);
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 9px;
+}
+
+.backup-error .link-button {
+  margin-left: auto;
+}
+
+.backup-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.backup-block-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.backup-block-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.backup-block-head strong {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.backup-block-head span {
+  font-size: 9px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+.backup-kind-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.backup-kind-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-areas:
+    'icon copy'
+    'stats stats';
+  gap: 6px 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.backup-kind-card:hover {
+  border-color: var(--border-strong);
+}
+
+.backup-kind-card.is-selected {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.backup-kind-icon {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.backup-kind-card.is-selected .backup-kind-icon {
+  background: var(--accent-soft-2);
+  color: var(--accent-ink);
+}
+
+.backup-kind-copy {
+  grid-area: copy;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 30px;
+  min-width: 0;
+}
+
+.backup-kind-copy strong {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.backup-kind-copy small {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 8px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.backup-kind-stats {
+  grid-area: stats;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.backup-kind-stats strong {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.backup-kind-stats small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  color: var(--text-3);
+}
+
+.backup-kind-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--surface);
+  font-size: 7.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.backup-kind-check.is-on {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.backup-instance-select {
+  width: 205px;
+  flex-shrink: 0;
+}
+
+.backup-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 22px 10px;
+  font-size: 9.5px;
+  color: var(--text-3);
+}
+
+.backup-instance-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.backup-instance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.6fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.backup-instance-row:last-child {
+  border-bottom: none;
+}
+
+.backup-instance-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.backup-instance-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.backup-instance-copy small {
+  font-size: 8px;
+  color: var(--text-3);
+}
+
+.backup-instance-kinds {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.backup-instance-kinds > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 8px;
+  color: var(--text-2);
+}
+
+.backup-instance-kinds small {
+  font-size: 7.5px;
+  color: var(--text-3);
+}
+
+.backup-instance-total {
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.backup-cleanup {
+  background: var(--surface-2);
+}
+
+.backup-policy {
+  max-width: 46%;
+  text-align: right;
+}
+
+.backup-cleanup-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.backup-age-clean {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.backup-cleanup-note {
+  margin: 0;
+  font-size: 8.5px;
+  line-height: 1.65;
+  color: var(--text-3);
+}
+
+@media (max-width: 1080px) {
+  .backup-policy {
+    max-width: 100%;
+    text-align: left;
+  }
+}

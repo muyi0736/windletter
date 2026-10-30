@@ -1,0 +1,486 @@
+/* ---------- Pack workshop ---------- */
+.workshop-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.workshop-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.workshop-tab.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+
+.workshop-tab em {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-style: normal;
+}
+
+.workshop-refresh {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.workshop-refresh:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.workshop-loading {
+  display: flex;
+  min-height: 260px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.workshop-loading.is-editor {
+  min-height: 300px;
+}
+
+.workshop-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 9px;
+}
+
+.workshop-error > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.workshop-error.is-compact {
+  padding: 7px 9px;
+  font-size: 8.5px;
+}
+
+.workshop-mods {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.workshop-summary {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.workshop-summary > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.workshop-summary strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.workshop-summary span {
+  color: var(--text-3);
+  font-size: 7.5px;
+  white-space: nowrap;
+}
+
+.workshop-summary > div.is-warn strong {
+  color: var(--warning-ink);
+}
+
+.workshop-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workshop-search {
+  display: flex;
+  min-width: 190px;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.workshop-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 9px;
+  outline: none;
+}
+
+.workshop-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.workshop-filters button {
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 7.5px;
+  cursor: pointer;
+}
+
+.workshop-filters button:hover {
+  border-color: var(--border);
+  color: var(--text-2);
+}
+
+.workshop-filters button.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.workshop-bulk {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.workshop-bulk .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.workshop-bulk > span {
+  margin-left: auto;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.workshop-mod-list {
+  display: flex;
+  max-height: 340px;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.workshop-mod {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.workshop-mod:hover {
+  background: var(--surface-2);
+}
+
+.workshop-mod.is-included {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+}
+
+.workshop-mod input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.workshop-mod-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.workshop-mod-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.workshop-mod-title strong {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 9px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workshop-mod-title em {
+  flex: 0 0 auto;
+}
+
+.workshop-side,
+.workshop-flag {
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  font-style: normal;
+}
+
+.workshop-side.is-client {
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+  color: var(--warning-ink);
+}
+
+.workshop-side.is-server {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  color: var(--success-ink);
+}
+
+.workshop-flag.is-warn {
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+  color: var(--warning-ink);
+}
+
+.workshop-flag.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  color: var(--danger-ink);
+}
+
+.workshop-mod-copy > small {
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workshop-mod-copy > small.workshop-mod-reason {
+  font-family: var(--font-sans);
+  font-size: 7.5px;
+}
+
+.workshop-mod-copy > small.workshop-mod-warning {
+  color: var(--warning-ink);
+  font-family: var(--font-sans);
+  font-size: 7.5px;
+}
+
+.workshop-mod-size {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.workshop-empty {
+  padding: 24px;
+  color: var(--text-3);
+  font-size: 9px;
+  text-align: center;
+}
+
+.workshop-export {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.workshop-export-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.workshop-export-switches label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-2);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.workshop-export > span {
+  color: var(--text-3);
+  font-size: 7.5px;
+  text-align: right;
+}
+
+.workshop-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.workshop-progress > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.workshop-result {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--success) 40%, var(--border));
+  border-radius: 7px;
+  background: var(--success-soft);
+  color: var(--success-ink);
+  font-size: 8px;
+}
+
+.workshop-result span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workshop-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workshop-footer > span {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.workshop-footer > div {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+/* KubeJS */
+@media (max-width: 820px) {
+  .workshop-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .workshop-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workshop-search {
+    width: 100%;
+    flex: none;
+  }
+
+  .workshop-filters {
+    justify-content: flex-start;
+  }
+
+  .workshop-export {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workshop-export > span {
+    text-align: left;
+  }
+
+  .workshop-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* ---------- Workshop panes / KubeJS studio ---------- */
+.workshop-pane {
+  display: none;
+  min-height: 0;
+}
+
+.workshop-pane.is-active {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.workshop-pane--studio.is-active {
+  overflow: hidden;
+}
+
+.workshop-tabs.is-studio {
+  flex: 0 0 auto;
+  margin: 8px 12px 0;
+}

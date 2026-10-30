@@ -1,0 +1,242 @@
+/* ---------- Screenshot gallery ---------- */
+.screenshot-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.screenshot-gallery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.screenshot-gallery-head > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.screenshot-gallery-head .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  gap: 10px;
+}
+
+.screenshot-tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.screenshot-tile:hover {
+  border-color: var(--accent-border);
+  transform: translateY(-1px);
+}
+
+.screenshot-tile-image {
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.screenshot-tile-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+
+.screenshot-tile:hover .screenshot-tile-image img {
+  transform: scale(1.035);
+}
+
+.screenshot-tile-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 9px 9px;
+}
+
+.screenshot-tile-copy strong {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 9px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screenshot-tile-copy small {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+}
+
+.screenshot-loading,
+.screenshot-error {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.screenshot-error {
+  flex-direction: column;
+  color: var(--danger-ink);
+}
+
+.screenshot-empty-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.screenshot-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.screenshot-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.05em;
+}
+
+.screenshot-stage {
+  position: relative;
+  display: flex;
+  min-height: 300px;
+  max-height: 58vh;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #111413;
+}
+
+.screenshot-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+}
+
+.screenshot-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(20, 23, 22, 0.62);
+  color: #fff;
+  cursor: pointer;
+  transform: translateY(-50%);
+  opacity: 0.85;
+}
+
+.screenshot-nav:hover {
+  background: rgba(20, 23, 22, 0.9);
+  opacity: 1;
+}
+
+.screenshot-nav.is-prev {
+  left: 10px;
+}
+
+.screenshot-nav.is-next {
+  right: 10px;
+}
+
+.screenshot-preview-hint {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-align: center;
+}
+
+.screenshot-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.screenshot-footer-hint {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screenshot-footer-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+@media (max-width: 720px) {
+  .screenshot-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  .screenshot-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .screenshot-footer-hint {
+    max-width: 100%;
+  }
+
+  .screenshot-footer-actions {
+    justify-content: flex-start;
+  }
+}

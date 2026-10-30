@@ -1,0 +1,251 @@
+/* ---------- 内容更新解读 ---------- */
+.update-explain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.update-explain-meta {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.update-explain-meta > div:not(.update-explain-counts) {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.update-explain-meta span {
+  font-size: 8.5px;
+  color: var(--text-3);
+}
+
+.update-explain-meta strong {
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.update-explain-counts {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.update-explain-changes,
+.update-explain-result {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.update-explain-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-explain-section-head strong {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.update-explain-section-head span {
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.update-explain-change-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.update-explain-change-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.update-explain-change-row:last-child {
+  border-bottom: none;
+}
+
+.update-explain-change-row > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 500;
+}
+
+.update-explain-kind {
+  display: inline-flex;
+  justify-content: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 7.5px;
+  line-height: 1.4;
+}
+
+.update-explain-kind.is-mod {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.update-explain-kind.is-resourcepack {
+  background: var(--violet-soft);
+  color: var(--violet-ink);
+}
+
+.update-explain-kind.is-datapack {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+
+.update-explain-kind.is-shader {
+  background: var(--success-soft);
+  color: var(--success-ink);
+}
+
+.update-explain-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 230px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-explain-version em {
+  font-style: normal;
+  color: var(--accent-ink);
+}
+
+.update-explain-hint {
+  margin: 0;
+  font-size: 8px;
+  color: var(--text-3);
+}
+
+.update-explain-empty {
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+.update-explain-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.update-explain-result {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.update-explain-summary {
+  max-height: 360px;
+  margin: 0;
+  overflow: auto;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.update-explain-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--warning-ink);
+  font-size: 8.5px;
+  line-height: 1.55;
+}
+
+.update-explain-warnings span {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.update-explain-prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px 11px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 9px;
+  line-height: 1.65;
+}
+
+.update-explain-prompt svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.update-explain-note {
+  margin: 0;
+  font-size: 8px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+@media (max-width: 1080px) {
+  .update-explain-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .update-explain-section-head span {
+    text-align: left;
+  }
+
+  .update-explain-version {
+    max-width: 170px;
+  }
+}

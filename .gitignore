@@ -1,0 +1,15 @@
+node_modules/
+out/
+release*/
+vibe_images/
+handoff/
+.tmp-*
+scripts/download-smoke-test/.tmp/
+*.log
+
+# Local build secrets / credentials
+.env
+.env.*
+!.env.example
+src/main/core/*.secret.*
+*.pem
