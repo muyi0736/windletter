@@ -14,6 +14,7 @@ function usage() {
   --notes-file <文件>    每行一条更新说明
   --notes "一|二"        直接提供更新说明，用 | 分隔
   --page-url <地址>      发布页地址
+  --mirror <地址>        安装包备用下载地址，可重复
   --mandatory            标记为重要更新
   --out <文件>           默认与安装包同目录的 latest.json
 `)
@@ -33,6 +34,7 @@ let notesInline = ''
 let pageUrl = ''
 let mandatory = false
 let out = ''
+const mirrors = []
 
 for (let index = 1; index < args.length; index += 1) {
   const arg = args[index]
@@ -41,6 +43,7 @@ for (let index = 1; index < args.length; index += 1) {
   else if (arg === '--notes-file') notesFile = args[++index] ?? ''
   else if (arg === '--notes') notesInline = args[++index] ?? ''
   else if (arg === '--page-url') pageUrl = args[++index] ?? ''
+  else if (arg === '--mirror') mirrors.push(args[++index] ?? '')
   else if (arg === '--mandatory') mandatory = true
   else if (arg === '--out') out = args[++index] ?? ''
   else {
@@ -89,6 +92,25 @@ if (base.trim()) {
   url = new URL(encodeURIComponent(basename(installer)), parsed).toString()
 }
 
+const mirrorUrls = []
+for (const raw of mirrors) {
+  const value = raw.trim()
+  if (!value) continue
+  let parsed
+  try {
+    parsed = new URL(value)
+  } catch {
+    console.error(`--mirror 不是有效网址：${value}`)
+    process.exit(1)
+  }
+  if (parsed.protocol !== 'https:') {
+    console.error('--mirror 只支持 https')
+    process.exit(1)
+  }
+  const normalized = parsed.toString()
+  if (normalized !== url && !mirrorUrls.includes(normalized)) mirrorUrls.push(normalized)
+}
+
 const notes = []
 const pushNote = (line) => {
   const text = line.trim().replace(/^[-*]\s+/, '')
@@ -114,6 +136,7 @@ const manifest = {
   sha256,
   notes: notes.slice(0, 20),
   ...(pageUrl.trim() ? { pageUrl: pageUrl.trim() } : {}),
+  ...(mirrorUrls.length ? { mirrors: mirrorUrls } : {}),
   ...(mandatory ? { mandatory: true } : {})
 }
 
@@ -122,4 +145,5 @@ await writeFile(target, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 console.log(`已生成 ${target}`)
 console.log(`版本 ${version} · ${info.size} 字节 · SHA-256 ${sha256}`)
 console.log(`下载地址 ${url}`)
+if (mirrorUrls.length) console.log(`备用地址 ${mirrorUrls.join(' , ')}`)
 console.log('把安装包与 latest.json 一起上传到同一目录后，在启动器“更多 → 启动器更新”填写 latest.json 地址。')

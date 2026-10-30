@@ -69,7 +69,9 @@ npm run update:manifest -- <安装包路径> \
   --out release/latest.json
 ```
 
-清单需要 `schema`、`app`、`version`、`url`、`size`、`sha256`，更新源只接受 HTTPS（本机 `localhost` 例外）；加 `--base https://…/` 可生成绝对下载地址。完整格式与校验规则见 [docs/HANDOFF.md](docs/HANDOFF.md)。
+清单需要 `schema`、`app`、`version`、`url`、`size`、`sha256`，更新源只接受 HTTPS（本机 `localhost` 例外）；加 `--base https://…/` 可生成绝对下载地址，`--mirror <地址>` 可重复添加安装包备用线路。完整格式与校验规则见 [docs/HANDOFF.md](docs/HANDOFF.md)。
+
+GitHub 直连受限时，可把更新源改为镜像清单，例如 `https://ghfast.top/https://github.com/muyi0736/windletter/releases/latest/download/latest.json`（或把前缀换成 `https://gh-proxy.com/`）。发布清单会同时写入这两条安装包备用地址，下载仍按清单中的大小与 SHA-256 校验。
 
 ## 公开源码与密钥
 

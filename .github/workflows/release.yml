@@ -51,11 +51,14 @@ jobs:
           fi
           INSTALLER="release/Windletter-Launcher-${VERSION}-setup.exe"
           test -f "$INSTALLER"
+          ASSET="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/Windletter-Launcher-${VERSION}-setup.exe"
           npm run update:manifest -- "$INSTALLER" \
             --version "$VERSION" \
             --notes-file build/update-notes.txt \
             --out release/latest.json \
-            --base "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/"
+            --base "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" \
+            --mirror "https://ghfast.top/${ASSET}" \
+            --mirror "https://gh-proxy.com/${ASSET}"
 
       - name: Publish GitHub Release
         env:

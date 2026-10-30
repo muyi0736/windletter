@@ -320,6 +320,8 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 
 0.60.4 起发布流程：更新 `build/update-notes.txt` 和版本号，提交后推送 `v*` 标签；Actions 使用仓库 Secret `CURSEFORGE_API_KEY` 构建并创建 Release。仓库为 `muyi0736/windletter`，更新源为 `https://github.com/muyi0736/windletter/releases/latest/download/latest.json`。签名和增量更新仍未做。
 
+更新源容错（2026-10-30）：当前网络里 `github.com` 解析到 `20.205.243.166` 会超时，但 `api.github.com`、`raw.githubusercontent.com` 与其他 GitHub IP 正常。`make-update-manifest.mjs` 新增可重复的 `--mirror`，Actions 会为安装包写入 `ghfast.top` 与 `gh-proxy.com` 两条备用地址；0.60.4 Release 的 `latest.json` 已补上这两条。本机更新源暂设为 `https://ghfast.top/https://github.com/muyi0736/windletter/releases/latest/download/latest.json`，清单经镜像读取，安装包仍按清单 SHA-256 校验。注意镜像只作为 manifest 的传输通道，默认更新源仍为 GitHub；后续如需彻底摆脱 `github.com`，可改用 GitHub API Release 资产（`api.github.com` + `Accept: application/octet-stream`）或服务端代理。
+
 ---
 
 ## 4. 目录与模块职责
