@@ -1046,6 +1046,7 @@ export async function downloadLauncherUpdate(): Promise<LauncherUpdateState> {
       size: release.size,
       signal: controller.signal,
       probeSources: release.urls.length > 1,
+      probeBytes: release.size >= 32 * 1024 * 1024 ? 256 * 1024 : 0,
       onBytes: (bytes) => {
         transferred += bytes
         lastByteAt = Date.now()

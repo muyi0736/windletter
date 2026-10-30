@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-30  
-项目版本：0.60.8（Actions 构建）  
+项目版本：0.60.9（Actions 构建）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.8-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.8`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.7 的安装包 SHA-256 为 `a910eb37aa3dfbedb0505ba6a14ebafcf1e305bd28d989d7de80442bf08a5034`。
+`Windletter-Launcher-0.60.9-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.9`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.8 的安装包 SHA-256 为 `50244e9c19b12d40392d068f38774c77a082a3c665fc0045e781e9199916f25f`。
 
 ### 三个最重要的目录
 
@@ -354,6 +354,13 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - 只支持 Fabric / Forge / NeoForge；`client_scripts` 只在客户端执行，结果里单独提示数量。无服务端/启动脚本、没有 KubeJS 模组、加载器不支持等情况会在启动前直接返回明确原因。
 - `kubeJsRuntimeLog.ts` 从服务端日志提取 KubeJS 脚本/配方/标签报错；日志级别优先按 `[main/ERROR]` / `[main/WARN]` 标签判定，避免把 “Failed to parse recipe” 这类 WARN 误判为错误。用真实 miao 服务端日志验证：50 条 WARN、0 条 ERROR（上限 50）。
 - 已实测：工作台入口与弹窗、未保存拦截、无脚本错误路径、取消、IPC 进度、解析器；完整启动测试在本机下载 Forge server.jar 时卡在 piston-data（下载停滞），尚未完成一次真实 KubeJS 服务端启动，需在网络正常或已有服务端 jar 的环境补测。0.60.8 由 Actions 发布，安装包哈希以 Release 页为准。
+
+0.60.9 更新下载线路优化：
+
+- `net.ts` 新增 `probeThroughput`：对每个候选线路并行发 4 个 Range 请求（总计约 256KB），只有全部返回 206 才计入吞吐量，按实测字节/毫秒排序；失败时回退原有的首字节延迟排序。这样会过滤“延迟低但并行分段失败”的镜像，避免下载退化成单连接。
+- `DownloadOptions.probeBytes` 仅由更新下载传入（≥32MB 时 256KB）；普通模组/资源下载仍用原来的延迟探测，避免增加小文件开销。
+- 实测：本地假清单同时给出 API asset、ghfast、gh-proxy 三个候选，4 路探测约 3 秒后选择 API asset，16 段分片正常，取消后保留 16 个分片；之前 ghfast 选中后退化成单连接。当前免费 GitHub 线路本身只有约 0.3–0.8 MB/s，探测只保证选对线路，不能突破网络上限；要进一步提速需要 R2/OSS 等独立 CDN。
+- 0.60.9 由 Actions 发布，安装包哈希以 Release 页为准。
 
 ---
 

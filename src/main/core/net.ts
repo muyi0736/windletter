@@ -22,6 +22,7 @@ const SEGMENT_MAX = 16
 const SOURCE_PROBE_MIN_BYTES = 4 * 1024 * 1024
 const SOURCE_PROBE_TIMEOUT = 2_000
 const SOURCE_PROBE_TTL = 10 * 60_000
+const SPEED_PROBE_TIMEOUT = 12_000
 
 export class CancellationError extends Error {
   constructor(message = '操作已取消') {
@@ -152,11 +153,70 @@ async function probeLatency(url: string, signal?: AbortSignal): Promise<number |
   }
 }
 
+async function probeThroughput(
+  url: string,
+  bytes: number,
+  signal?: AbortSignal
+): Promise<number | null> {
+  const started = Date.now()
+  const count = 4
+  const chunk = Math.max(32 * 1024, Math.floor(bytes / count))
+  const signals: AbortSignal[] = [AbortSignal.timeout(SPEED_PROBE_TIMEOUT)]
+  if (signal) signals.push(signal)
+  const timeout = AbortSignal.any(signals)
+  try {
+    let total = 0
+    const parts = await Promise.all(
+      Array.from({ length: count }, async (_value, index) => {
+        const start = index * chunk
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': USER_AGENT,
+            Accept: downloadAccept(url),
+            Range: `bytes=${start}-${start + chunk - 1}`
+          },
+          signal: timeout
+        })
+        if (response.status !== 206) {
+          await response.body?.cancel().catch(() => undefined)
+          return -1
+        }
+        const body = await response.arrayBuffer()
+        return body.byteLength
+      })
+    )
+    if (parts.some((value) => value < 0)) return null
+    total = parts.reduce((sum, value) => sum + value, 0)
+    const elapsed = Math.max(1, Date.now() - started)
+    return total > 0 ? total / elapsed : null
+  } catch {
+    return null
+  }
+}
+
 async function orderCandidatesByLatency(
   urls: string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  probeBytes = 0
 ): Promise<string[]> {
   if (urls.length < 2) return urls
+  if (probeBytes > 0) {
+    const speeds = new Map<string, number>()
+    await Promise.all(
+      urls.map(async (url) => {
+        const speed = await probeThroughput(url, probeBytes, signal)
+        if (speed !== null) speeds.set(url, speed)
+      })
+    )
+    if (speeds.size > 0) {
+      return [...urls].sort(
+        (left, right) =>
+          (speeds.get(right) ?? Number.NEGATIVE_INFINITY) -
+          (speeds.get(left) ?? Number.NEGATIVE_INFINITY)
+      )
+    }
+    // 速度探测失败时退回延迟探测。
+  }
   const latencies = new Map<string, number>()
   const now = Date.now()
   await Promise.all(
@@ -285,6 +345,8 @@ export interface DownloadOptions {
   segmentMinBytes?: number
   /** 有多个候选地址时，先测首个字节延迟再决定顺序。 */
   probeSources?: boolean
+  /** 大于 0 时用一段 Range 实测吞吐量选线路；仅对大文件启用。 */
+  probeBytes?: number
 }
 
 /* ---------- 多线程分片下载 ---------- */
@@ -619,7 +681,11 @@ export async function downloadFile(
     options.size != null &&
     options.size >= SOURCE_PROBE_MIN_BYTES &&
     urls.length > 1
-      ? await orderCandidatesByLatency(urls, options.signal)
+      ? await orderCandidatesByLatency(
+          urls,
+          options.signal,
+          options.probeBytes ?? 0
+        )
       : urls
 
   for (const url of candidates) {
