@@ -28,6 +28,8 @@ export async function runDownloadPool(
     concurrency: number
     signal: AbortSignal
     onProgress?: (detail: DownloadDetail) => void
+    /** 批量内容下载可提高单主机并发；默认沿用 net.ts 的 16。 */
+    hostConcurrency?: number
   }
 ): Promise<DownloadPoolResult> {
   const unique = new Map<string, DownloadJob>()
@@ -120,6 +122,7 @@ export async function runDownloadPool(
           sha1: job.sha1,
           size: job.size,
           signal: options.signal,
+          hostConcurrency: options.hostConcurrency,
           onBytes: (bytes) => {
             received += bytes
             entry.bytes += bytes

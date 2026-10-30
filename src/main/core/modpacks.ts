@@ -12,6 +12,7 @@ import {
   countMods,
   getInstanceDir,
   getInstanceMinecraftDir,
+  listInstances,
   makeInstanceId,
   writeInstance
 } from './instances'
@@ -20,6 +21,7 @@ import { installVanillaVersion } from './installer'
 import { ensureJavaForVersion } from './java'
 import { getVersionEntry, getVersionJson } from './mojang'
 import { CancellationError } from './net'
+import { collectPackReuseRoots, reuseLocalPackFiles } from './packReuse'
 import { emptyDetail, type TaskProgress } from './progress'
 import { modrinthFileCandidates } from './source'
 import { pathExists, safeJoin } from './version'
@@ -420,12 +422,68 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
       size: file.size,
       label: basename(file.path)
     }))
+    let reusedFiles = 0
+    const reuseJobs = jobs.flatMap((job) =>
+      job.sha1 && job.size != null
+        ? [{ destination: job.destination, sha1: job.sha1, size: job.size }]
+        : []
+    )
+    if (reuseJobs.length) {
+      report('查找本地模组', 64)
+      try {
+        let instances: InstanceSummary[] = []
+        try {
+          instances = await listInstances()
+        } catch {
+          instances = []
+        }
+        const roots = await collectPackReuseRoots({
+          target: minecraftDir,
+          baseGameDir: options.gameDir,
+          sources: instances.map((instance) => ({
+            gameDir: instance.external?.gameDir ?? getInstanceMinecraftDir(instance.id),
+            baseDir: instance.external?.baseDir ?? null
+          }))
+        })
+        if (roots.length) {
+          const reuse = await reuseLocalPackFiles({
+            jobs: reuseJobs,
+            roots,
+            signal,
+            onProgress: (info) => {
+              if (!info.checked && !info.reused && !info.label) return
+              report(
+                info.reused > 0 ? `本地复用 · ${info.reused}/${info.total}` : '查找本地模组',
+                64,
+                {
+                  current: info.checked,
+                  total: info.total,
+                  bytesDone: info.bytes,
+                  bytesTotal: info.bytesTotal,
+                  speed: 0
+                }
+              )
+            }
+          })
+          reusedFiles = reuse.reused
+        }
+      } catch (error) {
+        if (signal.aborted || error instanceof CancellationError) {
+          throw new CancellationError()
+        }
+        // 本地扫描失败不影响正常下载。
+      }
+    }
+    if (signal.aborted) throw new CancellationError()
+    const downloadStage =
+      reusedFiles > 0 ? `下载整合包文件 · 本地复用 ${reusedFiles}` : '下载整合包文件'
     await runDownloadPool(jobs, {
       concurrency: options.concurrency,
+      hostConcurrency: Math.min(64, Math.max(32, options.concurrency)),
       signal,
       onProgress: (detail) => {
         const ratio = detail.total ? detail.current / detail.total : 1
-        report('下载整合包文件', 64 + ratio * 26, detail)
+        report(downloadStage, 64 + ratio * 26, detail)
       }
     })
 

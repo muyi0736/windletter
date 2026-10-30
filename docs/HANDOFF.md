@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
-最后更新：2026-10-30  
-项目版本：0.60.10（Actions 构建）  
+最后更新：2026-10-31  
+项目版本：0.60.13（已发布到 GitHub Release）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.10-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.10`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.9 的安装包 SHA-256 为 `7843854cfaeeed5650ce35f2e34c1c6b3eab7e54be61ed3399d5b742f919e775`。
+`Windletter-Launcher-0.60.13-setup.exe`（本地 `D:\WindletterOut`；公开 Release v0.60.13）；仓库为 `https://github.com/muyi0736/windletter`，当前公开 Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.13`。本地构建安装包 116,787,084 字节，SHA-256 为 `b3fd74516daf390964c6b8e4f74bdfb3ffc79ca4544c3ff3595abd467a505792`；公开 Actions 构建的安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准。0.60.12 本地安装包 SHA-256 为 `0a984bc551b2822e46914346d82a7f14d80c9a7b5f44ae204abfa4074924bf6e`；0.60.11 本地安装包 SHA-256 为 `8e38f0679f5c5455d7288ee21f3fca0b0dff81226df49bff9ef531687191b441`；0.60.9 的安装包 SHA-256 为 `7843854cfaeeed5650ce35f2e34c1c6b3eab7e54be61ed3399d5b742f919e775`。
 
 ### 三个最重要的目录
 
@@ -353,7 +353,7 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - `KubeJsRuntimeModal` 显示阶段、百分比、取消、服务端检查项、KubeJS 错误/警告和完整日志；错误带 `server_scripts/foo.js:12` 时点击跳转编辑器。
 - 只支持 Fabric / Forge / NeoForge；`client_scripts` 只在客户端执行，结果里单独提示数量。无服务端/启动脚本、没有 KubeJS 模组、加载器不支持等情况会在启动前直接返回明确原因。
 - `kubeJsRuntimeLog.ts` 从服务端日志提取 KubeJS 脚本/配方/标签报错；日志级别优先按 `[main/ERROR]` / `[main/WARN]` 标签判定，避免把 “Failed to parse recipe” 这类 WARN 误判为错误。用真实 miao 服务端日志验证：50 条 WARN、0 条 ERROR（上限 50）。
-- 已实测：工作台入口与弹窗、未保存拦截、无脚本错误路径、取消、IPC 进度、解析器；完整启动测试在本机下载 Forge server.jar 时卡在 piston-data（下载停滞），尚未完成一次真实 KubeJS 服务端启动，需在网络正常或已有服务端 jar 的环境补测。0.60.8 由 Actions 发布，安装包哈希以 Release 页为准。
+- 已实测：工作台入口与弹窗、未保存拦截、无脚本错误路径、取消、IPC 进度、解析器；0.60.10 安装版对 miao（Forge 47.4.16 / 1.20.1 / 307 模组，服务端包 286 模组）完成完整启动验证：43 个服务端/启动脚本 + 2 个 client_scripts，服务端首次 `Done (66.246s)`，发送 stop 退出码 0，导出的 `start-server.bat` 再次启动并 stop；总耗时 749 秒（含首次 Forge 安装与服务端 jar 下载），解析到 50 条 KubeJS 配方回退 WARN、0 条 ERROR，判定通过。完整日志在 `data/logs/serverpack-check/kubejs-runtime-6a8af34e-6620-4c63-b461-c2e30098b0f8-2026-10-31_00-16-09.log`。0.60.8 由 Actions 发布，安装包哈希以 Release 页为准。
 
 0.60.9 更新下载线路优化：
 
@@ -370,6 +370,32 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - 合并后按大小/SHA1（若提供）校验，更新器再做 SHA-256；取消时保留分片，继续下载按分段偏移续传。
 - 实测：两个本地 HTTP Range 服务共享一个 8MB 随机文件，清单同时列两条线路；下载使用 16 段、两端口各 8 段交替请求，合并后 SHA-256 与清单一致，任务到达 ready。`npm run typecheck`、`npm run build` 通过。
 - 0.60.10 由 Actions 发布；安装包哈希以 Release 页为准。
+
+0.60.11 启动日志可读性：
+
+- 新模块 `src/main/core/gameLogFormat.ts`：`GameLogAssembler` 把 Mojang `client-1.12.xml` 中 `<LegacyXMLLayout />` 产生的多行 `<log4j:Event>` 聚合成一条 `GameLogEvent`，解析 timestamp、level、logger、thread、CDATA message 与 Throwable；缺失闭合标签、出现下一个 Event、超长畸形块都有原文兜底。EventSet 包装行会被忽略；Mod List / classloader 这类上千行事件不再按普通行数截断（上限 20000 行 / 8MB）。
+- `launcher.ts` 的 stdout/stderr `createLineBuffer` 改走 assembler；`LaunchLogLine` 新增可选 `level / logger / thread / detail`。系统消息照旧。`launch-*.log` 从 UTC 改为本地时间，格式变为 `[HH:mm:ss] [LEVEL] [logger / thread] message`，异常堆栈另起行；`--accessToken ...` 统一脱敏为 `[REDACTED]`，不写入磁盘。
+- `ConsoleDrawer` 重做：级别徽章（SYS/OUT/INFO/WARN/ERROR/FATAL），短 logger + 悬停完整来源/线程；「全部 / 警告+ / 错误」筛选（警告+ 含错误），连续重复日志折叠为 `×N` 并显示最近时间；多行长消息和异常堆栈用 `<details>` 折叠；筛选、折叠、自动滚动写入 `localStorage`（`ccl-console-*`）。右侧日志预览只显示首行并带级别颜色。
+- 控制台颜色跟随明暗主题：浅色纸面主题下是半透明亮色面板，深色主题下是暗色面板；`paper.css` 只保留纸面圆角和字体，并略微提高头部 / 工具栏的不透明度，避免自定义背景穿透影响读日志。此前浅色主题深色头部配浅色正文的混搭已消除。
+- 实测：真实 ATM11 日志（2026-10-30 16:18 UTC）1301 个事件、1009 INFO / 271 WARN / 21 ERROR、4 个堆栈、4658 行 stdout，解析后事件数和级别完全一致、0 条 XML 残留；自定义 `logfixture` 版本 + 离线账户真实启动，18 条日志、Mod List 多行、ERROR 堆栈、spark ×5、原始 stdout 和令牌脱敏全部正确；控制台两种主题、自定义背景下的浅色半透明面板、筛选、堆栈、长文本、偏好持久化均已检查。`npm run typecheck`、`npm run build` 通过。
+- 0.60.11 随 v0.60.13 批量发布。
+
+0.60.13 一键进服 Quick Play：
+
+- 症状：服务器中心“启动并进服”只启动游戏，没有进入服务器。真实 ATM11 日志显示游戏打印 `Completely ignored arguments: [--server, e75f3.mc5173.cn, --port, 52460]`；新版 Minecraft / NeoForge 已不再识别旧版 `--server` / `--port`。
+- `version.ts` 新增 `hasQuickPlayMultiplayer()`，检查版本（含继承合并后的 NeoForge/Forge 参数）是否包含 `--quickPlayMultiplayer`。有服务器目标且支持 Quick Play 时，启用 `is_quick_play_multiplayer`，把 `${quickPlayMultiplayer}` 填成 `host:port`；游戏参数里已有 `--quickPlayMultiplayer`，不再追加旧参数。旧版本没有该入口时仍回退 `--server` / `--port`。
+- IPv6 使用 `[host]:port`；不启用 `--quickPlayPath`，避免传入空路径。`featuresForSettings` 的其他行为不变，库/JVM 规则仍使用原 features。
+- 实测：真实 NeoForge 26.1.2 解析后参数含 `--quickPlayMultiplayer e75f3.mc5173.cn:52460`，无 `--server` / `--port`；IPv6 为 `[::1]:25565`；合成旧版 JSON 回退旧参数；无服务器目标时不传进服参数。2026-10-31 01:47 安装版 0.60.13 通过 `servers.launch` 实际启动 ATM11 进 AVT：日志 `Connecting to e75f3.mc5173.cn, 52460`，随后接收到服务器同步配置（Refurbished Furniture、Silent Gear 96 traits / 159 materials），SLP 显示 1/10 在线、样本 MUYI1028，未出现 `Completely ignored arguments`；测试日志 `data/logs/launch-2026-10-30T17-41-06-555Z.log`。测试结束后通过启动器结束游戏并关闭。`npm run typecheck`、`npm run build` 通过。
+- 0.60.13 随本次批量发布到 GitHub Release。
+
+0.60.12 整合包本地复用与下载并发：
+
+- 新增 `src/main/core/packReuse.ts`。安装整合包前按 `mods` / `resourcepacks` / `shaderpacks` / `datapacks` 扫描本机实例；如果实例是 external 类型，还会扫描 `external.baseDir` 本身和同级 `versions/*`，因此 PCL2 / HMCL 里其他版本的 mods 也能复用；最后扫描共享 `gameDir` 及其 versions。根目录上限 240，扫描文件上限 60k，目录深度 2，跳过 `.part` / `.disabled` / 符号链接。
+- 只复用 basename 和大小完全一致、且 SHA1 校验通过的候选；命中后先 `fs.link`，跨卷或权限失败再 `fs.copyFile`，复制后再校验 SHA1。复用失败、扫描失败或单个文件被锁不会让安装失败；取消会抛 `CancellationError`。
+- 整合包任务新增阶段：先显示“查找本地模组”，复用过程显示“本地复用 · x/y”，下载阶段显示“下载整合包文件 · 本地复用 N”。复用文件会被 `runDownloadPool` 当作已存在文件计入当前/总量，所以进度不会重复计算。
+- 下载层 `DownloadOptions.hostConcurrency` 和 `runDownloadPool` 同名选项可覆盖单主机并发；整合包文件安装使用 `min(64, max(32, downloadConcurrency))`，默认 32，其他下载仍保持默认 16。
+- 实测：真实 ATM11 的 3 个 jar 硬链接复用成功（源/目标同 inode，5,999,917 字节）；错误 SHA1 不落盘；取消返回 `CancellationError`。按当前 5 个实例收集到 15 个根目录、扫描 1188 个文件、1 个命中；ATM11 的 299 个文件 / 706.4 MB 与其他实例只有 2 个同名同大小文件 / 2.2 MB，所以当前重装 ATM11 本身收益有限，冷下载主要靠并发提升。限速本地服务器 32 个 1 MB 文件：单主机 16 并发 14.2 秒 / 2.25 MB/s，32 并发 7.1 秒 / 4.52 MB/s。`npm run typecheck`、`npm run build` 通过。
+- 0.60.12 随 v0.60.13 批量发布。
 
 ---
 

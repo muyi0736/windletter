@@ -107,7 +107,7 @@ function originOf(url: string): string | null {
   }
 }
 
-async function acquireHost(host: string): Promise<() => void> {
+async function acquireHost(host: string, limit = HOST_CONCURRENCY): Promise<() => void> {
   let state = hostStates.get(host)
   if (!state) {
     state = { active: 0, waiters: [] }
@@ -120,7 +120,7 @@ async function acquireHost(host: string): Promise<() => void> {
     const next = current.waiters.shift()
     if (next) next()
   }
-  if (state.active < HOST_CONCURRENCY) {
+  if (state.active < Math.max(1, limit)) {
     state.active += 1
     return release
   }
@@ -349,6 +349,8 @@ export interface DownloadOptions {
   probeBytes?: number
   /** 多个候选线路同时参与分段下载；仅大文件且候选 >=2 时生效。 */
   multiSource?: boolean
+  /** 同一主机的最大并发连接数；整合包批量下载可高于默认值。 */
+  hostConcurrency?: number
 }
 
 /* ---------- 多线程分片下载 ---------- */
@@ -504,6 +506,7 @@ async function downloadFileSegmented(
   expectedSha1: string | null
 ): Promise<boolean> {
   const minBytes = options.segmentMinBytes ?? SEGMENT_MIN_BYTES
+  const hostLimit = options.hostConcurrency ?? HOST_CONCURRENCY
   if (options.size == null || options.size < minBytes) return false
   const part = `${destination}.part`
   try {
@@ -571,7 +574,7 @@ async function downloadFileSegmented(
       }
       if (current >= length) return
       const from = start + current
-      const releaseHost = await acquireHost(hostOf(url) ?? 'unknown')
+      const releaseHost = await acquireHost(hostOf(url) ?? 'unknown', hostLimit)
       const stall = createStallGuard()
       const signals: AbortSignal[] = [
         AbortSignal.timeout(FILE_TIMEOUT),
@@ -719,6 +722,7 @@ async function downloadFileMultiSource(
   expectedSha1: string | null
 ): Promise<boolean> {
   const size = options.size
+  const hostLimit = options.hostConcurrency ?? HOST_CONCURRENCY
   if (!size || urls.length < 2) return false
   const part = `${destination}.part`
   try {
@@ -802,7 +806,7 @@ async function downloadFileMultiSource(
       }
       const source = sources[sourceIndex]
       const from = start + current
-      const releaseHost = await acquireHost(hostOf(source.url) ?? 'unknown')
+      const releaseHost = await acquireHost(hostOf(source.url) ?? 'unknown', hostLimit)
       const stall = createStallGuard()
       const signals: AbortSignal[] = [
         AbortSignal.timeout(FILE_TIMEOUT),
@@ -967,6 +971,7 @@ export async function downloadFile(
   await fs.mkdir(dirname(destination), { recursive: true })
   const part = `${destination}.part`
   const metaPath = `${part}.json`
+  const hostLimit = options.hostConcurrency ?? HOST_CONCURRENCY
   let lastError: Error | null = null
   if (
     options.multiSource &&
@@ -1068,7 +1073,7 @@ export async function downloadFile(
         }
 
         const host = hostOf(url)
-        if (host) releaseHost = await acquireHost(host)
+        if (host) releaseHost = await acquireHost(host, hostLimit)
         if (options.signal?.aborted) throw new CancellationError()
         stall = createStallGuard()
 

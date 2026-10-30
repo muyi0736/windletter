@@ -801,6 +801,80 @@
   color: var(--text-3);
 }
 
+.console-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+}
+
+.console-filters {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.console-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.console-filter:hover {
+  color: var(--text);
+}
+
+.console-filter.is-active {
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.console-filter > span {
+  display: grid;
+  place-items: center;
+  min-width: 14px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 7.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.console-filter.is-active > span {
+  color: var(--text-2);
+}
+
+.console-collapse {
+  margin-right: 0;
+}
+
+.console-visible {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .console-actions {
   display: flex;
   align-items: center;
@@ -924,10 +998,154 @@
   color: var(--violet-ink);
 }
 
+.console-stream--info {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.console-stream--warn {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+
+.console-stream--error {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+}
+
+.console-stream--debug,
+.console-stream--trace {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
 .console-text {
   min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.console-logger {
+  margin-right: 4px;
+  color: var(--text-3);
+  font-size: 9px;
+}
+
+.console-logger::after {
+  content: ' ·';
+  margin-left: 3px;
+  opacity: 0.65;
+}
+
+.console-repeat {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 5px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 14px;
+  vertical-align: 1px;
+  cursor: help;
+}
+
+.console-long {
+  display: block;
+  margin-top: 1px;
+}
+
+.console-long > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.console-long > summary::-webkit-details-marker {
+  display: none;
+}
+
+.console-long-preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+.console-long-more {
+  flex-shrink: 0;
+  color: var(--text-3);
+  font-size: 8.5px;
+}
+
+.console-long-more::after {
+  content: ' · 展开';
+}
+
+.console-long[open] .console-long-more {
+  color: var(--accent-ink);
+}
+
+.console-long[open] .console-long-more::after {
+  content: ' · 收起';
+}
+
+.console-long[open] .console-long-preview {
+  display: none;
+}
+
+.console-long-body,
+.console-stack pre {
+  margin: 4px 0 2px;
+  padding: 6px 8px;
+  max-height: 240px;
+  overflow: auto;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 42%, var(--surface));
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.console-stack {
+  display: block;
+  margin-top: 2px;
+}
+
+.console-stack > summary {
+  width: fit-content;
+  color: var(--danger-ink);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.console-line--muted .console-text {
+  color: var(--text-3);
+}
+
+.console-line--warn .console-text {
+  color: var(--text);
+}
+
+.console-reset {
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.console-reset:hover {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
 }
 
 .console-line--error {

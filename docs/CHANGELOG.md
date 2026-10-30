@@ -2,12 +2,15 @@
 
 [返回 README](../README.md)
 
-当前版本 0.60.4。最新安装包见 [GitHub Releases](https://github.com/muyi0736/windletter/releases/latest)。
+当前项目版本 0.60.13，已发布到 GitHub Release v0.60.13（2026-10-31）。最新安装包见 [GitHub Releases](https://github.com/muyi0736/windletter/releases/latest)。
 
 > 本文件保留各版本的功能说明与实测记录，方便回溯；README 只保留当前能力概览。记录按写入时的原文保存，顺序不完全按版本排列。
 
 ## 近期重点
 
+- **0.60.13** — 一键进服修复：新版 Minecraft / NeoForge 会忽略旧的 `--server` / `--port`，改为在版本支持时传入 Quick Play 的 `--quickPlayMultiplayer host:port`，旧版本继续回退旧参数。
+- **0.60.12** — 整合包下载提速：安装前扫描本机其他实例和外部 PCL2 / HMCL 版本目录，同名同大小且 SHA1 一致的文件直接硬链接或复制；整合包文件下载的单主机并发默认提高到 32（高并发设置最多 64）。
+- **0.60.11** — 启动日志可读性：解析 Minecraft 的 log4j XML 事件，按级别 / 来源 / 线程显示；新增全部、警告+、错误筛选和连续重复折叠，异常堆栈可展开，偏好会记住；启动日志文件同样可读并脱敏访问令牌。
 - **0.60.10** — 多线路并行下载：多个可用 GitHub/镜像线路同时分片（16–24 段），单条线路限额或失败时自动切换，合并后继续校验大小与 SHA-256。
 - **0.60.9** — 更新下载线路优化：候选线路用 4 路 Range 实测吞吐量和分段能力，避免选中延迟低但分段失败、退化成单连接的镜像；探测失败仍回退延迟排序。
 - **0.60.8** — KubeJS 实际运行验证：在「问题」页生成临时服务端并真实加载，检查服务端/启动脚本、配方与标签注册报错；错误带路径/行号可跳转，支持 Fabric / Forge / NeoForge。
@@ -37,11 +40,17 @@
 
 ## 历史验证记录
 
+0.60.13 一键进服实测：真实 ATM11 启动日志里出现了 `Completely ignored arguments: [--server, e75f3.mc5173.cn, --port, 52460]`，说明新版 Minecraft / NeoForge 不再识别旧版 `--server` / `--port`，而启动器此前一直走旧参数。现在 `version.ts` 检测版本 `arguments.game` 是否带 `--quickPlayMultiplayer`：支持时启用 `is_quick_play_multiplayer` 并把 `${quickPlayMultiplayer}` 填成 `host:port`；不支持时仍追加旧 `--server` / `--port`。IPv6 使用 `[host]:port`。用真实 NeoForge 26.1.2 解析结果验证：Quick Play 参数为 `e75f3.mc5173.cn:52460`，不再出现旧参数；IPv6 为 `[::1]:25565`；合成旧版 JSON 回退 `--server` / `--port`；无服务器目标时不传进服参数。2026-10-31 01:47 用安装版 0.60.13 通过 `servers.launch` 实际启动 ATM11（NeoForge 26.1.2）进 AVT：客户端日志出现 `Connecting to e75f3.mc5173.cn, 52460`，随后收到服务器同步配置（Refurbished Furniture、Silent Gear 96 traits / 159 materials），服务器 SLP 显示 1/10 在线且样本为 MUYI1028，没有出现 `Completely ignored arguments`。测试结束后通过启动器结束游戏并关闭。`npm run typecheck`、`npm run build` 通过。0.60.13 已随本次批量发布到 GitHub Release。
+
+0.60.12 整合包下载提速实测：新增 `packReuse.ts`，安装前扫描所有实例的 `mods` / `resourcepacks` / `shaderpacks` / `datapacks`，以及外部实例同级 `versions` 和共享版本目录；只接受同名同大小且 SHA1 一致的候选，命中后优先硬链接，跨卷或权限不允许时回退复制，最多扫描 60k 文件、深度 2、240 个根目录，扫描/校验失败或取消不会阻塞正常下载。任务会先显示“查找本地模组 / 本地复用 x/y”，下载阶段标注“本地复用 N”。下载层新增 `hostConcurrency`，整合包文件安装默认使用 32 条单主机连接（设置更高下载并发时最多 64），其他下载仍保持 16。实测：真实 ATM11 的 3 个 jar 复用成功且源/目标 inode 相同（5,999,917 字节），错误 SHA1 不落盘，取消返回 `CancellationError`；用当前 5 个实例收集到 15 个可扫描根目录，1188 个文件扫描、1 个命中。按当前实例统计，ATM11 的 299 个文件 / 706.4 MB 与其他实例只有 2 个同名同大小文件 / 2.2 MB，所以这次复用对“重装 ATM11”本身收益有限，冷下载提速主要来自并发调整；本地限速服务器用 32 个 1 MB 文件模拟每连接 160 KB/s，单主机 16 并发 14.2 秒 / 2.25 MB/s，32 并发 7.1 秒 / 4.52 MB/s。`npm run typecheck`、`npm run build` 通过。0.60.12 为本地构建，公开 Release 待下次源码同步。
+
+0.60.11 启动日志可读性实测：`gameLogFormat.ts` 聚合 Mojang `client-1.12.xml` 产生的多行 log4j XML（LegacyXMLLayout），提取真实时间、级别、logger、线程、消息和异常堆栈；非 XML 的 stdout 原样保留，`--accessToken` 在内存日志和 `launch-*.log` 中统一替换为 `[REDACTED]`。用 2026-10-30 真实 ATM11 日志（1301 个事件，1009 INFO / 271 WARN / 21 ERROR，4 个异常堆栈，4658 行 stdout）验证：事件数与各级别数量完全一致、0 条 XML 残留、Mod List 318 行与 classloader 324 行完整保留。端到端夹具（自定义 `logfixture` 版本 + 离线账户）实际启动后得到 18 条日志：XML 全部转成单条可读记录，Mod List 多行、ERROR 堆栈、spark 警告 ×5 折叠、原始 stdout 行均正确，启动日志文件输出 `[WARN] [logger / thread]` 新格式且令牌已脱敏；浅色 / 深色控制台、自定义背景、级别筛选、堆栈展开、偏好持久化均已截图检查。`npm run typecheck`、`npm run build` 通过。0.60.11 为本地构建，公开 Release 待下次源码同步。
+
 0.60.10 多线路并行实测：两个本地 HTTP Range 服务共享一个 8MB 随机文件，清单同时列两条线路；更新下载使用 16 段，两端口各 8 段交替请求，合并后 SHA-256 与清单一致，任务到达 ready。单条线路限额/失败/不支持 Range 时会标记不可用并切换。`npm run typecheck`、`npm run build` 通过。
 
 0.60.9 更新线路探测实测：本地假清单同时提供 API asset、ghfast、gh-proxy 三个候选，4 路 Range 探测约 3 秒后选中 API asset，16 段分片正常，取消后保留 16 个分片；此前 ghfast 选中后会因部分 Range 失败退化成单连接。免费线路当前约 0.3–0.8 MB/s，探测只能选对线路，不能突破网络上限；进一步提速需要独立 CDN。`npm run typecheck`、`npm run build` 通过。
 
-0.60.8 KubeJS 实际运行验证实测：工作台「问题」页的「实际运行」入口、临时服务端弹窗、未保存拦截、无脚本错误路径、取消和进度事件均正常；用真实 miao 服务端日志验证解析器得到 50 条 WARN、0 条 ERROR（级别优先读取 `[main/WARN]`/`[main/ERROR]`，不会把 recipe 回退警告误判为错误）。完整启动测试在本机下载 Forge `server.jar` 时卡在 piston-data，尚未完成一次真实 KubeJS 服务端启动；启动路径复用已实测的服务端包验证，需在网络正常或已有服务端 jar 的环境补测。`npm run typecheck`、`npm run build` 通过。
+0.60.8 KubeJS 实际运行验证实测：工作台「问题」页的「实际运行」入口、临时服务端弹窗、未保存拦截、无脚本错误路径、取消和进度事件均正常；0.60.10 安装版对 miao（Forge 47.4.16 / 1.20.1 / 307 模组，服务端包 286 模组）完成完整启动验证：43 个服务端/启动脚本 + 2 个 client_scripts，服务端首次 `Done (66.246s)`，stop 退出码 0，导出的 `start-server.bat` 再次启动并 stop；总耗时 749 秒，解析到 50 条 KubeJS 配方回退 WARN、0 条 ERROR，判定通过。解析器级别优先读取 `[main/WARN]`/`[main/ERROR]`，不会把 recipe 回退警告误判为错误。`npm run typecheck`、`npm run build` 通过。
 
 0.60.7 限流退避实测：预置 1 小时后恢复的 `updater-rate-limit.json` 和 1 小时前的缓存，检查返回 `source=cache`、`rateLimitedUntil` 正确，GitHub 额度 60→60（未发请求），界面显示“限额退避 / API 限额，2026-10-30 21:53 后恢复”；无缓存时返回带恢复时间的错误。1 小时前缓存在静默检查中复用（额度 60→60），手动检查走 API（60→59）。`npm run typecheck`、`npm run build` 通过。
 

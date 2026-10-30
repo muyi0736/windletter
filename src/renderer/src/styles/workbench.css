@@ -2643,6 +2643,15 @@
   color: var(--text-3);
 }
 
+.sidebar-log-line.is-warn {
+  color: var(--warning-ink);
+}
+
+.sidebar-log-line.is-error,
+.sidebar-log-line.is-fatal {
+  color: var(--danger-ink);
+}
+
 .sidebar-wide-button {
   width: 100%;
   justify-content: center;

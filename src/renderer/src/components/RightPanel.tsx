@@ -195,8 +195,13 @@ export function RightPanel({
                 <p className="sidebar-empty">等待游戏启动…</p>
               ) : (
                 recentLogs.map((line, index) => (
-                  <div key={`${line.time}-${index}`} className={`sidebar-log-line is-${line.stream}`}>
-                    {line.text}
+                  <div
+                    key={`${line.time}-${index}`}
+                    className={`sidebar-log-line is-${line.stream}${line.level ? ` is-${line.level}` : ''}`}
+                    title={line.logger ? `${line.logger}${line.thread ? ` · ${line.thread}` : ''}` : undefined}
+                  >
+                    {line.text.split('\n')[0]}
+                    {line.text.includes('\n') ? ' …' : ''}
                   </div>
                 ))
               )}

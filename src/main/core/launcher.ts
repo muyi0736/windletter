@@ -23,6 +23,7 @@ import {
   type ResolvedVersion
 } from './version'
 import { isRuleAllowed } from './rules'
+import { GameLogAssembler, type GameLogEvent, type GameLogFeed } from './gameLogFormat'
 
 const MAX_LOG_LINES = 4000
 const APP_VERSION = app.getVersion()
@@ -85,19 +86,53 @@ function setState(patch: Partial<LaunchState>): void {
   events?.onState(getLaunchState())
 }
 
-function writeLogFile(stream: LaunchLogLine['stream'], text: string): void {
+function clockOf(time: number): string {
+  const date = new Date(time)
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+function redactSecrets(text: string): string {
+  // 游戏日志可能包含 ModLauncher 的完整启动参数，令牌永远不应该落盘。
+  return text.replace(/(--accessToken(?:\s*,\s*|\s+))[^\s,\]]+/gi, '$1[REDACTED]')
+}
+
+function writeLogFile(line: LaunchLogLine): void {
   if (!logStream) return
-  const time = new Date().toISOString().slice(11, 19)
-  logStream.write(`[${time}] [${stream}] ${text}\n`)
+  const tag = line.level ? line.level.toUpperCase() : line.stream
+  const source = line.logger
+    ? ` [${line.logger}${line.thread ? ` / ${line.thread}` : ''}]`
+    : ''
+  logStream.write(`[${clockOf(line.time)}] [${tag}]${source} ${line.text}\n`)
+  if (line.detail) logStream.write(`${line.detail}\n`)
+}
+
+function appendLog(line: LaunchLogLine): void {
+  const next: LaunchLogLine = {
+    ...line,
+    text: redactSecrets(line.text.replace(/\x1b\[[0-9;]*m/g, '')),
+    detail: line.detail ? redactSecrets(line.detail) : undefined
+  }
+  logs.push(next)
+  if (logs.length > MAX_LOG_LINES) logs.splice(0, logs.length - MAX_LOG_LINES)
+  writeLogFile(next)
+  events?.onLog(next)
 }
 
 function log(stream: LaunchLogLine['stream'], text: string): void {
-  const clean = text.replace(/\x1b\[[0-9;]*m/g, '')
-  const line: LaunchLogLine = { time: Date.now(), stream, text: clean }
-  logs.push(line)
-  if (logs.length > MAX_LOG_LINES) logs.splice(0, logs.length - MAX_LOG_LINES)
-  writeLogFile(stream, clean)
-  events?.onLog(line)
+  appendLog({ time: Date.now(), stream, text })
+}
+
+function logGameEvent(stream: LaunchLogLine['stream'], event: GameLogEvent): void {
+  appendLog({
+    time: event.time,
+    stream,
+    text: event.message,
+    level: event.level,
+    logger: event.logger || undefined,
+    thread: event.thread || undefined,
+    detail: event.detail ?? undefined
+  })
 }
 
 async function openLogFile(): Promise<void> {
@@ -140,18 +175,24 @@ function createLineBuffer(
   stream: 'stdout' | 'stderr'
 ): { push: (chunk: Buffer) => void; flush: () => void } {
   let buffer = ''
+  const assembler = new GameLogAssembler()
+  const emit = (feeds: GameLogFeed[]): void => {
+    for (const feed of feeds) {
+      if (feed.type === 'event') logGameEvent(stream, feed.event)
+      else if (feed.text.length) log(stream, feed.text)
+    }
+  }
   return {
     push(chunk: Buffer) {
       buffer += chunk.toString('utf8')
       const parts = buffer.split(/\r?\n/)
       buffer = parts.pop() ?? ''
-      for (const part of parts) {
-        if (part.length) log(stream, part)
-      }
+      for (const part of parts) emit(assembler.push(part))
     },
     flush() {
-      if (buffer.trim()) log(stream, buffer)
+      if (buffer) emit(assembler.push(buffer))
       buffer = ''
+      emit(assembler.flush())
     }
   }
 }

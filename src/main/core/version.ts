@@ -196,6 +196,19 @@ function mergeVersionJson(
   }
 }
 
+function hasQuickPlayMultiplayer(entries: ArgumentEntry[] | undefined): boolean {
+  if (!entries) return false
+  return entries.some((entry) => {
+    const values =
+      typeof entry === 'string'
+        ? [entry]
+        : Array.isArray(entry.value)
+          ? entry.value
+          : [entry.value]
+    return values.includes('--quickPlayMultiplayer')
+  })
+}
+
 export async function resolveVersion(gameDir: string, id: string): Promise<ResolvedVersion> {
   const chain: string[] = []
   let current: import('./mojangTypes').VersionJson | null = null
@@ -314,6 +327,17 @@ export function buildLaunchCommand(options: BuildCommandOptions): BuiltCommand {
   const baseDir = options.baseDir ?? gameDir
   const json = version.json
   const features = featuresForSettings(settings)
+  const serverHost = options.server
+    ? isIP(options.server.host) === 6
+      ? `[${options.server.host}]`
+      : options.server.host
+    : ''
+  const quickPlayMultiplayer = options.server ? `${serverHost}:${options.server.port}` : ''
+  const quickPlaySupported = hasQuickPlayMultiplayer(json.arguments?.game)
+  const gameFeatures =
+    options.server && quickPlaySupported
+      ? { ...features, is_quick_play_multiplayer: true }
+      : features
   const assetsDir = join(baseDir, 'assets')
   const libraryDir = join(baseDir, 'libraries')
   const versionDir = join(baseDir, 'versions', version.chain[0])
@@ -357,7 +381,7 @@ export function buildLaunchCommand(options: BuildCommandOptions): BuiltCommand {
     user_properties: '{}',
     quickPlayPath: '',
     quickPlaySingleplayer: '',
-    quickPlayMultiplayer: '',
+    quickPlayMultiplayer,
     quickPlayRealms: '',
     path: loggingPath ?? ''
   }
@@ -410,7 +434,7 @@ export function buildLaunchCommand(options: BuildCommandOptions): BuiltCommand {
     ...loggingArgs
   ]
 
-  const modernGameArgs = flattenArguments(json.arguments?.game, features).map(replace)
+  const modernGameArgs = flattenArguments(json.arguments?.game, gameFeatures).map(replace)
   let gameArgs: string[]
   if (modernGameArgs.length) {
     gameArgs = modernGameArgs
@@ -446,8 +470,7 @@ export function buildLaunchCommand(options: BuildCommandOptions): BuiltCommand {
     const hasServerArgument =
       gameArgs.includes('--server') || gameArgs.includes('--quickPlayMultiplayer')
     if (!hasServerArgument) {
-      const host = isIP(options.server.host) === 6 ? `[${options.server.host}]` : options.server.host
-      gameArgs.push('--server', host, '--port', String(options.server.port))
+      gameArgs.push('--server', serverHost, '--port', String(options.server.port))
     }
   }
 

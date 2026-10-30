@@ -1680,10 +1680,20 @@ export interface LoaderRollbackState {
   updatedAt: number
 }
 
+export type LaunchLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
+
 export interface LaunchLogLine {
   time: number
   stream: 'stdout' | 'stderr' | 'system'
   text: string
+  /** 由游戏 log4j XML 事件解析出的级别 */
+  level?: LaunchLogLevel
+  /** 产生这条日志的 logger / 模组来源 */
+  logger?: string
+  /** 日志线程名 */
+  thread?: string
+  /** 异常堆栈（如果有） */
+  detail?: string
 }
 
 export interface MsDeviceCode {
