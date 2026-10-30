@@ -97,6 +97,7 @@ import { installCurseForgeModpack } from './core/curseforgePack'
 import { getAiConfigView, updateAiConfig } from './core/ai'
 import { analyzeWithAi } from './core/aiDoctor'
 import { answerKubeJsQuestion } from './core/kubeJsQa'
+import { verifyKubeJsRuntime } from './core/kubeJsRuntime'
 import { inspectServerPack, verifyServerPack } from './core/serverPackCheck'
 import {
   exportWorkshopPack,
@@ -753,10 +754,12 @@ async function cleanupVersionsAfterInstanceDelete(instance: InstanceSummary): Pr
 }
 
 let serverPackVerifier: AbortController | null = null
+let kubeJsRuntimeController: AbortController | null = null
 
 function registerIpc(): void {
   app.on('before-quit', () => {
     serverPackVerifier?.abort()
+    kubeJsRuntimeController?.abort()
     cancelLauncherUpdate()
   })
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
@@ -1464,6 +1467,31 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
       instanceId: requireInstanceId(value.instanceId),
       question: value.question.slice(0, 500)
     })
+  })
+
+  ipcMain.handle('workshop:kubejs-runtime', async (event, rawId: unknown) => {
+    const instanceId = requireInstanceId(rawId)
+    if (kubeJsRuntimeController) throw new Error('已有一个 KubeJS 运行验证正在进行')
+    const controller = new AbortController()
+    kubeJsRuntimeController = controller
+    try {
+      return await verifyKubeJsRuntime(
+        instanceId,
+        (progress) => {
+          const sender = event.sender
+          if (!sender.isDestroyed()) sender.send('workshop:kubejs-runtime-progress', progress)
+        },
+        controller.signal
+      )
+    } finally {
+      if (kubeJsRuntimeController === controller) kubeJsRuntimeController = null
+    }
+  })
+
+  ipcMain.handle('workshop:kubejs-runtime-cancel', () => {
+    if (!kubeJsRuntimeController) return false
+    kubeJsRuntimeController.abort()
+    return true
   })
 
   ipcMain.handle('workshop:export-pack', async (event, raw: unknown) => {

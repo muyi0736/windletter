@@ -43,6 +43,7 @@ import {
 } from './KubeJsCodeEditor'
 import { KubeJsExplainPanel } from './KubeJsExplainPanel'
 import { KubeJsHelpModal } from './KubeJsHelpModal'
+import { KubeJsRuntimeModal } from './KubeJsRuntimeModal'
 import { KubeJsKnowledgePanel } from './KubeJsKnowledgePanel'
 import { DiffView, KubeJsHistoryModal } from './KubeJsHistoryModal'
 import { KubeJsProblemsPanel } from './KubeJsProblemsPanel'
@@ -259,6 +260,7 @@ export function KubeJsWorkbench({
   >('knowledge')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [runtimeOpen, setRuntimeOpen] = useState(false)
   const [conflict, setConflict] = useState<ConflictState | null>(null)
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
@@ -520,6 +522,15 @@ export function KubeJsWorkbench({
     }
     pendingJump.current = { path: targetPath, line, column }
     void openPath(targetPath)
+  }
+
+  const openRuntimeCheck = () => {
+    if (!instance) return
+    if (dirtyTabs.length > 0) {
+      toast('info', '先保存所有修改', '实际运行验证读取磁盘文件，请先保存所有标签')
+      return
+    }
+    setRuntimeOpen(true)
   }
 
   const removeTab = (path: string) => {
@@ -1645,6 +1656,7 @@ export function KubeJsWorkbench({
                 onOpen={jumpTo}
                 onApplyFixes={applyTextFixes}
                 onMoveFix={(targetPath) => void moveFileForFix(targetPath)}
+                onRuntimeCheck={openRuntimeCheck}
               />
             )}
             <div className="kjs-qa-host" hidden={rightTab !== 'qa'}>
@@ -1740,6 +1752,13 @@ export function KubeJsWorkbench({
           </div>
         )}
       </div>
+
+      <KubeJsRuntimeModal
+        open={runtimeOpen}
+        instance={instance}
+        onClose={() => setRuntimeOpen(false)}
+        onOpenIssue={jumpTo}
+      />
 
       <KubeJsHelpModal
         open={helpOpen}

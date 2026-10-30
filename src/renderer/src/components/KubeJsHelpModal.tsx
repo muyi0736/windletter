@@ -8,6 +8,7 @@ import {
   MessageCircleQuestion,
   MousePointerClick,
   PencilLine,
+  Play,
   Rocket,
   Save,
   ScanSearch,
@@ -211,6 +212,29 @@ const SECTIONS: HelpSection[] = [
         kind: 'note',
         tone: 'info',
         text: '问题检查本身不会改脚本；只有点击修复/移动并确认后，才会修改编辑器内容或文件路径，文本仍需手动保存。ID 检查基于静态索引，运行时动态注册的物品可能被标为未找到。'
+      }
+    ]
+  },
+  {
+    id: 'runtime',
+    title: '实际运行验证',
+    icon: <Play size={13} />,
+    summary: '用临时服务端实际加载模组和 KubeJS，补上静态检查看不到的运行时报错。',
+    blocks: [
+      {
+        kind: 'list',
+        items: [
+          '「问题」页点「实际运行」：先保存所有修改，再基于当前实例生成临时服务端包，补齐服务端启动器后实际启动。',
+          '检查服务端/启动脚本、配方和标签注册；KubeJS 错误会带脚本路径和行号，点击可直接跳转。',
+          '只支持 Fabric / Forge / NeoForge；client_scripts 只在客户端执行，本次验证只提示数量，不会运行它们。',
+          '首次运行可能需要下载服务端 jar 或加载器，耗时较长；弹窗内可随时取消。',
+          '验证不会修改实例、脚本或存档；临时包、测试世界和服务器进程在结束后清理。'
+        ]
+      },
+      {
+        kind: 'note',
+        tone: 'warn',
+        text: '实际运行会以当前用户权限执行实例模组和服务端脚本；只对可信实例使用。'
       }
     ]
   },

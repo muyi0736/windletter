@@ -4,6 +4,7 @@ import type {
   ContentUpdateProgress,
   FileFilter,
   KubeJsIndexProgress,
+  KubeJsRuntimeProgress,
   LaunchLogLine,
   LaunchState,
   LauncherApi,
@@ -165,7 +166,12 @@ const api: LauncherApi = {
     kubejsTemplates: () => ipcRenderer.invoke('workshop:kubejs-templates'),
     kubejsAi: (request) => ipcRenderer.invoke('workshop:kubejs-ai', request),
     kubejsQa: (request) => ipcRenderer.invoke('workshop:kubejs-qa', request),
-    kubejsExplain: (request) => ipcRenderer.invoke('workshop:kubejs-explain', request)
+    kubejsExplain: (request) => ipcRenderer.invoke('workshop:kubejs-explain', request),
+    kubejsRuntimeCheck: (instanceId) =>
+      ipcRenderer.invoke('workshop:kubejs-runtime', instanceId),
+    cancelKubejsRuntime: () => ipcRenderer.invoke('workshop:kubejs-runtime-cancel'),
+    onKubejsRuntimeProgress: (cb) =>
+      subscribe<KubeJsRuntimeProgress>('workshop:kubejs-runtime-progress', cb)
   },
   jvm: {
     presets: () => ipcRenderer.invoke('jvm:presets'),

@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileCode2,
+  Play,
   RefreshCw,
   ScanSearch,
   Terminal,
@@ -106,7 +107,8 @@ export function KubeJsProblemsPanel({
   overrides,
   onOpen,
   onApplyFixes,
-  onMoveFix
+  onMoveFix,
+  onRuntimeCheck
 }: {
   instance: InstanceSummary | null
   active: boolean
@@ -118,6 +120,7 @@ export function KubeJsProblemsPanel({
   onOpen: (path: string, line: number, column?: number) => void
   onApplyFixes: (changes: { from: number; to: number; text: string }[]) => void
   onMoveFix: (targetPath: string) => void
+  onRuntimeCheck: () => void
 }) {
   const [mode, setMode] = useState<PanelMode>('static')
   const [scope, setScope] = useState<StaticScope>('file')
@@ -397,6 +400,16 @@ export function KubeJsProblemsPanel({
             >
               {scanning ? <Spinner size={10} /> : <RefreshCw size={10} />}
               {scanning ? '检查中…' : '全项目检查'}
+            </button>
+            <button
+              type="button"
+              className="kjs-check-runtime"
+              disabled={!instance}
+              onClick={onRuntimeCheck}
+              title="启动临时服务端，实际加载模组与 KubeJS 服务端/启动脚本"
+            >
+              <Play size={10} />
+              实际运行
             </button>
           </div>
 

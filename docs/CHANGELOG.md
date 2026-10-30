@@ -8,6 +8,7 @@
 
 ## 近期重点
 
+- **0.60.8** — KubeJS 实际运行验证：在「问题」页生成临时服务端并真实加载，检查服务端/启动脚本、配方与标签注册报错；错误带路径/行号可跳转，支持 Fabric / Forge / NeoForge。
 - **0.60.7** — API 限额退避：记录 `X-RateLimit-Reset` / `Retry-After`，限额内不再请求并使用缓存，界面显示“限额退避”和恢复时间；启动静默检查窗口延长到 6 小时。
 - **0.60.6** — 更新缓存与来源标注：启动检查复用 10 分钟内的结果，GitHub API 带 ETag；API 与 `latest.json` 都失败时回退上次缓存，界面显示“清单回退”或“上次缓存”。
 - **0.60.5** — GitHub 更新源改用官方 API：`api.github.com` 读取 Release 元数据，安装包走 asset API 并测速选择镜像，官方 SHA-256 校验；API 失败回退 `latest.json`。
@@ -33,6 +34,8 @@
 - **0.43.0 及更早** — 整合包工坊、服务端包验证、世界仓库、版本清理等。
 
 ## 历史验证记录
+
+0.60.8 KubeJS 实际运行验证实测：工作台「问题」页的「实际运行」入口、临时服务端弹窗、未保存拦截、无脚本错误路径、取消和进度事件均正常；用真实 miao 服务端日志验证解析器得到 50 条 WARN、0 条 ERROR（级别优先读取 `[main/WARN]`/`[main/ERROR]`，不会把 recipe 回退警告误判为错误）。完整启动测试在本机下载 Forge `server.jar` 时卡在 piston-data，尚未完成一次真实 KubeJS 服务端启动；启动路径复用已实测的服务端包验证，需在网络正常或已有服务端 jar 的环境补测。`npm run typecheck`、`npm run build` 通过。
 
 0.60.7 限流退避实测：预置 1 小时后恢复的 `updater-rate-limit.json` 和 1 小时前的缓存，检查返回 `source=cache`、`rateLimitedUntil` 正确，GitHub 额度 60→60（未发请求），界面显示“限额退避 / API 限额，2026-10-30 21:53 后恢复”；无缓存时返回带恢复时间的错误。1 小时前缓存在静默检查中复用（额度 60→60），手动检查走 API（60→59）。`npm run typecheck`、`npm run build` 通过。
 

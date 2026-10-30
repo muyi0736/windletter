@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-30  
-项目版本：0.60.7（Actions 构建）  
+项目版本：0.60.8（Actions 构建）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.7-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.7`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.6 的安装包 SHA-256 为 `9426d6f0d4ca9e37c54819d2c6ffa775f9575b97683263ad38fc6568de8094a7`。
+`Windletter-Launcher-0.60.8-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.8`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.7 的安装包 SHA-256 为 `a910eb37aa3dfbedb0505ba6a14ebafcf1e305bd28d989d7de80442bf08a5034`。
 
 ### 三个最重要的目录
 
@@ -345,6 +345,15 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - `LauncherUpdateState.rateLimitedUntil` 进入状态与 UI：显示“限额退避”徽章、恢复时间（如 `2026-10-30 21:53`），缓存结果仍可用于判断版本；无缓存时限流会直接显示带恢复时间的错误。限额退避最长记录 24 小时，防止异常 header 卡死。
 - 实测：预置 1 小时后恢复 + 1 小时前缓存，检查返回 `source=cache`、`rateLimitedUntil` 正确，GitHub 额度 60→60（未发请求），界面显示“限额退避”；无缓存时返回“GitHub API 限额，10/30 21:23 后恢复”。1 小时前缓存在静默检查中复活（额度 60→60），手动检查走 API（60→59）。`npm run typecheck`、`npm run build` 通过。
 - 0.60.7 由 Actions 发布；安装包哈希以 Release 页为准。
+
+0.60.8 KubeJS 实际运行验证：
+
+- KubeJS 工作台「问题」页新增「实际运行」；有未保存标签时先要求保存，避免验证读磁盘旧内容。
+- `kubeJsRuntime.ts` 使用 `previewServerPack` 选出服务端兼容模组并强制带上 KubeJS（含 kubejs* 附属），通过 `createServerPack` 生成临时服务端包，再复用 `verifyServerPack` 启动真实服务端；结束后删除临时 ZIP，测试目录和进程由既有验证器清理。
+- `KubeJsRuntimeModal` 显示阶段、百分比、取消、服务端检查项、KubeJS 错误/警告和完整日志；错误带 `server_scripts/foo.js:12` 时点击跳转编辑器。
+- 只支持 Fabric / Forge / NeoForge；`client_scripts` 只在客户端执行，结果里单独提示数量。无服务端/启动脚本、没有 KubeJS 模组、加载器不支持等情况会在启动前直接返回明确原因。
+- `kubeJsRuntimeLog.ts` 从服务端日志提取 KubeJS 脚本/配方/标签报错；日志级别优先按 `[main/ERROR]` / `[main/WARN]` 标签判定，避免把 “Failed to parse recipe” 这类 WARN 误判为错误。用真实 miao 服务端日志验证：50 条 WARN、0 条 ERROR（上限 50）。
+- 已实测：工作台入口与弹窗、未保存拦截、无脚本错误路径、取消、IPC 进度、解析器；完整启动测试在本机下载 Forge server.jar 时卡在 piston-data（下载停滞），尚未完成一次真实 KubeJS 服务端启动，需在网络正常或已有服务端 jar 的环境补测。0.60.8 由 Actions 发布，安装包哈希以 Release 页为准。
 
 ---
 

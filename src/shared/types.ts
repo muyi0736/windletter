@@ -755,6 +755,33 @@ export interface ServerPackVerifyReport {
   logTail: string
 }
 
+export interface KubeJsRuntimeIssue {
+  level: 'error' | 'warning'
+  message: string
+  path: string | null
+  line: number | null
+  column: number | null
+}
+
+export interface KubeJsRuntimeProgress {
+  stage: string
+  percent: number
+  line: string | null
+}
+
+export interface KubeJsRuntimeReport {
+  ok: boolean
+  cancelled: boolean
+  summary: string
+  durationMs: number
+  checks: ServerPackCheckItem[]
+  issues: KubeJsRuntimeIssue[]
+  logPath: string | null
+  logTail: string
+  scriptCount: number
+  clientScriptCount: number
+}
+
 export interface JvmPresetView {
   id: string
   name: string
@@ -1850,6 +1877,9 @@ export interface LauncherApi {
     kubejsAi: (request: KubeJsAiRequest) => Promise<KubeJsAiResult>
     kubejsQa: (request: KubeJsQaRequest) => Promise<KubeJsQaResult>
     kubejsExplain: (request: KubeJsExplainRequest) => Promise<KubeJsExplainResult>
+    kubejsRuntimeCheck: (instanceId: string) => Promise<KubeJsRuntimeReport>
+    cancelKubejsRuntime: () => Promise<boolean>
+    onKubejsRuntimeProgress: (cb: (progress: KubeJsRuntimeProgress) => void) => () => void
   }
   jvm: {
     presets: () => Promise<JvmPresetPayload>
