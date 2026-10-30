@@ -36,7 +36,7 @@ jobs:
         run: npm run build
 
       - name: Package NSIS installer
-        run: npx electron-builder --win nsis -c.directories.output=release
+        run: npx electron-builder --win nsis --publish never
 
       - name: Generate update manifest
         shell: bash
