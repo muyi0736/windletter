@@ -347,6 +347,8 @@ export interface DownloadOptions {
   probeSources?: boolean
   /** 大于 0 时用一段 Range 实测吞吐量选线路；仅对大文件启用。 */
   probeBytes?: number
+  /** 多个候选线路同时参与分段下载；仅大文件且候选 >=2 时生效。 */
+  multiSource?: boolean
 }
 
 /* ---------- 多线程分片下载 ---------- */
@@ -363,6 +365,20 @@ interface SegmentMeta {
   count: number
   etag?: string
   lastModified?: string
+}
+
+interface MultiSegmentSource {
+  url: string
+  etag?: string
+  lastModified?: string
+}
+
+interface MultiSegmentMeta {
+  schema: 2
+  size: number
+  count: number
+  sources: MultiSegmentSource[]
+  assignments: number[]
 }
 
 function segmentCount(size: number): number {
@@ -388,12 +404,50 @@ async function readSegmentMeta(path: string): Promise<SegmentMeta | null> {
   }
 }
 
+async function readMultiSegmentMeta(
+  path: string
+): Promise<MultiSegmentMeta | null> {
+  try {
+    const raw = JSON.parse(await fs.readFile(path, 'utf8')) as MultiSegmentMeta
+    if (
+      raw.schema !== 2 ||
+      typeof raw.size !== 'number' ||
+      typeof raw.count !== 'number' ||
+      !Array.isArray(raw.sources) ||
+      !Array.isArray(raw.assignments)
+    ) {
+      return null
+    }
+    const sources = raw.sources.filter(
+      (source): source is MultiSegmentSource =>
+        Boolean(source) &&
+        typeof source === 'object' &&
+        typeof (source as MultiSegmentSource).url === 'string'
+    )
+    if (sources.length < 2 || raw.assignments.length !== raw.count) return null
+    return { ...raw, sources }
+  } catch {
+    return null
+  }
+}
+
+async function writeMultiSegmentMeta(
+  path: string,
+  meta: MultiSegmentMeta
+): Promise<void> {
+  try {
+    await fs.writeFile(path, JSON.stringify(meta), 'utf8')
+  } catch {
+    /* 元数据失败不影响续传 */
+  }
+}
+
 async function removeSegments(
   part: string,
   metaPath: string,
   count: number
 ): Promise<void> {
-  const total = Math.max(count, SEGMENT_MAX)
+  const total = Math.max(count, 32)
   for (let index = 0; index < total; index += 1) {
     await fs.rm(`${part}.seg${index}`, { force: true }).catch(() => undefined)
   }
@@ -403,14 +457,15 @@ async function removeSegments(
 
 async function probeRange(
   url: string,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  timeoutMs = 30_000
 ): Promise<{
   size: number
   etag?: string
   lastModified?: string
 } | null> {
   const stall = createStallGuard()
-  const signals: AbortSignal[] = [AbortSignal.timeout(30_000), stall.signal]
+  const signals: AbortSignal[] = [AbortSignal.timeout(timeoutMs), stall.signal]
   if (signal) signals.push(signal)
   try {
     const response = await fetch(url, {
@@ -654,6 +709,243 @@ async function downloadFileSegmented(
 }
 
 /**
+ * 多线路并行分片：把文件切成 16–24 段，按线路轮流分配。
+ * 每条线路单独记录 ETag；某条线路失败/限额/不支持 Range 时，后续分段自动换线路。
+ */
+async function downloadFileMultiSource(
+  urls: string[],
+  destination: string,
+  options: DownloadOptions,
+  expectedSha1: string | null
+): Promise<boolean> {
+  const size = options.size
+  if (!size || urls.length < 2) return false
+  const part = `${destination}.part`
+  try {
+    if ((await fs.stat(part)).size > 0) return false
+  } catch {
+    /* no single-connection part */
+  }
+
+  const probes = await Promise.all(
+    urls.map(async (url) => ({
+      url,
+      probe: await probeRange(url, options.signal, 8_000)
+    }))
+  )
+  if (options.signal?.aborted) throw new CancellationError()
+  const sources: MultiSegmentSource[] = []
+  for (const item of probes) {
+    if (!item.probe || item.probe.size !== size) continue
+    sources.push({
+      url: item.url,
+      etag: item.probe.etag,
+      lastModified: item.probe.lastModified
+    })
+  }
+  if (sources.length < 2) return false
+
+  const count = Math.min(24, Math.max(segmentCount(size), sources.length * 8))
+  const metaPath = `${part}.segments.json`
+  const existing = await readMultiSegmentMeta(metaPath)
+  if (!existing || existing.size !== size || existing.count !== count) {
+    await removeSegments(part, metaPath, count)
+  }
+  const assignments = Array.from({ length: count }, (_value, index) => index % sources.length)
+  const meta: MultiSegmentMeta = { schema: 2, size, count, sources, assignments }
+  await writeMultiSegmentMeta(metaPath, meta)
+
+  const base = Math.floor(size / count)
+  const lengths = Array.from({ length: count }, (_value, index) =>
+    index === count - 1 ? size - base * index : base
+  )
+  const starts = lengths.map((_length, index) => base * index)
+  const segmentPath = (index: number): string => `${part}.seg${index}`
+  const dead = new Set<number>()
+  const groupAbort = new AbortController()
+
+  const nextAlive = (preferred: number): number => {
+    for (let step = 1; step <= sources.length; step += 1) {
+      const index = (preferred + step) % sources.length
+      if (!dead.has(index)) return index
+    }
+    return -1
+  }
+
+  const work = async (index: number): Promise<void> => {
+    const length = lengths[index]
+    const start = starts[index]
+    const end = start + length - 1
+    let lastError: unknown = null
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (groupAbort.signal.aborted) throw new CancellationError()
+      let current = 0
+      try {
+        current = (await fs.stat(segmentPath(index))).size
+      } catch {
+        current = 0
+      }
+      if (current > length) {
+        await fs.rm(segmentPath(index), { force: true }).catch(() => undefined)
+        current = 0
+      }
+      if (current >= length) return
+      if (dead.size >= sources.length) {
+        throw new NetworkError('所有下载线路均不可用', urls[0])
+      }
+      let sourceIndex = assignments[index]
+      if (dead.has(sourceIndex)) {
+        const next = nextAlive(sourceIndex)
+        if (next < 0) throw new NetworkError('所有下载线路均不可用', urls[0])
+        sourceIndex = next
+        assignments[index] = sourceIndex
+      }
+      const source = sources[sourceIndex]
+      const from = start + current
+      const releaseHost = await acquireHost(hostOf(source.url) ?? 'unknown')
+      const stall = createStallGuard()
+      const signals: AbortSignal[] = [
+        AbortSignal.timeout(FILE_TIMEOUT),
+        stall.signal,
+        groupAbort.signal
+      ]
+      if (options.signal) signals.push(options.signal)
+      try {
+        const headers: Record<string, string> = {
+          'User-Agent': USER_AGENT,
+          Accept: downloadAccept(source.url),
+          Range: `bytes=${from}-${end}`
+        }
+        if (source.etag) headers['If-Range'] = source.etag
+        else if (source.lastModified) headers['If-Range'] = source.lastModified
+        const response = await fetch(source.url, {
+          headers,
+          signal: AbortSignal.any(signals)
+        })
+        if (response.status === 200) {
+          await response.body?.cancel().catch(() => undefined)
+          dead.add(sourceIndex)
+          throw new NetworkError('线路不支持分段', source.url)
+        }
+        if (
+          response.status === 401 ||
+          response.status === 403 ||
+          response.status === 404 ||
+          response.status === 429
+        ) {
+          await response.body?.cancel().catch(() => undefined)
+          dead.add(sourceIndex)
+          throw new NetworkError(`线路不可用：HTTP ${response.status}`, source.url)
+        }
+        if (response.status === 416) {
+          await response.body?.cancel().catch(() => undefined)
+          await fs.rm(segmentPath(index), { force: true }).catch(() => undefined)
+          throw new NetworkError('分段范围无效，正在重试', source.url)
+        }
+        if (response.status !== 206 || !response.body) {
+          throw new NetworkError(`分段下载失败：HTTP ${response.status}`, source.url)
+        }
+        const contentRange = response.headers.get('content-range')
+        const match = contentRange
+          ? /^bytes\s+(\d+)-(\d+)\/(\d+)$/i.exec(contentRange)
+          : null
+        if (match && (Number(match[1]) !== from || Number(match[2]) !== end)) {
+          throw new NetworkError('分段范围不匹配', source.url)
+        }
+        const meter = new Transform({
+          transform(chunk: Buffer, _encoding, callback) {
+            options.onBytes?.(chunk.length)
+            stall.touch()
+            callback(null, chunk)
+          }
+        })
+        await pipeline(
+          Readable.fromWeb(response.body as never),
+          meter,
+          createWriteStream(segmentPath(index), {
+            flags: current > 0 ? 'a' : 'w'
+          }),
+          { signal: AbortSignal.any(signals) }
+        )
+        const actual = (await fs.stat(segmentPath(index))).size
+        if (actual !== length) {
+          throw new NetworkError(
+            `分段大小校验失败（期望 ${length}，实际 ${actual}）`,
+            source.url
+          )
+        }
+        return
+      } catch (error) {
+        if (options.signal?.aborted) throw new CancellationError()
+        lastError = error
+        const next = nextAlive(sourceIndex)
+        if (next >= 0) assignments[index] = next
+        if (groupAbort.signal.aborted) throw error
+        if (attempt < 4) await sleep(350 * (attempt + 1))
+      } finally {
+        stall.clear()
+        releaseHost()
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new NetworkError('多线路分段下载重试失败', urls[0])
+  }
+
+  try {
+    const tasks = Array.from({ length: count }, (_value, index) =>
+      work(index).catch((error) => {
+        groupAbort.abort()
+        throw error
+      })
+    )
+    const results = await Promise.allSettled(tasks)
+    const failed = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    )
+    if (failed.length > 0) {
+      if (options.signal?.aborted) throw new CancellationError()
+      await removeSegments(part, metaPath, count)
+      return false
+    }
+  } catch (error) {
+    if (options.signal?.aborted) throw new CancellationError()
+    await removeSegments(part, metaPath, count)
+    return false
+  }
+
+  const mergePath = `${part}.merge`
+  try {
+    const parts = Array.from({ length: count }, (_value, index) =>
+      createReadStream(segmentPath(index))
+    )
+    const merged = (async function* () {
+      for (const stream of parts) {
+        for await (const chunk of stream) yield chunk as Buffer
+      }
+    })()
+    await pipeline(Readable.from(merged), createWriteStream(mergePath))
+    const info = await hashFile(mergePath, options.signal)
+    if (!info || info.size !== size || (expectedSha1 && info.sha1 !== expectedSha1)) {
+      await fs.rm(mergePath, { force: true }).catch(() => undefined)
+      await removeSegments(part, metaPath, count)
+      return false
+    }
+    await fs.rm(destination, { force: true }).catch(() => undefined)
+    await fs.rename(mergePath, destination)
+    await removeSegments(part, metaPath, count)
+    await fs.rm(part, { force: true }).catch(() => undefined)
+    if (expectedSha1) await storeInCache(expectedSha1, destination, size)
+    return true
+  } catch {
+    await fs.rm(mergePath, { force: true }).catch(() => undefined)
+    if (options.signal?.aborted) throw new CancellationError()
+    await removeSegments(part, metaPath, count)
+    return false
+  }
+}
+
+/**
  * 下载文件。具备：
  * - SHA1 缓存命中后直接硬链接，不发起网络请求；
  * - 4 MB 以上文件使用 4–8 路 Range 分片并发下载；
@@ -676,6 +968,25 @@ export async function downloadFile(
   const part = `${destination}.part`
   const metaPath = `${part}.json`
   let lastError: Error | null = null
+  if (
+    options.multiSource &&
+    options.size != null &&
+    options.size >= (options.segmentMinBytes ?? SEGMENT_MIN_BYTES) &&
+    urls.length > 1
+  ) {
+    try {
+      const completed = await downloadFileMultiSource(
+        urls,
+        destination,
+        options,
+        expectedSha1
+      )
+      if (completed) return
+    } catch (error) {
+      if (options.signal?.aborted) throw new CancellationError()
+      lastError = friendlyError(error, urls[0])
+    }
+  }
   const candidates =
     options.probeSources &&
     options.size != null &&

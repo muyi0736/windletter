@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-30  
-项目版本：0.60.9（Actions 构建）  
+项目版本：0.60.10（Actions 构建）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.9-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.9`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.8 的安装包 SHA-256 为 `50244e9c19b12d40392d068f38774c77a082a3c665fc0045e781e9199916f25f`。
+`Windletter-Launcher-0.60.10-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.10`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.9 的安装包 SHA-256 为 `7843854cfaeeed5650ce35f2e34c1c6b3eab7e54be61ed3399d5b742f919e775`。
 
 ### 三个最重要的目录
 
@@ -361,6 +361,15 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - `DownloadOptions.probeBytes` 仅由更新下载传入（≥32MB 时 256KB）；普通模组/资源下载仍用原来的延迟探测，避免增加小文件开销。
 - 实测：本地假清单同时给出 API asset、ghfast、gh-proxy 三个候选，4 路探测约 3 秒后选择 API asset，16 段分片正常，取消后保留 16 个分片；之前 ghfast 选中后退化成单连接。当前免费 GitHub 线路本身只有约 0.3–0.8 MB/s，探测只保证选对线路，不能突破网络上限；要进一步提速需要 R2/OSS 等独立 CDN。
 - 0.60.9 由 Actions 发布，安装包哈希以 Release 页为准。
+
+0.60.10 多线路并行下载：
+
+- `net.ts` 新增 `downloadFileMultiSource`：先对每个候选地址做 `probeRange`（8 秒超时），只保留大小一致且支持 206 的线路；至少 2 条才启用。
+- 分段数取 `min(24, max(segmentCount, sources × 8))`：两条线路 16 段、三条 24 段，按线路轮转分配；每段独立续传，源地址/ETag 写入 `.part.segments.json`（schema 2）。
+- 单条线路返回 200（不支持 Range）、401/403/404/429（限额/失效）时标记该线路不可用，后续分段自动换到其他线路；网络错误重试并切换，5 次后失败；全部线路失败时清理分片并回退原有单线路逻辑。
+- 合并后按大小/SHA1（若提供）校验，更新器再做 SHA-256；取消时保留分片，继续下载按分段偏移续传。
+- 实测：两个本地 HTTP Range 服务共享一个 8MB 随机文件，清单同时列两条线路；下载使用 16 段、两端口各 8 段交替请求，合并后 SHA-256 与清单一致，任务到达 ready。`npm run typecheck`、`npm run build` 通过。
+- 0.60.10 由 Actions 发布；安装包哈希以 Release 页为准。
 
 ---
 
