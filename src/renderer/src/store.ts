@@ -71,6 +71,7 @@ const EMPTY_UPDATE: LauncherUpdateState = {
   progress: { received: 0, total: 0, speed: 0, percent: null },
   error: null,
   checkedAt: null,
+  source: null,
   silent: false
 }
 

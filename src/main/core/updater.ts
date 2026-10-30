@@ -6,6 +6,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import type {
   LauncherUpdateInfo,
   LauncherUpdateProgress,
+  LauncherUpdateSource,
   LauncherUpdateState
 } from '../../shared/types'
 import { getCacheDir, getSettings } from './config'
@@ -15,6 +16,8 @@ const MANIFEST_MAX_BYTES = 512 * 1024
 const MANIFEST_TIMEOUT_MS = 20_000
 const GITHUB_API_TIMEOUT_MS = 20_000
 const GITHUB_API_MAX_BYTES = 1024 * 1024
+const RELEASE_CACHE_MAX_BYTES = 64 * 1024
+const CACHE_FRESH_MS = 10 * 60_000
 const INSTALLER_MIN_BYTES = 1024 * 1024
 const INSTALLER_MAX_BYTES = 2 * 1024 * 1024 * 1024
 const UPDATE_DIR = 'updates'
@@ -25,11 +28,30 @@ interface ReleaseFile {
   urls: string[]
   size: number
   sha256: string
+  source: LauncherUpdateSource
+  /** API 返回或缓存写入的时间，用于显示“上次缓存”。 */
+  fetchedAt: number
 }
 
 interface GitHubReleaseSource {
   apiUrl: URL
   fallbackUrl: URL | null
+}
+
+interface CachedRelease {
+  schema: 1
+  source: string
+  etag: string
+  fetchedAt: number
+  release: {
+    version: string
+    notes: string[]
+    publishedAt: number | null
+    size: number
+    sha256: string
+    urls: string[]
+    pageUrl: string | null
+  }
 }
 
 let state: LauncherUpdateState = createInitialState()
@@ -49,6 +71,7 @@ function createInitialState(): LauncherUpdateState {
     progress: { received: 0, total: 0, speed: 0, percent: null },
     error: null,
     checkedAt: null,
+    source: null,
     silent: false
   }
 }
@@ -289,6 +312,8 @@ function parseManifest(raw: unknown, manifestUrl: URL): ReleaseFile {
     urls,
     size,
     sha256,
+    source: 'manifest',
+    fetchedAt: Date.now(),
     info: {
       version,
       notes,
@@ -313,19 +338,33 @@ function githubApiError(status: number, remaining: string | null): Error {
  * 用 GitHub Release 元数据直接生成更新信息，避免请求 github.com。
  * Release body 作为更新说明，安装包大小与 SHA-256 来自官方 asset digest。
  */
-async function fetchGitHubRelease(source: GitHubReleaseSource): Promise<ReleaseFile> {
+async function fetchGitHubRelease(
+  source: GitHubReleaseSource,
+  cache: CachedRelease | null
+): Promise<ReleaseFile> {
+  const headers: Record<string, string> = {
+    'User-Agent': `WindletterLauncher/${app.getVersion()}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
+  if (cache?.etag) headers['If-None-Match'] = cache.etag
   const response = await fetch(source.apiUrl, {
-    headers: {
-      'User-Agent': `WindletterLauncher/${app.getVersion()}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    },
+    headers,
     redirect: 'follow',
     signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)
   })
+  if (response.status === 304) {
+    if (!cache) throw new Error('GitHub API 返回 304，但没有可用缓存')
+    // 304 表示 Release 没有变化，可直接复用已验证的缓存，节省清单传输。
+    const refreshed = { ...cache, fetchedAt: Date.now() }
+    const release = cachedToRelease(refreshed, 'api', refreshed.fetchedAt)
+    await writeReleaseCache(source.apiUrl.toString(), cache.etag, release)
+    return release
+  }
   if (!response.ok) {
     throw githubApiError(response.status, response.headers.get('x-ratelimit-remaining'))
   }
+  const etag = response.headers.get('etag') ?? ''
   const declared = Number(response.headers.get('content-length') ?? 0)
   if (declared > GITHUB_API_MAX_BYTES) throw new Error('GitHub Release 信息过大，已拒绝读取')
   const text = await response.text()
@@ -415,11 +454,13 @@ async function fetchGitHubRelease(source: GitHubReleaseSource): Promise<ReleaseF
   }
   const publishedAtRaw =
     typeof raw.published_at === 'string' ? Date.parse(raw.published_at) : NaN
-  return {
+  const release: ReleaseFile = {
     version,
     urls,
     size,
     sha256,
+    source: 'api',
+    fetchedAt: Date.now(),
     info: {
       version,
       notes: parseNotes(raw.body),
@@ -429,16 +470,150 @@ async function fetchGitHubRelease(source: GitHubReleaseSource): Promise<ReleaseF
       pageUrl
     }
   }
+  await writeReleaseCache(source.apiUrl.toString(), etag, release)
+  return release
 }
 
-async function fetchLatestManifest(feedUrl: URL): Promise<ReleaseFile> {
+function releaseCachePath(): string {
+  return join(getCacheDir(), 'updater-release-cache.json')
+}
+
+function cachedToRelease(
+  cache: CachedRelease,
+  source: LauncherUpdateSource,
+  fetchedAt: number
+): ReleaseFile {
+  return {
+    version: cache.release.version,
+    urls: [...cache.release.urls],
+    size: cache.release.size,
+    sha256: cache.release.sha256,
+    source,
+    fetchedAt,
+    info: {
+      version: cache.release.version,
+      notes: [...cache.release.notes],
+      publishedAt: cache.release.publishedAt,
+      size: cache.release.size,
+      mandatory: false,
+      pageUrl: cache.release.pageUrl
+    }
+  }
+}
+
+async function readReleaseCache(apiUrl: string): Promise<CachedRelease | null> {
+  try {
+    const target = releaseCachePath()
+    const rawText = await fs.readFile(target, 'utf8')
+    if (Buffer.byteLength(rawText, 'utf8') > RELEASE_CACHE_MAX_BYTES) return null
+    const raw: unknown = JSON.parse(rawText)
+    if (!isRecord(raw) || raw.schema !== 1 || raw.source !== apiUrl) return null
+    if (!isRecord(raw.release)) return null
+    const value = raw.release
+    const version =
+      typeof value.version === 'string' ? value.version.trim().slice(0, 64) : ''
+    if (!version || !parseVersion(version)) return null
+    const sha256 =
+      typeof value.sha256 === 'string' ? value.sha256.trim().toLowerCase() : ''
+    if (!/^[0-9a-f]{64}$/.test(sha256)) return null
+    const size = Number(value.size)
+    if (
+      !Number.isInteger(size) ||
+      size < INSTALLER_MIN_BYTES ||
+      size > INSTALLER_MAX_BYTES
+    ) {
+      return null
+    }
+    const fetchedAt = Number(raw.fetchedAt)
+    if (!Number.isFinite(fetchedAt) || fetchedAt <= 0) return null
+    const etag = typeof raw.etag === 'string' ? raw.etag.slice(0, 300) : ''
+    const urls: string[] = []
+    if (Array.isArray(value.urls)) {
+      for (const item of value.urls.slice(0, 5)) {
+        if (typeof item !== 'string') continue
+        try {
+          const checked = assertRemoteUrl(item, '缓存安装包地址')
+          if (!urls.includes(checked.toString())) urls.push(checked.toString())
+        } catch {
+          /* ignore invalid cached URL */
+        }
+      }
+    }
+    if (urls.length === 0) return null
+    let pageUrl: string | null = null
+    if (typeof value.pageUrl === 'string' && value.pageUrl.trim()) {
+      try {
+        pageUrl = assertRemoteUrl(value.pageUrl.trim(), '发布页地址').toString()
+      } catch {
+        pageUrl = null
+      }
+    }
+    const publishedAt =
+      typeof value.publishedAt === 'number' && Number.isFinite(value.publishedAt)
+        ? value.publishedAt
+        : null
+    return {
+      schema: 1,
+      source: apiUrl,
+      etag,
+      fetchedAt,
+      release: {
+        version,
+        notes: parseNotes(value.notes),
+        publishedAt,
+        size,
+        sha256,
+        urls,
+        pageUrl
+      }
+    }
+  } catch {
+    return null
+  }
+}
+
+async function writeReleaseCache(
+  apiUrl: string,
+  etag: string,
+  release: ReleaseFile
+): Promise<void> {
+  const target = releaseCachePath()
+  const payload: CachedRelease = {
+    schema: 1,
+    source: apiUrl,
+    etag: etag.slice(0, 300),
+    fetchedAt: release.fetchedAt,
+    release: {
+      version: release.version,
+      notes: [...release.info.notes],
+      publishedAt: release.info.publishedAt,
+      size: release.size,
+      sha256: release.sha256,
+      urls: [...release.urls],
+      pageUrl: release.info.pageUrl
+    }
+  }
+  try {
+    await fs.mkdir(dirname(target), { recursive: true })
+    const temp = `${target}.tmp`
+    await fs.writeFile(temp, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+    await fs.rename(temp, target)
+  } catch {
+    /* 缓存失败不影响本次检查 */
+  }
+}
+
+async function fetchLatestManifest(
+  feedUrl: URL,
+  timeoutMs = MANIFEST_TIMEOUT_MS
+): Promise<ReleaseFile> {
   const response = await fetch(feedUrl, {
     headers: {
       'User-Agent': `WindletterLauncher/${app.getVersion()}`,
       Accept: 'application/json'
     },
     redirect: 'follow',
-    signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS)
+    signal: AbortSignal.timeout(timeoutMs)
   })
   if (!response.ok) throw new Error(`更新源返回 HTTP ${response.status}`)
   const finalUrl = response.url ? assertRemoteUrl(response.url, '更新源地址') : feedUrl
@@ -457,24 +632,48 @@ async function fetchLatestManifest(feedUrl: URL): Promise<ReleaseFile> {
   return parseManifest(raw, finalUrl)
 }
 
-async function fetchManifest(feedUrl: URL): Promise<ReleaseFile> {
+async function fetchManifest(
+  feedUrl: URL,
+  allowFreshCache = false
+): Promise<ReleaseFile> {
   const github = githubReleaseSource(feedUrl)
   if (!github) return fetchLatestManifest(feedUrl)
+  const cache = await readReleaseCache(github.apiUrl.toString())
+  if (
+    allowFreshCache &&
+    cache &&
+    Date.now() - cache.fetchedAt < CACHE_FRESH_MS
+  ) {
+    return cachedToRelease(cache, 'cache', cache.fetchedAt)
+  }
   try {
-    return await fetchGitHubRelease(github)
+    return await fetchGitHubRelease(github, cache)
   } catch (error) {
     const apiMessage = error instanceof Error ? error.message : 'GitHub API 请求失败'
-    if (!github.fallbackUrl) throw error
-    console.warn(`[updater] GitHub API 不可用，尝试 latest.json：${apiMessage}`)
-    try {
-      return await fetchLatestManifest(github.fallbackUrl)
-    } catch (fallbackError) {
-      const fallbackMessage =
-        fallbackError instanceof Error ? fallbackError.message : '清单请求失败'
-      throw new Error(
-        `GitHub API 不可用（${apiMessage}），备用清单也无法访问（${fallbackMessage}）`
-      )
+    if (!github.fallbackUrl && !cache) throw error
+    if (github.fallbackUrl) {
+      console.warn(`[updater] GitHub API 不可用，尝试 latest.json：${apiMessage}`)
+      try {
+        const manifest = await fetchLatestManifest(github.fallbackUrl, 8_000)
+        // 清单通常比旧缓存新；写回缓存，避免下一次静默检查又用旧版本。
+        await writeReleaseCache(github.apiUrl.toString(), '', manifest)
+        return manifest
+      } catch (fallbackError) {
+        const fallbackMessage =
+          fallbackError instanceof Error ? fallbackError.message : '清单请求失败'
+        if (cache) {
+          console.warn(
+            `[updater] 清单也不可用，使用 ${new Date(cache.fetchedAt).toISOString()} 的缓存：${fallbackMessage}`
+          )
+          return cachedToRelease(cache, 'cache', cache.fetchedAt)
+        }
+        throw new Error(
+          `GitHub API 不可用（${apiMessage}），备用清单也无法访问（${fallbackMessage}）`
+        )
+      }
     }
+    if (cache) return cachedToRelease(cache, 'cache', cache.fetchedAt)
+    throw error
   }
 }
 
@@ -618,11 +817,12 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
     phase: 'checking',
     silent,
     error: null,
+    source: null,
     progress: { ...state.progress, speed: 0 }
   })
   try {
     const feed = resolveFeedUrl(getSettings().updateFeed)
-    const release = await fetchManifest(feed)
+    const release = await fetchManifest(feed, silent)
     if (sequence !== checkSequence) return snapshot()
     const comparison = compareLauncherVersions(release.version, app.getVersion())
     if (comparison > 0) {
@@ -634,7 +834,8 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
         phase: keepReady ? 'ready' : keepCancelled ? 'cancelled' : 'available',
         info: release.info,
         error: null,
-        checkedAt: Date.now(),
+        checkedAt: release.fetchedAt,
+        source: release.source,
         silent,
         progress: keepReady || keepCancelled
           ? state.progress
@@ -651,7 +852,8 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
         phase: 'up-to-date',
         info: release.info,
         error: null,
-        checkedAt: Date.now(),
+        checkedAt: release.fetchedAt,
+        source: release.source,
         silent,
         progress: { received: 0, total: release.size, speed: 0, percent: 0 }
       })
@@ -665,6 +867,7 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
       info: null,
       error: friendlyUpdateError(error),
       checkedAt: Date.now(),
+      source: null,
       silent,
       progress: { received: 0, total: 0, speed: 0, percent: null }
     })

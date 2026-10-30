@@ -71,6 +71,11 @@
   flex-wrap: wrap;
 }
 
+.update-source-badge {
+  align-self: center;
+  flex-shrink: 0;
+}
+
 .update-status-icon {
   display: grid;
   place-items: center;

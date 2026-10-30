@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-30  
-项目版本：0.60.5（Actions 构建）  
+项目版本：0.60.6（Actions 构建）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.5-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.5`。安装包 116,769,727 字节，SHA-256 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`；`latest.json` 996 字节，SHA-256 `5c36eef8c116ed4a058983a3b951d7511b97e0c6a0be8808743d9650fcc1f1c4`。
+`Windletter-Launcher-0.60.6-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.6`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.5 的安装包 SHA-256 为 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`。
 
 ### 三个最重要的目录
 
@@ -328,7 +328,15 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - 安装包候选包括官方 asset API（`Accept: application/octet-stream`）、`ghfast.top`、`gh-proxy.com` 和 github.com 浏览地址；有多个候选时用首字节测速排序，镜像只负责搬运，完整性仍由官方 digest 校验。`net.ts` 的探测、分片和单连接下载统一使用 asset API 的 Accept 头。
 - API 失败（限流 60 次/小时、无 digest、网络错误）时自动回退 `latest.json`；两者都失败才报错。非 GitHub 更新源行为不变。
 - 本地实测：2026-10-30 用临时 0.60.3 构建读取官方 0.60.4，清单约 1 秒返回；asset API 16 段下载实测 1–6 MB/s，取消后保留分片；镜像清单路径分段约 3.5 MB/s。
-- 真实更新：0.60.4 通过镜像清单下载 0.60.5（111.4 MB，峰值约 5.2 MB/s），SHA-256 校验通过，NSIS 静默安装并自动重启，ProductVersion 变为 0.60.5.0，账户与数据保留。切回官方 GitHub 更新源后，0.60.5 检查命中 API 限流（测试期间共用掉 60 次/小时），自动回退 latest.json 并显示已是最新；限流复位后应再次确认无回退日志。公开安装包 `D:\WindletterOut\Windletter-Launcher-0.60.5-setup.exe`，SHA256 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`。
+- 真实更新：0.60.4 通过镜像清单下载 0.60.5（111.4 MB，峰值约 5.2 MB/s），SHA-256 校验通过，NSIS 静默安装并自动重启，ProductVersion 变为 0.60.5.0，账户与数据保留。切回官方 GitHub 更新源后，0.60.5 检查命中 API 限流（测试期间共用掉 60 次/小时），自动回退 latest.json 并显示已是最新；限流复位后已确认 API 直连恢复。公开安装包 `D:\WindletterOut\Windletter-Launcher-0.60.5-setup.exe`，SHA256 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`。
+
+0.60.6 更新缓存与来源标注：
+
+- 新增 `cache/updater-release-cache.json`，按 GitHub API URL 保存 `etag`、`fetchedAt` 和完整 Release 信息；读取时重新校验版本、大小、SHA-256 与全部 HTTPS 地址。
+- GitHub API 请求带 `If-None-Match`；304 直接复用已验证缓存并刷新 `fetchedAt`。实测 304 仍会消耗 1 次未认证 primary rate limit（55→54），只节省清单传输，不能当作“免额度”；真正减少请求的是下一步。
+- 启动静默检查在缓存不足 10 分钟时直接复用，不发网络请求（实测额度 55→55）；手动“检查更新”永远走网络，因此能及时发现新版本。
+- API 失败先回退 `latest.json`（8 秒超时），再失败则使用上次成功缓存；状态新增 `source: 'api' | 'manifest' | 'cache'`，界面分别显示无标签 / “清单回退” / “上次缓存”，`checkedAt` 使用缓存时间。缓存缺失且两条网络路径都失败才进入错误态。
+- 实测：用不存在的仓库和 5 分钟前的缓存触发 404 + 404，成功回退缓存并显示“上次缓存 / 5 分钟前检查”；真实 API 首次 200 写入 ETag，手动再次检查 304 复用；`npm run typecheck`、`npm run build` 通过。0.60.6 由 Actions 发布，安装包哈希以 Release 页为准。
 
 ---
 

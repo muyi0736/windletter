@@ -71,7 +71,7 @@ npm run update:manifest -- <安装包路径> \
 
 清单需要 `schema`、`app`、`version`、`url`、`size`、`sha256`，更新源只接受 HTTPS（本机 `localhost` 例外）；加 `--base https://…/` 可生成绝对下载地址，`--mirror <地址>` 可重复添加安装包备用线路。完整格式与校验规则见 [docs/HANDOFF.md](docs/HANDOFF.md)。
 
-GitHub 更新源会自动改用官方 `api.github.com` Release API：版本、更新说明、安装包大小和 SHA-256 都来自官方元数据，安装包从 GitHub asset API 或测速选出的镜像线路下载，完整性仍按官方 SHA-256 校验；API 不可用时回退 `latest.json`。GitHub 直连受限时也可以手动把更新源改为镜像清单，例如 `https://ghfast.top/https://github.com/muyi0736/windletter/releases/latest/download/latest.json`（或把前缀换成 `https://gh-proxy.com/`）。
+GitHub 更新源会自动改用官方 `api.github.com` Release API：版本、更新说明、安装包大小和 SHA-256 都来自官方元数据，安装包从 GitHub asset API 或测速选出的镜像线路下载，完整性仍按官方 SHA-256 校验。启动检查会复用 10 分钟内的结果，API 请求使用 ETag 条件请求；API 不可用时先回退 `latest.json`，仍失败则使用上次成功缓存，并在界面标注“清单回退”或“上次缓存”。GitHub 直连受限时也可以手动把更新源改为镜像清单，例如 `https://ghfast.top/https://github.com/muyi0736/windletter/releases/latest/download/latest.json`（或把前缀换成 `https://gh-proxy.com/`）。
 
 ## 公开源码与密钥
 

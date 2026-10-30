@@ -8,6 +8,7 @@
 
 ## 近期重点
 
+- **0.60.6** — 更新缓存与来源标注：启动检查复用 10 分钟内的结果，GitHub API 带 ETag；API 与 `latest.json` 都失败时回退上次缓存，界面显示“清单回退”或“上次缓存”。
 - **0.60.5** — GitHub 更新源改用官方 API：`api.github.com` 读取 Release 元数据，安装包走 asset API 并测速选择镜像，官方 SHA-256 校验；API 失败回退 `latest.json`。
 - **0.60.4** — GitHub Actions 发布：推送 `v*` 标签后自动类型检查、打包 NSIS、生成绝对地址清单并创建 Release。
 - **0.60.3** — 公开源码；CurseForge key 改为构建时注入，仓库与源码不含共享 key。
@@ -31,6 +32,8 @@
 - **0.43.0 及更早** — 整合包工坊、服务端包验证、世界仓库、版本清理等。
 
 ## 历史验证记录
+
+0.60.6 更新缓存实测：GitHub API 首次 200 后写入 `cache/updater-release-cache.json`（ETag、时间、版本、大小、SHA-256、下载地址）；手动再次检查收到 304 并复用缓存。实测 304 仍消耗 1 次 primary rate limit（55→54），只节省清单传输；启动静默检查在 10 分钟缓存内直接复用，不发请求（额度 55→55）。用不存在的仓库制造 API 404 + latest.json 404，成功回退 5 分钟前的缓存，界面显示“上次缓存 / 5 分钟前检查”；`npm run typecheck`、`npm run build` 通过。
 
 0.60.5 GitHub API 更新源实测：临时 0.60.3 构建读取官方 0.60.4，`api.github.com` 清单约 1 秒返回，版本、说明、大小与 SHA-256 正常；asset API 16 段下载实测 1–6 MB/s，取消后保留 16 个分片；镜像清单路径分段约 3.5 MB/s。0.60.5 Release 由 Actions 构建（116,769,727 字节，SHA-256 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`）。真实更新从 0.60.4 通过镜像清单下载 0.60.5（111.4 MB，峰值约 5.2 MB/s），SHA-256 校验通过，NSIS 静默安装并自动重启到 ProductVersion 0.60.5.0，账户与数据保留。切回官方 GitHub 源后，API 检查因测试耗尽 60 次/小时限流而回退 `latest.json`，仍显示已是最新；限流复位后需再次确认 API 直连路径。
 

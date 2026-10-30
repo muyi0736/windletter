@@ -1,6 +1,6 @@
 {
   "name": "windletter-launcher",
-  "version": "0.60.5",
+  "version": "0.60.6",
   "private": true,
   "description": "风信启动器 - 风有信，月无边。一个受 PCL2 启发的 Minecraft 启动器",
   "main": "./out/main/index.js",

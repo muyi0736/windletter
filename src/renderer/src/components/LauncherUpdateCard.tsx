@@ -213,6 +213,16 @@ export function LauncherUpdateCard() {
           <strong>{status.title}</strong>
           <span>{status.detail}</span>
         </div>
+        {update.source === 'manifest' && (
+          <Badge tone="warning" className="update-source-badge">
+            清单回退
+          </Badge>
+        )}
+        {update.source === 'cache' && (
+          <Badge tone="warning" className="update-source-badge">
+            上次缓存
+          </Badge>
+        )}
         <div className="update-status-actions">
           {phase === 'downloading' && (
             <button type="button" className="button button--ghost button--sm" onClick={() => void cancelUpdate()}>

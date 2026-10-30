@@ -123,6 +123,8 @@ export interface LauncherUpdateProgress {
   percent: number | null
 }
 
+export type LauncherUpdateSource = 'api' | 'manifest' | 'cache'
+
 export interface LauncherUpdateState {
   phase: LauncherUpdatePhase
   currentVersion: string
@@ -130,6 +132,8 @@ export interface LauncherUpdateState {
   progress: LauncherUpdateProgress
   error: string | null
   checkedAt: number | null
+  /** 本次结果来自 GitHub API、latest.json 回退，还是本地缓存。 */
+  source: LauncherUpdateSource | null
   /** 本次检查是否由启动静默检查触发。 */
   silent: boolean
 }
