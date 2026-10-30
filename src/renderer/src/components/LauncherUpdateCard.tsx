@@ -359,7 +359,7 @@ export function LauncherUpdateCard() {
         </button>
       </div>
       <p className="update-feed-tip">
-        填写 latest.json 地址或所在目录；仅支持 HTTPS，本机测试可用 localhost。未配置时只会显示当前版本，不会联网。
+        填写 latest.json 地址、所在目录或 GitHub Release 地址；GitHub 源会自动改用 api.github.com。仅支持 HTTPS，本机测试可用 localhost；未配置时不会联网。
       </p>
     </section>
   )

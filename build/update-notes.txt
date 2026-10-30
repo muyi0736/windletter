@@ -1,7 +1,3 @@
-启动器自更新：检查版本、下载安装包、SHA-256 校验、静默安装并自动重启
-下载进度、速度和剩余时间按实际传输显示，支持取消与断点续传
-更新源强制 HTTPS，校验失败自动删除；启动检查可关闭
-下载请求使用真实版本号，并修复更多页版本回退显示
-源码公开；CurseForge 共享 key 改为构建时注入，仓库不含 key
-GitHub Releases 发布并生成 latest.json，新安装默认指向最新发布
-Actions 自动构建：推送 v* 标签后由 GitHub Actions 打包并发布
+GitHub 更新源改用官方 API：从 api.github.com 读取版本、说明、大小与 SHA-256，不再依赖 github.com 直连
+安装包走 GitHub asset API，并自动测速选择镜像线路；完整性始终按官方 SHA-256 校验
+GitHub API 不可用时自动回退 latest.json；发布清单继续写入 ghfast.top、gh-proxy.com 两条备用地址

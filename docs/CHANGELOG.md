@@ -8,6 +8,7 @@
 
 ## 近期重点
 
+- **0.60.5** — GitHub 更新源改用官方 API：`api.github.com` 读取 Release 元数据，安装包走 asset API 并测速选择镜像，官方 SHA-256 校验；API 失败回退 `latest.json`。
 - **0.60.4** — GitHub Actions 发布：推送 `v*` 标签后自动类型检查、打包 NSIS、生成绝对地址清单并创建 Release。
 - **0.60.3** — 公开源码；CurseForge key 改为构建时注入，仓库与源码不含共享 key。
 - **0.60.2** — 启动器自更新：HTTPS 清单、大小与 SHA-256 校验、实测进度/速度/ETA、取消后断点续传、NSIS 静默升级。

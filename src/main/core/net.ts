@@ -63,6 +63,25 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * GitHub Release 资产 API 只有在 Accept: application/octet-stream 时才返回文件；
+ * 普通地址继续使用通配 Accept。探测、分片和单连接下载都必须带同一个头。
+ */
+function downloadAccept(url: string): string {
+  try {
+    const parsed = new URL(url)
+    if (
+      parsed.hostname.toLowerCase() === 'api.github.com' &&
+      /^\/repos\/[^/]+\/[^/]+\/releases\/assets\/\d+$/.test(parsed.pathname)
+    ) {
+      return 'application/octet-stream'
+    }
+  } catch {
+    /* 非法地址交给下游报错 */
+  }
+  return '*/*'
+}
+
 /* ---------- 分主机并发 ---------- */
 interface HostState {
   active: number
@@ -120,7 +139,7 @@ async function probeLatency(url: string, signal?: AbortSignal): Promise<number |
     const response = await fetch(url, {
       headers: {
         'User-Agent': USER_AGENT,
-        Accept: '*/*',
+        Accept: downloadAccept(url),
         Range: 'bytes=0-0'
       },
       signal: AbortSignal.any(signals)
@@ -335,7 +354,7 @@ async function probeRange(
     const response = await fetch(url, {
       headers: {
         'User-Agent': USER_AGENT,
-        Accept: '*/*',
+        Accept: downloadAccept(url),
         Range: 'bytes=0-0'
       },
       signal: AbortSignal.any(signals)
@@ -446,7 +465,7 @@ async function downloadFileSegmented(
       try {
         const headers: Record<string, string> = {
           'User-Agent': USER_AGENT,
-          Accept: '*/*',
+          Accept: downloadAccept(url),
           Range: `bytes=${from}-${end}`
         }
         if (meta?.etag) headers['If-Range'] = meta.etag
@@ -663,7 +682,7 @@ export async function downloadFile(
 
         const headers: Record<string, string> = {
           'User-Agent': USER_AGENT,
-          Accept: '*/*'
+          Accept: downloadAccept(url)
         }
         if (offset > 0) {
           headers.Range = `bytes=${offset}-`

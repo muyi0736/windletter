@@ -13,6 +13,8 @@ import { CancellationError, downloadFile, NetworkError } from './net'
 
 const MANIFEST_MAX_BYTES = 512 * 1024
 const MANIFEST_TIMEOUT_MS = 20_000
+const GITHUB_API_TIMEOUT_MS = 20_000
+const GITHUB_API_MAX_BYTES = 1024 * 1024
 const INSTALLER_MIN_BYTES = 1024 * 1024
 const INSTALLER_MAX_BYTES = 2 * 1024 * 1024 * 1024
 const UPDATE_DIR = 'updates'
@@ -23,6 +25,11 @@ interface ReleaseFile {
   urls: string[]
   size: number
   sha256: string
+}
+
+interface GitHubReleaseSource {
+  apiUrl: URL
+  fallbackUrl: URL | null
 }
 
 let state: LauncherUpdateState = createInitialState()
@@ -115,10 +122,51 @@ function assertRemoteUrl(raw: string, label: string): URL {
   throw new Error(`${label}必须使用 HTTPS（本机测试可使用 localhost）`)
 }
 
+/**
+ * GitHub Release 页面或 latest.json 地址可自动改用官方 API：
+ * 当前网络里 github.com 可能超时，但 api.github.com 与资产域名通常仍可访问。
+ */
+function githubReleaseSource(feedUrl: URL): GitHubReleaseSource | null {
+  const host = feedUrl.hostname.toLowerCase()
+  const validName = (value: string): boolean => /^[A-Za-z0-9_.-]{1,100}$/.test(value)
+  if (host === 'api.github.com') {
+    const match = /^\/repos\/([^/]+)\/([^/]+)\/releases\/latest\/?$/.exec(feedUrl.pathname)
+    if (!match || !validName(match[1]) || !validName(match[2])) return null
+    const owner = match[1]
+    const repo = match[2]
+    return {
+      apiUrl: new URL(`https://api.github.com/repos/${owner}/${repo}/releases/latest`),
+      fallbackUrl: new URL(
+        `https://github.com/${owner}/${repo}/releases/latest/download/latest.json`
+      )
+    }
+  }
+  if (host !== 'github.com' && host !== 'www.github.com') return null
+  const match =
+    /^\/([^/]+)\/([^/]+)\/releases(?:\/latest(?:\/download\/[^/]+)?)?\/?$/.exec(
+      feedUrl.pathname
+    )
+  if (!match || !validName(match[1]) || !validName(match[2])) return null
+  const owner = match[1]
+  const repo = match[2]
+  return {
+    apiUrl: new URL(`https://api.github.com/repos/${owner}/${repo}/releases/latest`),
+    fallbackUrl: /\.json$/i.test(feedUrl.pathname)
+      ? new URL(feedUrl.toString())
+      : new URL(
+          `https://github.com/${owner}/${repo}/releases/latest/download/latest.json`
+        )
+  }
+}
+
 function resolveFeedUrl(raw: string): URL {
   const value = raw.trim()
   if (!value) throw new Error('尚未配置更新源，请先填写 latest.json 地址或所在目录')
   let url = assertRemoteUrl(value, '更新源地址')
+  if (githubReleaseSource(url)) {
+    url.hash = ''
+    return url
+  }
   if (!/\.json$/i.test(url.pathname)) {
     if (!url.pathname.endsWith('/')) url.pathname = `${url.pathname}/`
     url = new URL('latest.json', url)
@@ -176,7 +224,7 @@ function parseNotes(raw: unknown): string[] {
   const notes: string[] = []
   for (const item of list) {
     if (typeof item !== 'string') continue
-    const text = item.trim().replace(/^[-*]\s+/, '')
+    const text = item.trim().replace(/^[-*]\s+/, '').replace(/^#{1,6}\s+/, '')
     if (!text) continue
     notes.push(text.slice(0, 600))
     if (notes.length >= 20) break
@@ -252,7 +300,138 @@ function parseManifest(raw: unknown, manifestUrl: URL): ReleaseFile {
   }
 }
 
-async function fetchManifest(feedUrl: URL): Promise<ReleaseFile> {
+function githubApiError(status: number, remaining: string | null): Error {
+  if (status === 403 && remaining === '0') {
+    return new Error('GitHub API 请求次数已达上限（每小时 60 次），请稍后再试')
+  }
+  if (status === 429) return new Error('GitHub API 请求过于频繁，请稍后再试')
+  if (status === 404) return new Error('GitHub Release 不存在，或仓库不是公开仓库')
+  return new Error(`GitHub API 返回 HTTP ${status}`)
+}
+
+/**
+ * 用 GitHub Release 元数据直接生成更新信息，避免请求 github.com。
+ * Release body 作为更新说明，安装包大小与 SHA-256 来自官方 asset digest。
+ */
+async function fetchGitHubRelease(source: GitHubReleaseSource): Promise<ReleaseFile> {
+  const response = await fetch(source.apiUrl, {
+    headers: {
+      'User-Agent': `WindletterLauncher/${app.getVersion()}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)
+  })
+  if (!response.ok) {
+    throw githubApiError(response.status, response.headers.get('x-ratelimit-remaining'))
+  }
+  const declared = Number(response.headers.get('content-length') ?? 0)
+  if (declared > GITHUB_API_MAX_BYTES) throw new Error('GitHub Release 信息过大，已拒绝读取')
+  const text = await response.text()
+  if (Buffer.byteLength(text, 'utf8') > GITHUB_API_MAX_BYTES) {
+    throw new Error('GitHub Release 信息过大，已拒绝读取')
+  }
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new Error('GitHub API 返回的不是有效 JSON')
+  }
+  if (!isRecord(raw)) throw new Error('GitHub Release 数据格式不正确')
+
+  const version = String(raw.tag_name ?? '')
+    .trim()
+    .replace(/^v/i, '')
+    .slice(0, 64)
+  if (!version || !parseVersion(version)) throw new Error('GitHub Release 的版本号无效')
+
+  const assets = Array.isArray(raw.assets) ? raw.assets.filter(isRecord) : []
+  const exeAssets = assets.filter(
+    (asset) => typeof asset.name === 'string' && /\.exe$/i.test(asset.name)
+  )
+  const installer =
+    exeAssets.find((asset) =>
+      /^Windletter-Launcher-.*-setup\.exe$/i.test(String(asset.name))
+    ) ?? exeAssets[0]
+  if (!installer) throw new Error('GitHub Release 中没有 Windows 安装包')
+
+  const size = Number(installer.size)
+  if (
+    !Number.isInteger(size) ||
+    size < INSTALLER_MIN_BYTES ||
+    size > INSTALLER_MAX_BYTES
+  ) {
+    throw new Error('GitHub Release 的安装包大小无效')
+  }
+  const digest = typeof installer.digest === 'string' ? installer.digest.trim().toLowerCase() : ''
+  const digestMatch = /^sha256:([0-9a-f]{64})$/.exec(digest)
+  if (!digestMatch) {
+    throw new Error('GitHub Release 未提供安装包 SHA-256，无法校验')
+  }
+  const sha256 = digestMatch[1]
+
+  const urls: string[] = []
+  if (typeof installer.url === 'string' && installer.url.trim()) {
+    const assetUrl = assertRemoteUrl(installer.url.trim(), 'GitHub 安装包地址')
+    if (assetUrl.hostname.toLowerCase() !== 'api.github.com') {
+      throw new Error('GitHub 安装包地址不在官方 API 域名')
+    }
+    urls.push(assetUrl.toString())
+  }
+  if (
+    typeof installer.browser_download_url === 'string' &&
+    installer.browser_download_url.trim()
+  ) {
+    try {
+      const browserUrl = assertRemoteUrl(
+        installer.browser_download_url.trim(),
+        'GitHub 安装包地址'
+      )
+      const browser = browserUrl.toString()
+      // 官方 API 资产在部分网络很慢；镜像只负责搬运，完整性仍由上面的官方 digest 校验。
+      for (const prefix of ['https://ghfast.top/', 'https://gh-proxy.com/']) {
+        try {
+          const mirror = assertRemoteUrl(`${prefix}${browser}`, 'GitHub 安装包镜像')
+          if (!urls.includes(mirror.toString())) urls.push(mirror.toString())
+        } catch {
+          /* 忽略不可用的镜像地址 */
+        }
+      }
+      if (!urls.includes(browser)) urls.push(browser)
+    } catch {
+      /* 浏览地址只作为备用，不合法时忽略 */
+    }
+  }
+  if (urls.length === 0) throw new Error('GitHub Release 缺少安装包下载地址')
+
+  let pageUrl: string | null = null
+  if (typeof raw.html_url === 'string' && raw.html_url.trim()) {
+    try {
+      pageUrl = assertRemoteUrl(raw.html_url.trim(), '发布页地址').toString()
+    } catch {
+      pageUrl = null
+    }
+  }
+  const publishedAtRaw =
+    typeof raw.published_at === 'string' ? Date.parse(raw.published_at) : NaN
+  return {
+    version,
+    urls,
+    size,
+    sha256,
+    info: {
+      version,
+      notes: parseNotes(raw.body),
+      publishedAt: Number.isFinite(publishedAtRaw) ? publishedAtRaw : null,
+      size,
+      mandatory: false,
+      pageUrl
+    }
+  }
+}
+
+async function fetchLatestManifest(feedUrl: URL): Promise<ReleaseFile> {
   const response = await fetch(feedUrl, {
     headers: {
       'User-Agent': `WindletterLauncher/${app.getVersion()}`,
@@ -276,6 +455,27 @@ async function fetchManifest(feedUrl: URL): Promise<ReleaseFile> {
     throw new Error('更新源返回的不是有效的 JSON 清单')
   }
   return parseManifest(raw, finalUrl)
+}
+
+async function fetchManifest(feedUrl: URL): Promise<ReleaseFile> {
+  const github = githubReleaseSource(feedUrl)
+  if (!github) return fetchLatestManifest(feedUrl)
+  try {
+    return await fetchGitHubRelease(github)
+  } catch (error) {
+    const apiMessage = error instanceof Error ? error.message : 'GitHub API 请求失败'
+    if (!github.fallbackUrl) throw error
+    console.warn(`[updater] GitHub API 不可用，尝试 latest.json：${apiMessage}`)
+    try {
+      return await fetchLatestManifest(github.fallbackUrl)
+    } catch (fallbackError) {
+      const fallbackMessage =
+        fallbackError instanceof Error ? fallbackError.message : '清单请求失败'
+      throw new Error(
+        `GitHub API 不可用（${apiMessage}），备用清单也无法访问（${fallbackMessage}）`
+      )
+    }
+  }
 }
 
 function friendlyUpdateError(error: unknown): string {
