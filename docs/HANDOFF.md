@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-30  
-项目版本：0.60.4（Actions 构建）  
+项目版本：0.60.5（Actions 构建）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.4-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.4`。
+`Windletter-Launcher-0.60.5-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.5`。安装包 116,769,727 字节，SHA-256 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`；`latest.json` 996 字节，SHA-256 `5c36eef8c116ed4a058983a3b951d7511b97e0c6a0be8808743d9650fcc1f1c4`。
 
 ### 三个最重要的目录
 
@@ -327,7 +327,8 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - `updater.ts` 识别 `github.com/<owner>/<repo>/releases/...` 或 `api.github.com/repos/.../releases/latest`，优先请求 `api.github.com` 的 latest release，版本取 `tag_name`、说明取 release body、大小取 asset `size`、SHA-256 取官方 `digest`（`sha256:...`）。
 - 安装包候选包括官方 asset API（`Accept: application/octet-stream`）、`ghfast.top`、`gh-proxy.com` 和 github.com 浏览地址；有多个候选时用首字节测速排序，镜像只负责搬运，完整性仍由官方 digest 校验。`net.ts` 的探测、分片和单连接下载统一使用 asset API 的 Accept 头。
 - API 失败（限流 60 次/小时、无 digest、网络错误）时自动回退 `latest.json`；两者都失败才报错。非 GitHub 更新源行为不变。
-- 本地实测：2026-10-30 用临时 0.60.3 构建读取官方 0.60.4，清单约 1 秒返回；asset API 16 段下载实测 1–6 MB/s，取消后保留分片；镜像清单路径分段约 3.5 MB/s。公开 Release 发布后需从 0.60.4 经镜像清单升级到 0.60.5，再把更新源切回 GitHub 官方地址验证 API 检查。
+- 本地实测：2026-10-30 用临时 0.60.3 构建读取官方 0.60.4，清单约 1 秒返回；asset API 16 段下载实测 1–6 MB/s，取消后保留分片；镜像清单路径分段约 3.5 MB/s。
+- 真实更新：0.60.4 通过镜像清单下载 0.60.5（111.4 MB，峰值约 5.2 MB/s），SHA-256 校验通过，NSIS 静默安装并自动重启，ProductVersion 变为 0.60.5.0，账户与数据保留。切回官方 GitHub 更新源后，0.60.5 检查命中 API 限流（测试期间共用掉 60 次/小时），自动回退 latest.json 并显示已是最新；限流复位后应再次确认无回退日志。公开安装包 `D:\WindletterOut\Windletter-Launcher-0.60.5-setup.exe`，SHA256 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`。
 
 ---
 
