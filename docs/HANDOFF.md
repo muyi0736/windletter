@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-30  
-项目版本：0.60.3（公开源码构建）  
+项目版本：0.60.4（Actions 构建）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.2-setup.exe`（本地 0.60.2 基线）；0.60.3 起由 GitHub Actions 发布到 `https://github.com/muyi0736/windletter/releases`。
+`Windletter-Launcher-0.60.3-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.3`。
 
 ### 三个最重要的目录
 
@@ -313,12 +313,12 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 
 - `src/main/core/buildSecrets.ts` 不含 key；`electron.vite.config.ts` 在构建时把 `WINDLETTER_CURSEFORGE_API_KEY` 和 `WINDLETTER_DEFAULT_UPDATE_FEED` 替换成常量。
 - 本地构建通过环境变量提供 key；没有 key 时回退到用户自备 key 或 MCIM 镜像，不会崩溃。
-- 0.60.3 由本地构建后通过 GitHub API 上传安装包和 `latest.json`；自动 Actions 发布需要 OAuth token 具备 `workflow` scope，本次受 github.com 连接影响未启用。后续拿到该权限并加入 `.github/workflows/release.yml` 后，可在 `v*` 标签上自动构建（npm 安装/类型检查、注入 Secret、打包 NSIS、生成绝对地址清单并创建 Release）。当前发布构建本身已使用构建环境变量注入，不依赖仓库内 workflow。
+- 0.60.3 先由本地构建后通过 GitHub API 上传；0.60.4 起 `.github/workflows/release.yml` 已入库并在 `v*` 标签上运行：npm 安装/类型检查、注入 `CURSEFORGE_API_KEY` Secret、打包 NSIS、生成绝对地址清单并创建 Release。普通 PR 不读取 Secret。
 - `.env*`、`src/main/core/*.secret.*`、安装包输出和日志均在 `.gitignore`；发布前运行密钥扫描。
 - 安全边界：注入后的 key 仍存在于主进程 bundle 和公开安装包，可被逆向提取；PCL2-CE 也是如此。需要让 key 对安装包也不可见时，必须改成服务端代理，不能依赖客户端加密。
-- 旧 0.60.2 安装包已经带有旧 key；公开源码/公开发布前建议在 CurseForge 控制台轮换，并把新 key 写入仓库 Secret `CURSEFORGE_API_KEY`。不要在新 Issue/PR/日志中粘贴 key。
+- 旧 0.60.2/0.60.3 安装包已经带有旧 key；公开源码/公开发布前建议在 CurseForge 控制台轮换。将来启用自动 workflow 时，把新 key 写入仓库 Secret `CURSEFORGE_API_KEY`；不要在新 Issue/PR/日志中粘贴 key。
 
-本次 0.60.3 发布流程：更新 `build/update-notes.txt` 和版本号，设置 `WINDLETTER_CURSEFORGE_API_KEY` 与 `WINDLETTER_DEFAULT_UPDATE_FEED` 后本地构建/打包，使用 `make-update-manifest.mjs --base https://github.com/muyi0736/windletter/releases/download/v0.60.3/` 生成清单，再通过 GitHub API 创建 Release 并上传安装包与 `latest.json`。仓库为 `muyi0736/windletter`，更新源为 `https://github.com/muyi0736/windletter/releases/latest/download/latest.json`。签名和增量更新仍未做。
+0.60.4 起发布流程：更新 `build/update-notes.txt` 和版本号，提交后推送 `v*` 标签；Actions 使用仓库 Secret `CURSEFORGE_API_KEY` 构建并创建 Release。仓库为 `muyi0736/windletter`，更新源为 `https://github.com/muyi0736/windletter/releases/latest/download/latest.json`。签名和增量更新仍未做。
 
 ---
 

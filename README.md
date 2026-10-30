@@ -1,6 +1,6 @@
 # 风信启动器
 
-Windletter Launcher 0.60.3 —— 风有信，月无边。一个受 PCL2 易用体验启发的 Minecraft Java 版启动器，使用 Electron、React 与 TypeScript 构建。
+Windletter Launcher 0.60.4 —— 风有信，月无边。一个受 PCL2 易用体验启发的 Minecraft Java 版启动器，使用 Electron、React 与 TypeScript 构建。
 
 界面与视觉资产均为本项目原创，包含自定义标题栏、版本卡片、悬浮任务队列、日志控制台，以及浅色/深色主题和八套主题色。主题与主题色会即时套用到按钮、开关、滑杆、侧栏与强调文字，设置页内提供实时预览，切换后立即写入本机配置。
 
@@ -193,7 +193,7 @@ ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder
 https://github.com/muyi0736/windletter/releases/latest/download/latest.json
 ```
 
-本地 `D:\WindletterOut` 保留 0.60.2 基线安装包，仅用于从旧版本实测升级；CI 会生成安装包和绝对地址 `latest.json`，不再需要手工维护本地清单。
+本地 `D:\WindletterOut` 当前保留 0.60.3 安装包和 `latest.json`；GitHub Release 也已上传同一组资产。0.60.2 基线安装包已删除。
 
 ## 微软正版登录
 
@@ -265,9 +265,9 @@ $env:WINDLETTER_DEFAULT_UPDATE_FEED = "https://github.com/muyi0736/windletter/re
 npm run build
 ```
 
-GitHub 发布：0.60.3 由本地构建后通过 GitHub API 上传安装包和 `latest.json`。自动 Actions 发布需要 OAuth token 具备 `workflow` scope；本次授权受 github.com 连接影响未启用，后续补上该权限并加入 `.github/workflows/release.yml` 后，可在 `v*` 标签上自动构建。当前 `.env*`、本地密钥文件和安装包输出均已加入 `.gitignore`。
+GitHub 发布：0.60.3 先由本地构建后通过 API 上传；0.60.4 起已启用 `.github/workflows/release.yml`，在仓库 Secret 配置 `CURSEFORGE_API_KEY` 后，推送 `v*` 标签会自动完成类型检查、NSIS 打包、绝对地址 `latest.json` 生成和 GitHub Release。工作流只在 tag 上运行，普通 PR 不读取 Secret。当前 `.env*`、本地密钥文件和安装包输出均已加入 `.gitignore`。
 
-安全边界必须说清楚：注入后的 key 仍在主进程 bundle 和公开安装包里，任何人拿到安装包都可以逆向提取；源码干净不等于 key 不可提取。需要真正保护 key 时，只能改成服务端 CurseForge 代理。当前 0.60.2 安装包已经包含旧 key，公开源码/公开发布前应轮换；如果希望继续 PCL2-CE 模式，就接受“源码不含 key、公开二进制可提取”的边界。
+安全边界必须说清楚：注入后的 key 仍在主进程 bundle 和公开安装包里，任何人拿到安装包都可以逆向提取；源码干净不等于 key 不可提取。需要真正保护 key 时，只能改成服务端 CurseForge 代理。当前 0.60.2/0.60.3 安装包已经包含旧 key，公开源码/公开发布前应轮换；如果希望继续 PCL2-CE 模式，就接受“源码不含 key、公开二进制可提取”的边界。
 
 ## 本地文件
 

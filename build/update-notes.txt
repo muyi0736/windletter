@@ -2,5 +2,6 @@
 下载进度、速度和剩余时间按实际传输显示，支持取消与断点续传
 更新源强制 HTTPS，校验失败自动删除；启动检查可关闭
 下载请求使用真实版本号，并修复更多页版本回退显示
-源码公开；CurseForge 共享 key 改为构建时 CI 注入，仓库不含 key
+源码公开；CurseForge 共享 key 改为构建时注入，仓库不含 key
 GitHub Releases 发布并生成 latest.json，新安装默认指向最新发布
+Actions 自动构建：推送 v* 标签后由 GitHub Actions 打包并发布
