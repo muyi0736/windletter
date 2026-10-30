@@ -83,6 +83,7 @@ Windletter Launcher 0.60.4 —— 风有信，月无边。一个受 PCL2 易用�
 0.54.1 入口可发现性实测：实例卡片出现「内容 / 资源」两个并列按钮，点「资源」直接进入实例内容的资源包标签，5 个 miao 资源包行尾都显示带「预览」文字的按钮，点开正常进入只读预览；旧版入口「内容 → 资源包 → 行尾眼睛图标」仍可用。打包解包版 0.54.1 验证通过；当前 0.54.0 正在运行，未强制关闭，安装 0.54.1 后生效。
 0.55.0 AI 问答实测：真实 miao 索引（34,324 配方）下「铁锭怎么获得」命中 4 个物品/10 条配方/6 个标签，优先原版高炉/熔炉配方；「圆石能做什么」8/10/6；「铁锭属于哪些标签」列出 balm:iron_ingots、forge:ingots、ae2:metal_ingots 等；直接粘贴配方 ID 只返回该配方，未知问题返回本地空结果。用本地 127.0.0.1:9876 mock 验证（未调用真实 AI、未读取真实 ai.json）：打开问答页不发请求，点击提问后请求计数 0→1；请求只含 question/items/recipes/tags，max_tokens 1200、temperature 0.15，没有账户、脚本或密钥；答案、图标引用、模型名和计数正常；AI 返回索引外 ID 时提示核对；停掉 mock 后自动降级本地结果。7 个右栏标签在 330px 宽内不溢出，说明弹窗 10 个分区正常；打包解包版 0.55.0 验证通过，已安装 ProductVersion 0.55.0.0；安装版再验证问答页、7 个右栏标签、10 个说明分区和 ATM11 熔融图标 25×25。另在 ATM11 实例复现熔融 ATM 的 16×320 流体动画贴图，修复后图标固定 25×25，不再遮挡多行。
 0.59.0 AI 更新解读实测：隔离实例的 `content-updates.json` 记录 3 项变更（2 个模组、1 个资源包）。内容页出现「更新解读」，打开弹窗时本地 mock 请求计数保持 0；点击「用 AI 解读」后变为 1，发送 623 B，payload 只含实例 gameVersion/loader/loaderVersion、更新时间和 changes 的 kind/title/from/to/changelog，没有账户、脚本或文件路径。mock 返回三段摘要，界面显示模型 `mock-update`、发送字节和“缺少在线更新日志”警告；停掉 mock 后重新解读返回本地摘要并提示连接失败；关闭 AI 后返回本地摘要并显示“未调用 AI”。Esc 只关闭解读弹窗，外层实例内容保持不变；浅色/深色和 1000/1180 宽度正常。
+0.60.4 GitHub Actions 与真实更新实测：公开仓库的 `.github/workflows/release.yml` 在 `v0.60.4` 标签上完成 npm 安装、Electron 二进制准备、类型检查、NSIS 打包、绝对地址 `latest.json` 生成和 Release 创建（1 分 32 秒）；第一次运行暴露并修复了 lockfile 的 `source-map-support/mkdirp/source-map` 无效版本、PowerShell 下 `-c.directories.output` 解析和 CI 缺少 Electron 二进制三个问题。0.60.4 安装包 116,768,135 字节，SHA-256 `8c757341cafadca64890994cb59f503a0d734c270d00d6258dab4236427342a9`；`latest.json` 958 字节，SHA-256 `49b72ea3b887adaaf76cc99903ad121e19d62e87b859368d274240ea139ea226`。在安装版 0.60.3 上通过本地代理检查 GitHub 更新，显示 v0.60.4；下载到 37.1%（41.3 MB/111 MB、8.0 MB/s）后继续到 100%，SHA-256 校验通过，点击安装并重启后 ProductVersion 变为 0.60.4.0，数据和配置保留。未使用代理时 github.com 仍超时；代理恢复后已清除启动器内的测试代理设置。
 0.60.2 启动器自更新实测：用本地 127.0.0.1 限速更新源（约 8MB/s、支持 Range）和 111MB 真实安装包，从 0.60.0 基线升级到 0.60.1、再从 0.60.1 升级到 0.60.2。更新源保存后手动检查返回 v0.60.1；启动静默检查在 1.4 秒后请求清单，导航「更多」出现角标并提示新版本。下载时进度条显示实测 22.4%、25.0 MB/111 MB、7.2 MB/s、剩余约 12 秒；取消后保留 16 个分片，继续时 Range 从 1081344、8412160 等已有偏移续传，完成后 SHA-256 与清单一致。故意提供错误 SHA-256 时下载完成仍被拒绝、安装包与分片全部删除，错误状态不显示虚假 100%；断网/不可达地址显示「无法连接更新源」而不是原始 `fetch failed`。点击「安装并重启」后启动器退出，NSIS 静默保留安装目录升级，约 20 秒后自动打开新版本；安装前后 `ProductVersion` 与界面版本均更新，启动器数据、模板、账户配置保留，安装日志显示新版本再次发起静默检查。关闭「启动时检查更新」后重启不再请求清单（配置为 false），重新开启后恢复。浅色/深色与 1000/1180 宽度下检查、下载、取消、就绪、错误布局正常，按钮不再单独占一空行。
 0.58.0 问题一键修复实测：隔离夹具中的 fixable.js 同时包含 `ServerEvent` 事件组拼写、未定义的 `event`、`recipe` 事件名拼写和 `shapped` 方法拼写，问题页显示 4 个「可修复」；一键修复弹窗默认全选并显示 +4/−4 diff，取消第 4 项后已选 3/4，应用后编辑器只改前 3 处、磁盘文件保持原样；重新预检后继续给出 `remov → remove` 和 `shapped → shaped` 两项，可再次修复。`client_scripts/wrong.js` 的 ServerEvents 脚本通过「移动到 server_scripts」实际移到 `server_scripts/wrong.js`，文件树和当前标签同步更新，问题页变干净；`event.player` 的未定义 event 修复为回调参数 `e`，磁盘仍未写入。全项目检查提示一键修复在当前文件操作；浅色/深色、1000/1180 宽度和修复弹窗 diff 正常。打包解包版与安装版 0.58.0 验证通过，ProductVersion 0.58.0.0。
 0.57.0 备份管理实测：隔离夹具构造 2 个实例、7 份世界备份、5 份 KubeJS 历史、5 份内容更新备份和 4.9 KB 其他旧目录，概览显示 17 份/28,071 B；按 7 天前清理删除 5 份/7,028 B，按策略清理再删除 1 份内容备份并同步把回滚记录从 4 条减到 2 条；内容全选删除后回滚记录归零。自动保留验证：世界连续备份 3 次只留 2 份，KubeJS 连续保存 4 次每个文件只留 2 份，旧的 5 天前 KubeJS 快照在下次保存时被自动删除；世界策略按最长 1 天只保留新备份。删除实例后实例目录、世界/KubeJS/内容备份全部消失；设置页份数修改即时写入配置。浅色/深色和 1000/1180 宽度布局验证正常。打包解包版与安装版 0.57.0 验证通过，ProductVersion 0.57.0.0。
@@ -187,13 +188,13 @@ npm run dist
 ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/" npm run dist
 ```
 
-0.60.3 起安装包由 GitHub Actions 构建并发布到 [muyi0736/windletter Releases](https://github.com/muyi0736/windletter/releases)，更新源为：
+0.60.4 起安装包由 GitHub Actions 构建并发布到 [muyi0736/windletter Releases](https://github.com/muyi0736/windletter/releases)，更新源为：
 
 ```text
 https://github.com/muyi0736/windletter/releases/latest/download/latest.json
 ```
 
-本地 `D:\WindletterOut` 当前保留 0.60.3 安装包和 `latest.json`；GitHub Release 也已上传同一组资产。0.60.2 基线安装包已删除。
+本地 `D:\WindletterOut` 当前保留 0.60.4 安装包和 `latest.json`；GitHub Release 也已上传同一组资产。0.60.3 安装包已删除。
 
 ## 微软正版登录
 
@@ -267,7 +268,7 @@ npm run build
 
 GitHub 发布：0.60.3 先由本地构建后通过 API 上传；0.60.4 起已启用 `.github/workflows/release.yml`，在仓库 Secret 配置 `CURSEFORGE_API_KEY` 后，推送 `v*` 标签会自动完成类型检查、NSIS 打包、绝对地址 `latest.json` 生成和 GitHub Release。工作流只在 tag 上运行，普通 PR 不读取 Secret。当前 `.env*`、本地密钥文件和安装包输出均已加入 `.gitignore`。
 
-安全边界必须说清楚：注入后的 key 仍在主进程 bundle 和公开安装包里，任何人拿到安装包都可以逆向提取；源码干净不等于 key 不可提取。需要真正保护 key 时，只能改成服务端 CurseForge 代理。当前 0.60.2/0.60.3 安装包已经包含旧 key，公开源码/公开发布前应轮换；如果希望继续 PCL2-CE 模式，就接受“源码不含 key、公开二进制可提取”的边界。
+安全边界必须说清楚：注入后的 key 仍在主进程 bundle 和公开安装包里，任何人拿到安装包都可以逆向提取；源码干净不等于 key 不可提取。需要真正保护 key 时，只能改成服务端 CurseForge 代理。当前 0.60.2–0.60.4 安装包已经包含旧 key，公开源码/公开发布前应轮换；如果希望继续 PCL2-CE 模式，就接受“源码不含 key、公开二进制可提取”的边界。
 
 ## 本地文件
 
