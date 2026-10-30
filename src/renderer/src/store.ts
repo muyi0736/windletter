@@ -72,6 +72,7 @@ const EMPTY_UPDATE: LauncherUpdateState = {
   error: null,
   checkedAt: null,
   source: null,
+  rateLimitedUntil: null,
   silent: false
 }
 

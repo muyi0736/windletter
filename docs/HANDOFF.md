@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-30  
-项目版本：0.60.6（Actions 构建）  
+项目版本：0.60.7（Actions 构建）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.6-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.6`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.5 的安装包 SHA-256 为 `d373d1e995a34a52a4085fffe2a0d9444e0b595c1f5bd950a293195a6aebeeb8`。
+`Windletter-Launcher-0.60.7-setup.exe`（本地和 GitHub Release 均可用）；仓库为 `https://github.com/muyi0736/windletter`，Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.7`。安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准；0.60.6 的安装包 SHA-256 为 `9426d6f0d4ca9e37c54819d2c6ffa775f9575b97683263ad38fc6568de8094a7`。
 
 ### 三个最重要的目录
 
@@ -334,9 +334,17 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 
 - 新增 `cache/updater-release-cache.json`，按 GitHub API URL 保存 `etag`、`fetchedAt` 和完整 Release 信息；读取时重新校验版本、大小、SHA-256 与全部 HTTPS 地址。
 - GitHub API 请求带 `If-None-Match`；304 直接复用已验证缓存并刷新 `fetchedAt`。实测 304 仍会消耗 1 次未认证 primary rate limit（55→54），只节省清单传输，不能当作“免额度”；真正减少请求的是下一步。
-- 启动静默检查在缓存不足 10 分钟时直接复用，不发网络请求（实测额度 55→55）；手动“检查更新”永远走网络，因此能及时发现新版本。
+- 启动静默检查在缓存不足 10 分钟时直接复用，不发网络请求（实测额度 55→55）；手动“检查更新”永远走网络，因此能及时发现新版本。0.60.7 把静默检查窗口延长到 6 小时，并增加 API 限额退避。
 - API 失败先回退 `latest.json`（8 秒超时），再失败则使用上次成功缓存；状态新增 `source: 'api' | 'manifest' | 'cache'`，界面分别显示无标签 / “清单回退” / “上次缓存”，`checkedAt` 使用缓存时间。缓存缺失且两条网络路径都失败才进入错误态。
 - 实测：用不存在的仓库和 5 分钟前的缓存触发 404 + 404，成功回退缓存并显示“上次缓存 / 5 分钟前检查”；真实 API 首次 200 写入 ETag，手动再次检查 304 复用；`npm run typecheck`、`npm run build` 通过。0.60.6 由 Actions 发布，安装包哈希以 Release 页为准。
+
+0.60.7 限流退避：
+
+- `AUTO_CHECK_CACHE_MS` 改为 6 小时：启动静默检查在 6 小时内直接复用结果，不再请求；手动检查仍然走网络（除非处于限额退避）。
+- 新增 `cache/updater-rate-limit.json`（schema 1、API URL、until）。403 + `X-RateLimit-Remaining: 0` 或 429 时读取 `Retry-After` / `X-RateLimit-Reset`，写入恢复时间；恢复前所有检查直接使用缓存，不发起请求。成功 200/304 清除退避文件。
+- `LauncherUpdateState.rateLimitedUntil` 进入状态与 UI：显示“限额退避”徽章、恢复时间（如 `2026-10-30 21:53`），缓存结果仍可用于判断版本；无缓存时限流会直接显示带恢复时间的错误。限额退避最长记录 24 小时，防止异常 header 卡死。
+- 实测：预置 1 小时后恢复 + 1 小时前缓存，检查返回 `source=cache`、`rateLimitedUntil` 正确，GitHub 额度 60→60（未发请求），界面显示“限额退避”；无缓存时返回“GitHub API 限额，10/30 21:23 后恢复”。1 小时前缓存在静默检查中复活（额度 60→60），手动检查走 API（60→59）。`npm run typecheck`、`npm run build` 通过。
+- 0.60.7 由 Actions 发布；安装包哈希以 Release 页为准。
 
 ---
 

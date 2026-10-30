@@ -13,7 +13,14 @@ import {
 } from 'lucide-react'
 import type { LauncherUpdatePhase, LauncherUpdateState } from '@shared/types'
 import { useLauncher } from '../store'
-import { cleanError, formatBytes, formatDate, formatSpeed, relativeTime } from '../lib/format'
+import {
+  cleanError,
+  formatBytes,
+  formatDate,
+  formatDateTime,
+  formatSpeed,
+  relativeTime
+} from '../lib/format'
 import { Badge, ProgressBar, Switch } from './ui'
 
 function normalizeFeed(value: string): string {
@@ -155,6 +162,13 @@ export function LauncherUpdateCard() {
     phase !== 'idle'
   const eta = formatEta(update.progress.received, update.progress.total, update.progress.speed)
   const status = statusCopy(update)
+  const rateLimited = Boolean(
+    update.rateLimitedUntil && update.rateLimitedUntil > Date.now()
+  )
+  const rateLimitNote =
+    rateLimited && phase !== 'error' && update.rateLimitedUntil
+      ? ` · API 限额，${formatDateTime(update.rateLimitedUntil)} 后恢复`
+      : ''
   const feedDirty = feedDraft.trim() !== (settings.updateFeed ?? '').trim()
 
   const saveFeed = async () => {
@@ -211,18 +225,21 @@ export function LauncherUpdateCard() {
         </span>
         <div className="update-status-copy">
           <strong>{status.title}</strong>
-          <span>{status.detail}</span>
+          <span>{status.detail}{rateLimitNote}</span>
         </div>
-        {update.source === 'manifest' && (
+        {rateLimited ? (
+          <Badge tone="warning" className="update-source-badge">
+            限额退避
+          </Badge>
+        ) : update.source === 'manifest' ? (
           <Badge tone="warning" className="update-source-badge">
             清单回退
           </Badge>
-        )}
-        {update.source === 'cache' && (
+        ) : update.source === 'cache' ? (
           <Badge tone="warning" className="update-source-badge">
             上次缓存
           </Badge>
-        )}
+        ) : null}
         <div className="update-status-actions">
           {phase === 'downloading' && (
             <button type="button" className="button button--ghost button--sm" onClick={() => void cancelUpdate()}>
@@ -369,7 +386,7 @@ export function LauncherUpdateCard() {
         </button>
       </div>
       <p className="update-feed-tip">
-        填写 latest.json 地址、所在目录或 GitHub Release 地址；GitHub 源会自动改用 api.github.com。仅支持 HTTPS，本机测试可用 localhost；未配置时不会联网。
+        填写 latest.json 地址、所在目录或 GitHub Release 地址；GitHub 源会自动改用 api.github.com，启动检查会复用 6 小时内的结果。仅支持 HTTPS，本机测试可用 localhost；未配置时不会联网。
       </p>
     </section>
   )

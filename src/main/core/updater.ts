@@ -17,7 +17,9 @@ const MANIFEST_TIMEOUT_MS = 20_000
 const GITHUB_API_TIMEOUT_MS = 20_000
 const GITHUB_API_MAX_BYTES = 1024 * 1024
 const RELEASE_CACHE_MAX_BYTES = 64 * 1024
-const CACHE_FRESH_MS = 10 * 60_000
+const AUTO_CHECK_CACHE_MS = 6 * 60 * 60_000
+const RATE_LIMIT_MAX_BYTES = 4 * 1024
+const RATE_LIMIT_MAX_AHEAD_MS = 24 * 60 * 60_000
 const INSTALLER_MIN_BYTES = 1024 * 1024
 const INSTALLER_MAX_BYTES = 2 * 1024 * 1024 * 1024
 const UPDATE_DIR = 'updates'
@@ -31,11 +33,28 @@ interface ReleaseFile {
   source: LauncherUpdateSource
   /** API 返回或缓存写入的时间，用于显示“上次缓存”。 */
   fetchedAt: number
+  rateLimitedUntil: number | null
 }
 
 interface GitHubReleaseSource {
   apiUrl: URL
   fallbackUrl: URL | null
+}
+
+interface RateLimitFile {
+  schema: 1
+  source: string
+  until: number
+}
+
+class GitHubRateLimitError extends Error {
+  constructor(
+    message: string,
+    readonly until: number
+  ) {
+    super(message)
+    this.name = 'GitHubRateLimitError'
+  }
 }
 
 interface CachedRelease {
@@ -72,6 +91,7 @@ function createInitialState(): LauncherUpdateState {
     error: null,
     checkedAt: null,
     source: null,
+    rateLimitedUntil: null,
     silent: false
   }
 }
@@ -314,6 +334,7 @@ function parseManifest(raw: unknown, manifestUrl: URL): ReleaseFile {
     sha256,
     source: 'manifest',
     fetchedAt: Date.now(),
+    rateLimitedUntil: null,
     info: {
       version,
       notes,
@@ -358,11 +379,22 @@ async function fetchGitHubRelease(
     // 304 表示 Release 没有变化，可直接复用已验证的缓存，节省清单传输。
     const refreshed = { ...cache, fetchedAt: Date.now() }
     const release = cachedToRelease(refreshed, 'api', refreshed.fetchedAt)
+    await clearRateLimit(source.apiUrl.toString())
     await writeReleaseCache(source.apiUrl.toString(), cache.etag, release)
     return release
   }
   if (!response.ok) {
-    throw githubApiError(response.status, response.headers.get('x-ratelimit-remaining'))
+    const remaining = response.headers.get('x-ratelimit-remaining')
+    if (response.status === 429 || (response.status === 403 && remaining === '0')) {
+      const parsed = parseRateLimitUntil(response.headers)
+      const until = parsed && parsed > Date.now() ? parsed : Date.now() + 60 * 60_000
+      await writeRateLimit(source.apiUrl.toString(), until)
+      throw new GitHubRateLimitError(
+        `GitHub API 限额，${formatRateLimitTime(until)} 后恢复`,
+        until
+      )
+    }
+    throw githubApiError(response.status, remaining)
   }
   const etag = response.headers.get('etag') ?? ''
   const declared = Number(response.headers.get('content-length') ?? 0)
@@ -461,6 +493,7 @@ async function fetchGitHubRelease(
     sha256,
     source: 'api',
     fetchedAt: Date.now(),
+    rateLimitedUntil: null,
     info: {
       version,
       notes: parseNotes(raw.body),
@@ -470,8 +503,81 @@ async function fetchGitHubRelease(
       pageUrl
     }
   }
+  await clearRateLimit(source.apiUrl.toString())
   await writeReleaseCache(source.apiUrl.toString(), etag, release)
   return release
+}
+
+function rateLimitPath(): string {
+  return join(getCacheDir(), 'updater-rate-limit.json')
+}
+
+function formatRateLimitTime(until: number): string {
+  return new Date(until).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function parseRateLimitUntil(headers: { get(name: string): string | null }): number | null {
+  const now = Date.now()
+  const retryAfter = Number(headers.get('retry-after'))
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return now + retryAfter * 1000
+  }
+  const reset = Number(headers.get('x-ratelimit-reset'))
+  if (Number.isFinite(reset) && reset > 0) {
+    return reset * 1000
+  }
+  return null
+}
+
+async function readRateLimit(sourceUrl: string): Promise<number | null> {
+  try {
+    const rawText = await fs.readFile(rateLimitPath(), 'utf8')
+    if (Buffer.byteLength(rawText, 'utf8') > RATE_LIMIT_MAX_BYTES) return null
+    const raw: unknown = JSON.parse(rawText)
+    if (!isRecord(raw) || raw.schema !== 1 || raw.source !== sourceUrl) return null
+    const until = Number(raw.until)
+    if (!Number.isFinite(until) || until <= Date.now()) {
+      await clearRateLimit(sourceUrl)
+      return null
+    }
+    return Math.min(until, Date.now() + RATE_LIMIT_MAX_AHEAD_MS)
+  } catch {
+    return null
+  }
+}
+
+async function writeRateLimit(sourceUrl: string, until: number): Promise<void> {
+  const now = Date.now()
+  const safeUntil = Math.max(
+    now + 60_000,
+    Math.min(until, now + RATE_LIMIT_MAX_AHEAD_MS)
+  )
+  const payload: RateLimitFile = { schema: 1, source: sourceUrl, until: safeUntil }
+  try {
+    const target = rateLimitPath()
+    await fs.mkdir(dirname(target), { recursive: true })
+    const temp = `${target}.tmp`
+    await fs.writeFile(temp, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+    await fs.rename(temp, target)
+  } catch {
+    /* 退避写入失败时仍按本次响应处理 */
+  }
+}
+
+async function clearRateLimit(sourceUrl: string): Promise<void> {
+  try {
+    const rawText = await fs.readFile(rateLimitPath(), 'utf8')
+    const raw: unknown = JSON.parse(rawText)
+    if (!isRecord(raw) || raw.source !== sourceUrl) return
+    await fs.rm(rateLimitPath(), { force: true })
+  } catch {
+    /* no file */
+  }
 }
 
 function releaseCachePath(): string {
@@ -481,7 +587,8 @@ function releaseCachePath(): string {
 function cachedToRelease(
   cache: CachedRelease,
   source: LauncherUpdateSource,
-  fetchedAt: number
+  fetchedAt: number,
+  rateLimitedUntil: number | null = null
 ): ReleaseFile {
   return {
     version: cache.release.version,
@@ -490,6 +597,7 @@ function cachedToRelease(
     sha256: cache.release.sha256,
     source,
     fetchedAt,
+    rateLimitedUntil,
     info: {
       version: cache.release.version,
       notes: [...cache.release.notes],
@@ -638,25 +746,34 @@ async function fetchManifest(
 ): Promise<ReleaseFile> {
   const github = githubReleaseSource(feedUrl)
   if (!github) return fetchLatestManifest(feedUrl)
-  const cache = await readReleaseCache(github.apiUrl.toString())
-  if (
-    allowFreshCache &&
-    cache &&
-    Date.now() - cache.fetchedAt < CACHE_FRESH_MS
-  ) {
+  const apiUrl = github.apiUrl.toString()
+  const cache = await readReleaseCache(apiUrl)
+  const rateLimitUntil = await readRateLimit(apiUrl)
+  const now = Date.now()
+  if (rateLimitUntil && rateLimitUntil > now) {
+    if (cache) {
+      return cachedToRelease(cache, 'cache', cache.fetchedAt, rateLimitUntil)
+    }
+    throw new GitHubRateLimitError(
+      `GitHub API 限额，${formatRateLimitTime(rateLimitUntil)} 后恢复`,
+      rateLimitUntil
+    )
+  }
+  if (allowFreshCache && cache && now - cache.fetchedAt < AUTO_CHECK_CACHE_MS) {
     return cachedToRelease(cache, 'cache', cache.fetchedAt)
   }
   try {
     return await fetchGitHubRelease(github, cache)
   } catch (error) {
     const apiMessage = error instanceof Error ? error.message : 'GitHub API 请求失败'
+    const until = error instanceof GitHubRateLimitError ? error.until : null
     if (!github.fallbackUrl && !cache) throw error
     if (github.fallbackUrl) {
       console.warn(`[updater] GitHub API 不可用，尝试 latest.json：${apiMessage}`)
       try {
         const manifest = await fetchLatestManifest(github.fallbackUrl, 8_000)
         // 清单通常比旧缓存新；写回缓存，避免下一次静默检查又用旧版本。
-        await writeReleaseCache(github.apiUrl.toString(), '', manifest)
+        await writeReleaseCache(apiUrl, '', manifest)
         return manifest
       } catch (fallbackError) {
         const fallbackMessage =
@@ -665,14 +782,14 @@ async function fetchManifest(
           console.warn(
             `[updater] 清单也不可用，使用 ${new Date(cache.fetchedAt).toISOString()} 的缓存：${fallbackMessage}`
           )
-          return cachedToRelease(cache, 'cache', cache.fetchedAt)
+          return cachedToRelease(cache, 'cache', cache.fetchedAt, until)
         }
         throw new Error(
           `GitHub API 不可用（${apiMessage}），备用清单也无法访问（${fallbackMessage}）`
         )
       }
     }
-    if (cache) return cachedToRelease(cache, 'cache', cache.fetchedAt)
+    if (cache) return cachedToRelease(cache, 'cache', cache.fetchedAt, until)
     throw error
   }
 }
@@ -818,6 +935,7 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
     silent,
     error: null,
     source: null,
+    rateLimitedUntil: null,
     progress: { ...state.progress, speed: 0 }
   })
   try {
@@ -836,6 +954,7 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
         error: null,
         checkedAt: release.fetchedAt,
         source: release.source,
+        rateLimitedUntil: release.rateLimitedUntil,
         silent,
         progress: keepReady || keepCancelled
           ? state.progress
@@ -854,6 +973,7 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
         error: null,
         checkedAt: release.fetchedAt,
         source: release.source,
+        rateLimitedUntil: release.rateLimitedUntil,
         silent,
         progress: { received: 0, total: release.size, speed: 0, percent: 0 }
       })
@@ -868,6 +988,7 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
       error: friendlyUpdateError(error),
       checkedAt: Date.now(),
       source: null,
+      rateLimitedUntil: error instanceof GitHubRateLimitError ? error.until : null,
       silent,
       progress: { received: 0, total: 0, speed: 0, percent: null }
     })

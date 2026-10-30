@@ -8,6 +8,7 @@
 
 ## 近期重点
 
+- **0.60.7** — API 限额退避：记录 `X-RateLimit-Reset` / `Retry-After`，限额内不再请求并使用缓存，界面显示“限额退避”和恢复时间；启动静默检查窗口延长到 6 小时。
 - **0.60.6** — 更新缓存与来源标注：启动检查复用 10 分钟内的结果，GitHub API 带 ETag；API 与 `latest.json` 都失败时回退上次缓存，界面显示“清单回退”或“上次缓存”。
 - **0.60.5** — GitHub 更新源改用官方 API：`api.github.com` 读取 Release 元数据，安装包走 asset API 并测速选择镜像，官方 SHA-256 校验；API 失败回退 `latest.json`。
 - **0.60.4** — GitHub Actions 发布：推送 `v*` 标签后自动类型检查、打包 NSIS、生成绝对地址清单并创建 Release。
@@ -32,6 +33,8 @@
 - **0.43.0 及更早** — 整合包工坊、服务端包验证、世界仓库、版本清理等。
 
 ## 历史验证记录
+
+0.60.7 限流退避实测：预置 1 小时后恢复的 `updater-rate-limit.json` 和 1 小时前的缓存，检查返回 `source=cache`、`rateLimitedUntil` 正确，GitHub 额度 60→60（未发请求），界面显示“限额退避 / API 限额，2026-10-30 21:53 后恢复”；无缓存时返回带恢复时间的错误。1 小时前缓存在静默检查中复用（额度 60→60），手动检查走 API（60→59）。`npm run typecheck`、`npm run build` 通过。
 
 0.60.6 更新缓存实测：GitHub API 首次 200 后写入 `cache/updater-release-cache.json`（ETag、时间、版本、大小、SHA-256、下载地址）；手动再次检查收到 304 并复用缓存。实测 304 仍消耗 1 次 primary rate limit（55→54），只节省清单传输；启动静默检查在 10 分钟缓存内直接复用，不发请求（额度 55→55）。用不存在的仓库制造 API 404 + latest.json 404，成功回退 5 分钟前的缓存，界面显示“上次缓存 / 5 分钟前检查”；`npm run typecheck`、`npm run build` 通过。
 

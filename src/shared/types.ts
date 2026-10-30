@@ -134,6 +134,8 @@ export interface LauncherUpdateState {
   checkedAt: number | null
   /** 本次结果来自 GitHub API、latest.json 回退，还是本地缓存。 */
   source: LauncherUpdateSource | null
+  /** GitHub API 限额恢复时间；限额内不再发起请求。 */
+  rateLimitedUntil: number | null
   /** 本次检查是否由启动静默检查触发。 */
   silent: boolean
 }
