@@ -11,6 +11,7 @@ import type {
   ContentKind,
   ContentProvider,
   CurseForgeInstallRequest,
+  CurseForgeServerPackDownloadRequest,
   DownloadSource,
   FileFilter,
   InstanceMetaPatch,
@@ -27,6 +28,7 @@ import type {
   PresetModInput,
   PreviewableContentKind,
   ServerPackRequest,
+  TaskParallelState,
   VanillaInstanceRequest,
   VersionCleanupPreview,
   VersionCleanupResult,
@@ -93,7 +95,10 @@ import {
   searchCurseForgeModpacks,
   searchCurseForgeMods
 } from './core/curseforge'
-import { installCurseForgeModpack } from './core/curseforgePack'
+import {
+  downloadCurseForgeServerPack,
+  installCurseForgeModpack
+} from './core/curseforgePack'
 import { getAiConfigView, updateAiConfig } from './core/ai'
 import { analyzeWithAi } from './core/aiDoctor'
 import { answerKubeJsQuestion } from './core/kubeJsQa'
@@ -219,6 +224,7 @@ import {
   suggestServerPackExclusions
 } from './core/serverPack'
 import { getPlaytimeReport, setPlaytimeChangedListener } from './core/playtime'
+import { inspectRunningGame, stopRunningGame } from './core/runningGame'
 import {
   copyScreenshot,
   listScreenshots,
@@ -418,6 +424,25 @@ function parseCurseForgeRequest(raw: unknown): CurseForgeInstallRequest {
     summary,
     ...(manualFiles.length ? { manualFiles } : {})
   }
+}
+
+function parseCurseForgeServerPackRequest(raw: unknown): CurseForgeServerPackDownloadRequest {
+  if (!raw || typeof raw !== 'object') throw new Error('无效的 CurseForge 服务端包请求')
+  const value = raw as Record<string, unknown>
+  const projectId =
+    typeof value.projectId === 'string' && /^\d{1,20}$/.test(value.projectId)
+      ? value.projectId
+      : null
+  const fileId =
+    typeof value.fileId === 'string' && /^\d{1,20}$/.test(value.fileId) ? value.fileId : null
+  if (!projectId || !fileId) throw new Error('无效的 CurseForge 项目或文件标识')
+  const title = typeof value.title === 'string' ? value.title.trim().slice(0, 160) : ''
+  if (!title) throw new Error('整合包名称不能为空')
+  const slug =
+    typeof value.slug === 'string' && /^[A-Za-z0-9._-]{1,120}$/.test(value.slug.trim())
+      ? value.slug.trim()
+      : null
+  return { projectId, fileId, title, ...(slug ? { slug } : {}) }
 }
 
 const LOADER_TITLES: Record<string, string> = {
@@ -2196,11 +2221,13 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
               bytesTotal: number
               speed: number
             }
+            parallel?: TaskParallelState
           }) =>
             progress({
               stage: `(${index + 1}/${requests.length}) ${info.stage}`,
               percent: basePercent + (Math.max(0, Math.min(100, info.percent)) / 100) * span,
-              detail: info.detail
+              detail: info.detail,
+              parallel: info.parallel
             })
           progress({
             stage: `(${index + 1}/${requests.length}) ${label}`,
@@ -2988,11 +3015,50 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
     }
   )
 
-  ipcMain.handle('curseforge:modpack-versions', async (_event, rawProjectId: unknown) => {
-    const projectId =
-      typeof rawProjectId === 'string' && /^\d{1,20}$/.test(rawProjectId) ? rawProjectId : null
-    if (!projectId) throw new Error('无效的 CurseForge 整合包标识')
-    return listCurseForgeModpackVersions(projectId, getSettings())
+  ipcMain.handle(
+    'curseforge:modpack-versions',
+    async (_event, rawProjectId: unknown, rawScope: unknown) => {
+      const projectId =
+        typeof rawProjectId === 'string' && /^\d{1,20}$/.test(rawProjectId)
+          ? rawProjectId
+          : null
+      if (!projectId) throw new Error('无效的 CurseForge 整合包标识')
+      const scope = rawScope === 'server' ? 'server' : 'client'
+      return listCurseForgeModpackVersions(projectId, getSettings(), scope)
+    }
+  )
+
+  ipcMain.handle('curseforge:download-server-pack', async (_event, raw: unknown) => {
+    const request = parseCurseForgeServerPackRequest(raw)
+    const title = `下载服务端包 ${request.title}`
+    const running = taskManager
+      .list()
+      .find(
+        (task) =>
+          task.kind === 'serverPack' &&
+          task.projectId === request.projectId &&
+          (task.status === 'running' || task.status === 'paused')
+      )
+    if (running) return running
+    const settings = getSettings()
+    return taskManager.start({
+      kind: 'serverPack',
+      title,
+      projectId: request.projectId,
+      run: async ({ signal, progress }) => {
+        const result = await downloadCurseForgeServerPack({
+          projectId: request.projectId,
+          fileId: request.fileId,
+          title: request.title,
+          slug: request.slug,
+          settings,
+          signal,
+          onProgress: progress,
+          onComplete: (path) => shell.showItemInFolder(path)
+        })
+        return { message: `已保存到 ${result.path}` }
+      }
+    })
   })
 
   ipcMain.handle('java:detect', async (_event, refresh: unknown) => {
@@ -3055,6 +3121,8 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
   ipcMain.handle('launch:stop', () => stopGame())
   ipcMain.handle('launch:get-state', () => getLaunchState())
   ipcMain.handle('launch:get-logs', () => getLaunchLogs())
+  ipcMain.handle('running-game:inspect', () => inspectRunningGame())
+  ipcMain.handle('running-game:stop', () => stopRunningGame())
 
   ipcMain.handle('tasks:list', () => taskManager.list())
   ipcMain.handle('tasks:cancel', (_event, id: unknown) => {

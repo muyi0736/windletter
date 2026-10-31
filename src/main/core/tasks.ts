@@ -83,6 +83,13 @@ class TaskManager {
       task.stage = info.stage
       task.progress = info.percent
       task.detail = { ...info.detail } satisfies DownloadDetail
+      task.parallel = info.parallel
+        ? {
+            stage: info.parallel.stage,
+            progress: info.parallel.progress,
+            detail: { ...info.parallel.detail }
+          }
+        : undefined
       task.message = info.message
       this.emit(task)
     }
@@ -104,6 +111,7 @@ class TaskManager {
       task.stage = '完成'
       task.progress = 100
       task.detail.speed = 0
+      task.parallel = undefined
       this.options.delete(id)
       this.emit(task)
     } catch (err) {
@@ -134,6 +142,7 @@ class TaskManager {
         this.options.delete(id)
       }
       task.detail.speed = 0
+      task.parallel = undefined
       this.emit(task)
     } finally {
       this.controllers.delete(id)
@@ -151,6 +160,7 @@ class TaskManager {
       task.finishedAt = Date.now()
       task.stage = '已取消'
       task.message = '任务已取消'
+      task.parallel = undefined
       this.emit(task)
       return
     }
@@ -180,6 +190,7 @@ class TaskManager {
     task.status = 'running'
     task.stage = '继续中'
     task.error = undefined
+    task.parallel = undefined
     task.message = undefined
     this.emit(task)
     void this.execute(id, controller, options)
@@ -193,7 +204,13 @@ class TaskManager {
   }
 
   private emit(task: TaskState): void {
-    this.listener?.({ ...task, detail: { ...task.detail } })
+    this.listener?.({
+      ...task,
+      detail: { ...task.detail },
+      parallel: task.parallel
+        ? { ...task.parallel, detail: { ...task.parallel.detail } }
+        : undefined
+    })
   }
 }
 

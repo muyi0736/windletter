@@ -875,6 +875,12 @@ export interface ManualPackFile {
   pageUrl: string
 }
 
+export interface TaskParallelState {
+  stage: string
+  progress: number
+  detail: DownloadDetail
+}
+
 export interface TaskState {
   id: string
   kind: 'install' | 'java' | 'modpack' | 'loader' | 'preset' | 'world' | 'instance' | 'serverPack'
@@ -882,6 +888,8 @@ export interface TaskState {
   stage: string
   progress: number
   detail: DownloadDetail
+  /** 与主阶段并行的后台下载进度（如安装加载器时同时下载整合包文件）。 */
+  parallel?: TaskParallelState
   status: TaskStatus
   message?: string
   error?: string
@@ -1272,6 +1280,15 @@ export interface CurseForgeInstallRequest {
   summary: string
   fileId: string
   manualFiles?: string[]
+}
+
+export type CurseForgeModpackFileScope = 'client' | 'server'
+
+export interface CurseForgeServerPackDownloadRequest {
+  projectId: string
+  fileId: string
+  title: string
+  slug?: string | null
 }
 
 export interface ModpackVersionView {
@@ -1680,6 +1697,15 @@ export interface LoaderRollbackState {
   updatedAt: number
 }
 
+export interface RunningGameInfo {
+  pid: number
+  startedAt: number
+  instanceId: string | null
+  name: string | null
+  versionId: string
+  gameDir: string
+}
+
 export type LaunchLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
 export interface LaunchLogLine {
@@ -2029,7 +2055,11 @@ export interface LauncherApi {
       loader: string,
       offset?: number
     ) => Promise<ModrinthSearchView>
-    modpackVersions: (projectId: string) => Promise<ModpackVersionView[]>
+    modpackVersions: (
+      projectId: string,
+      scope?: CurseForgeModpackFileScope
+    ) => Promise<ModpackVersionView[]>
+    downloadServerPack: (request: CurseForgeServerPackDownloadRequest) => Promise<TaskState>
   }
   localPacks: {
     scan: (extraPaths?: string[] | string | null) => Promise<LocalPackScanResult>
@@ -2050,6 +2080,10 @@ export interface LauncherApi {
     getLogs: () => Promise<LaunchLogLine[]>
     onState: (cb: (state: LaunchState) => void) => () => void
     onLog: (cb: (line: LaunchLogLine) => void) => () => void
+  }
+  runningGame: {
+    inspect: () => Promise<RunningGameInfo | null>
+    stop: () => Promise<boolean>
   }
   tasks: {
     list: () => Promise<TaskState[]>

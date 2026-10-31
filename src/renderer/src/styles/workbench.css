@@ -1598,6 +1598,17 @@
   color: var(--text-3);
 }
 
+.pack-version-server-note {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 8.5px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
 .pack-version-footer {
   display: flex;
   align-items: center;
@@ -4396,4 +4407,40 @@
 
 .home-fit-content.is-tall-canvas .library-table-body {
   max-height: 150px !important;
+}
+
+.task-parallel {
+  margin-top: 5px;
+  padding: 5px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.task-parallel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  color: var(--text-3);
+}
+
+.task-parallel-head span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-parallel-head span:last-child {
+  flex-shrink: 0;
+  color: var(--text-2);
+}
+
+.task-parallel .progress {
+  height: 3px;
+  margin-top: 4px;
+  opacity: 0.8;
 }

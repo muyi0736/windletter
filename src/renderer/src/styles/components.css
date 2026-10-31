@@ -2837,3 +2837,76 @@ html[data-memory-saver='true'] .command-palette-backdrop {
   font-size: 8.5px;
   line-height: 1.5;
 }
+
+/* ---------- Running game recovery ---------- */
+.running-game-notice {
+  position: fixed;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 140;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(660px, calc(100vw - 40px));
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 93%, transparent);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(20px) saturate(1.15);
+}
+
+.running-game-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.running-game-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.running-game-copy strong {
+  font-size: 11.5px;
+  line-height: 1.25;
+}
+
+.running-game-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  color: var(--text-3);
+}
+
+.running-game-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.running-game-actions .button {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .running-game-notice {
+    flex-wrap: wrap;
+  }
+
+  .running-game-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

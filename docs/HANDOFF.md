@@ -1,7 +1,7 @@
 # 风信启动器 · 开发交接文档
 
 最后更新：2026-10-31  
-项目版本：0.60.13（已发布到 GitHub Release）  
+项目版本：0.60.20（本地构建；公开 Release 为 0.60.20）  
 交接形态：源码 + Windows 安装包 + 本说明  
 适用平台：Windows 10/11 x64
 
@@ -42,7 +42,7 @@ node node_modules/electron/install.js
 5. 回到「启动」→ 选择实例 → 启动游戏；标题栏终端可查看实时日志。
 
 如果只是要体验，不打算开发，可直接运行交付目录里的
-`Windletter-Launcher-0.60.13-setup.exe`（本地 `D:\WindletterOut`；公开 Release v0.60.13）；仓库为 `https://github.com/muyi0736/windletter`，当前公开 Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.13`。本地构建安装包 116,787,084 字节，SHA-256 为 `b3fd74516daf390964c6b8e4f74bdfb3ffc79ca4544c3ff3595abd467a505792`；公开 Actions 构建的安装包大小与 SHA-256 以 Release 页和 `latest.json` 为准。0.60.12 本地安装包 SHA-256 为 `0a984bc551b2822e46914346d82a7f14d80c9a7b5f44ae204abfa4074924bf6e`；0.60.11 本地安装包 SHA-256 为 `8e38f0679f5c5455d7288ee21f3fca0b0dff81226df49bff9ef531687191b441`；0.60.9 的安装包 SHA-256 为 `7843854cfaeeed5650ce35f2e34c1c6b3eab7e54be61ed3399d5b742f919e775`。
+`Windletter-Launcher-0.60.20-setup.exe`（本地 `D:\WindletterOut`；公开 Release v0.60.20）；仓库为 `https://github.com/muyi0736/windletter`，当前公开 Release 为 `https://github.com/muyi0736/windletter/releases/tag/v0.60.20`。0.60.20 本地构建安装包 116,789,027 字节，SHA-256 为 `63babce6a44b7cbb218f3948e35cde4a6f83146fbefa626e074eb5699e98c2cb`；0.60.19 本地构建安装包 116,790,584 字节，SHA-256 为 `5ab99569599c3b2b70d88ef261da5bd8850ff03970fbc5cc4b23b04da7cf465c`；0.60.18 本地构建安装包 116,789,457 字节，SHA-256 为 `07477cc96a859cb71c141cc0c0c025b33ba173f4954ddd4ad3ae3364f50284d6`；0.60.17 本地构建安装包 116,789,737 字节，SHA-256 为 `4f60981023d901ab418398eb6048d97390c80ba542655e5f74af9ff5f47d5162`；0.60.16 本地构建安装包 116,788,520 字节，SHA-256 为 `ca246b48f693482f50843670202fe5200821107531784a79295293e77ca51356`；0.60.15 本地构建安装包 116,788,399 字节，SHA-256 为 `e0450afb0e1dc652024b51149866241cb4b976e504140f4b78e6e051b755e9c1`；0.60.14 本地构建安装包 116,787,314 字节，SHA-256 为 `ecfad2f0545ffea74230b6eca384a60ef252fd21256317376d5c144cffb42a41`。0.60.13 本地构建安装包 116,787,084 字节，SHA-256 为 `b3fd74516daf390964c6b8e4f74bdfb3ffc79ca4544c3ff3595abd467a505792`；公开 Actions 构建安装包 116,786,162 字节，SHA-256 为 `e93ca25c53d20c26d641e3766c81dd79d14e930c5c9262f562775eb5debf7ebb`，`latest.json` 1311 字节，SHA-256 为 `83161e648b802634cfbf103b611211f30b05ba24fe50b43f196cad37483aff43`，Actions run `41102626931`，源码提交 `c278749`、tag `v0.60.13`。0.60.12 本地安装包 SHA-256 为 `0a984bc551b2822e46914346d82a7f14d80c9a7b5f44ae204abfa4074924bf6e`；0.60.11 本地安装包 SHA-256 为 `8e38f0679f5c5455d7288ee21f3fca0b0dff81226df49bff9ef531687191b441`；0.60.9 的安装包 SHA-256 为 `7843854cfaeeed5650ce35f2e34c1c6b3eab7e54be61ed3399d5b742f919e775`。
 
 ### 三个最重要的目录
 
@@ -379,6 +379,56 @@ npx electron-builder --win nsis --config.electronDist=".../node_modules/electron
 - 控制台颜色跟随明暗主题：浅色纸面主题下是半透明亮色面板，深色主题下是暗色面板；`paper.css` 只保留纸面圆角和字体，并略微提高头部 / 工具栏的不透明度，避免自定义背景穿透影响读日志。此前浅色主题深色头部配浅色正文的混搭已消除。
 - 实测：真实 ATM11 日志（2026-10-30 16:18 UTC）1301 个事件、1009 INFO / 271 WARN / 21 ERROR、4 个堆栈、4658 行 stdout，解析后事件数和级别完全一致、0 条 XML 残留；自定义 `logfixture` 版本 + 离线账户真实启动，18 条日志、Mod List 多行、ERROR 堆栈、spark ×5、原始 stdout 和令牌脱敏全部正确；控制台两种主题、自定义背景下的浅色半透明面板、筛选、堆栈、长文本、偏好持久化均已检查。`npm run typecheck`、`npm run build` 通过。
 - 0.60.11 随 v0.60.13 批量发布。
+
+0.60.20 服务端包 Additional Files 补全：
+
+- 原因：官方 API 的 `GET /v1/mods/{id}/files` 不含 “Additional Files / Server Packs”；服务端包只通过客户端文件的 `serverPackFileId` / `alternateFileId` 关联（ATM9 客户端 7097953 → 服务端 7097957；ATM10 多个客户端版本各有自己的 serverPackFileId）。因此旧逻辑只看到 API 偶然标记的 ATM10 8.4 一条。
+- 服务端模式现在从所有客户端文件收集关联 ID（排除已在 `/files` 中的文件），最多 20 个，按客户端日期倒序；用 Electron `net.fetch` 读取 `https://www.curseforge.com/minecraft/modpacks/<slug>/files/<id>`（浏览器 UA，8s 超时），解析 Next.js RSC 里的文件对象（fileName/displayName/fileLength/dateCreated/releaseType/isClientCompatible/flavors），并发 4，结果缓存 30 分钟；`isClientCompatible:true` 的 alternate 客户端文件会被排除，失败时保留 API 标记的服务端包。
+- 下载回退：`downloadCurseForgeServerPack` 先试 API（有 SHA1 时校验），失败或没有 URL 时复用网页缓存，用 CDN 规则 `files/<id/1000>/<id%1000>/<fileName>` 下载，按网页 fileLength 校验；网页不提供 SHA1，因此以大小+HTTPS CDN 为准；取消/失败清理分片。IPC 请求新增可选 `slug`，由 UI 项目数据传入，避免额外项目查询。
+- 实测：ATM9 服务端 17 条（最新 Server-Files-1.1.1 1,138,394,395 B），ATM10 19 条（8.4–6.1）；冷加载 5.5s/4.4s，页面缓存后更快；UI 服务端弹窗 17/19 行，ATM9 从 UI 启动下载后总大小正确，取消无分片残留。`npm run typecheck`、`npm run build` 通过；未完整下载 1GB 级文件。0.60.20 为本地构建，公开 Release 仍为 0.60.13。
+
+0.60.19 CurseForge 服务端包下载：
+
+- 下载页 CurseForge 整合包卡片新增「服务端」按钮，打开版本弹窗的服务端模式；`curseforge:modpack-versions` 新增 `scope: 'client' | 'server'`，服务端模式只返回服务端包，并最多翻 8 页（每页 50）避免较早服务端包被挤出第一页；客户端模式仍只返回客户端包。`getCurseForgeFileInfo` 增加 `allowServerPack` 选项和 `isServerPack` 返回值，客户端安装入口继续拦截服务端包。
+- 新增 `downloadCurseForgeServerPack()`（`curseforgePack.ts`）：复用文件信息、SHA1/大小校验，保存到 `downloads/serverpacks/<安全整合包名>/<ServerFiles>.zip`；任务显示实时速度/已传输/总大小，完成后 `shell.showItemInFolder` 打开文件夹；取消或失败清理 `.part*` 分片。IPC `curseforge:download-server-pack` 使用 `serverPack` 任务类型、`projectId` 去重；store 的任务完成/失败 toast 按标题区分“下载服务端包”和“制作服务端包”。
+- UI：服务端弹窗标题带「服务端包」，副标题说明不会创建客户端实例，列表下方提示保存位置，按钮为「下载服务端包」；服务端列表为空时提示该整合包没有服务端包。卡片按钮在服务端任务运行时显示「下载中」并禁用。
+- 验证：本地 HTTPS mock API/文件服务覆盖客户端/服务端列表、文件名兜底、922,394 字节下载、SHA1、ZIP 可读、重复任务复用、取消清理；真实 ATM10（925200）服务端列表 1 条（1.2GB ServerFiles-8.4），客户端 49 条（第一项客户端 8.4），共 521ms。下载页真实搜索 ATM10 后卡片与弹窗在深色/浅色下截图检查；未完整下载真实 1.2GB 文件。`npm run typecheck`、`npm run build` 通过。0.60.19 为本地构建，公开 Release 仍为 0.60.13。
+
+0.60.18 CurseForge 服务端包过滤：
+
+- 原因：`listCurseForgeModpackVersions` 直接拿 CurseForge files 接口的前 50 个文件，按 `fileDate` 倒序；ATM10 的 `ServerFiles-8.4.zip`（1.2GB，`isServerPack: true`）比客户端包晚发布 7 分钟，所以排在第一位。`DownloadsPage.openPackVersions` 默认选 `list[0]`，用户直接点安装就下载了服务端包。
+- 修复：`CfFile` 增加 `isServerPack` / `serverPackFileId`；`listCurseForgeModpackVersions` 过滤服务端包，API 缺少字段时用 `ServerFiles` / `ServerPack` 文件名兜底（客户端包不会被误杀，因为镜像正常返回 `isServerPack: false`）；`getCurseForgeFileInfo` 在安装入口再次拦截并提示“不能作为客户端整合包安装”。版本列表的其他字段和排序不变。
+- 验证：隔离开发实例 + CurseForge 镜像调用 ATM10（925200）：版本数 50→49，第一项为客户端 `All the Mods 10-8.4`（205,853,510 B），无 ServerFiles 行；直接安装服务端文件 9366998 时任务在文件信息阶段失败，缓存目录无下载文件。`npm run typecheck`、`npm run build` 通过；未完整下载客户端整合包（约 206MB）。0.60.18 为本地构建，公开 Release 仍为 0.60.13。
+
+0.60.17 整合包安装阶段并行：
+
+- `importModpack` 不再串行执行「原版 → 加载器 → 整合包下载」：原版和加载器安装使用 `stageSignal` 在前台执行，`runPack()` 同时做本地复用、源站测速和包文件下载；两段通过 `stageAbort` 互相中止。任务进度由 `main / parallel / foreground / lastPack` 协调，安装段结束后自动把主进度切到整合包下载（64% 起），最后解压 overrides 到 100%。
+- `TaskParallelState` 随 `TaskProgressInfo.parallel` → `TaskState.parallel` 传到界面；`TaskDock` 在主进度条下显示第二条“下载整合包文件 / 本地复用 / 测速”进度和文件数、速度。CurseForge 安装与批量本地导入的进度包装器也透传 `parallel`。任务完成、失败、取消、暂停后清空并行状态。
+- 错误处理：整合包段失败会中止安装段并优先返回包错误；安装段失败会中止包段并返回安装错误；外层取消优先返回 `CancellationError`。`packPromise` 在创建时立即 `.catch()` 记录错误，避免后台段先失败造成未处理拒绝；失败清理沿用 0.60.16 的版本目录基线。
+- 验证：当前 `modpacks.ts` 接入桩 I/O 覆盖 7 种时序（安装 500ms + 包 1200ms 总 1277ms；安装 900ms + 包 200ms 总 953ms；包/安装先后失败；取消；双向成功后的错误），`npm run typecheck`、`npm run build` 通过。真实应用隔离数据 + 1.20.1 + Modrinth CDN 夹具观察到安装 10%、包下载 50% 同时进行，取消后并行进度清空、实例和新版本目录清理、共享缓存保留；1180/1000 宽度、浅色/深色界面已检查。未完成一次真实整合包全量安装。
+- 0.60.17 为本地构建，公开 Release 仍为 0.60.13，待下次批量同步。
+
+0.60.16 整合包安装失败清理：
+
+- 新增 `packCleanup.ts`。`importModpack` 开始安装前读取共享 `versions` 下的目录基线；失败/取消时对比当前目录，只删除本次新建、名称属于该 gameVersion 或 loader/loaderVersion、且未被已注册实例引用的版本目录，包括只下载了一半、还没有版本 JSON 的目录。清理后 `invalidateVersionCache()`。
+- 共享 `libraries` / `assets` 属于可复用缓存，不删除；无法读取基线或清理失败时保留副本，不覆盖原始安装错误。并发安装同版本时以已注册实例引用为保护。
+- 夹具：基线 `keep-base`，新建 `fake-game`、`neoforge-1.2.3`、`unrelated-new`、被实例引用的 `used-neoforge-1.2.3`；只删除前两个，其余保留；不存在 versions 目录返回空且不抛错。`npm run typecheck`、`npm run build` 通过；未跑真实失败安装的完整调用链。
+- 0.60.16 为本地构建，公开 Release 仍为 0.60.13。
+
+0.60.15 残留游戏进程检测：
+
+- 新增 `runningGame.ts`：游戏进程 spawn 成功后写入 `running-game.json`（PID、instanceId、名称、versionId、gameDir、startedAt）；退出时按 PID 清理，避免旧记录误删新会话。
+- 启动器重启后 `RunningGameNotice` 调用 `running-game:inspect`：先用 `process.kill(pid,0)` 确认存活，再用 PowerShell `Get-CimInstance Win32_Process` 读取进程名/命令行；PowerShell 不可用时回退 `tasklist`。命令行必须包含记录的 gameDir 或 versionId 才提示；PID 已死、命令行不匹配或记录损坏时自动清理。macOS/Linux 读取 `/proc`（如果有）。
+- 提示条显示实例/版本、PID、启动时间；可“保留运行”（只隐藏，记录保留，下次启动仍会提示）或“结束进程”（ConfirmDialog 二次确认，`taskkill /pid /t /f`）。
+- 实测：可控 Node 假进程带 `--gameDir` / `--version`，重启后提示出现；保留后记录保留；页面刷新提示再次出现；结束进程后 PID 消失、记录删除、提示消失；错误 gameDir 的进程不提示并清理记录。`npm run typecheck`、`npm run build` 通过。
+- 0.60.15 为本地构建，公开 Release 仍为 0.60.13。
+
+0.60.14 整合包源站测速：
+
+- 新增 `packSources.ts`：从每个候选源站（镜像、官方、CurseForge 备用 CDN）各取一个 ≥512KB 的文件样本，用 4 路 Range 共 256KB 实测吞吐量，按 bytes/ms 从高到低排序，再用 `sortUrlsBySourceSpeed()` 重排每个下载任务的 URL。只有一个源站、没有合适样本或全部探测失败时保留原顺序；取消抛 `CancellationError`。
+- `importModpack` 在本地复用之后、下载之前调用；任务显示“测速下载线路 · 主机 X MB/s · 主机 Y MB/s”，随后进入“下载整合包文件 · 本地复用 N”。探测失败不会阻塞安装。
+- 实测：两个本地限速 HTTP 源共享 2MB 文件，慢源 100ms/16KB、快源 20ms/16KB，探测得到 1.76 / 0.52 MB/s，快源排序第一；单源返回空数组。`npm run typecheck`、`npm run build` 通过；未用真实整合包冷装复测。
+- 0.60.14 为本地构建，公开 Release 仍为 0.60.13，下次源码同步时一并更新。
 
 0.60.13 一键进服 Quick Play：
 

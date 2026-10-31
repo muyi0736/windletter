@@ -24,6 +24,7 @@ import {
 } from './version'
 import { isRuleAllowed } from './rules'
 import { GameLogAssembler, type GameLogEvent, type GameLogFeed } from './gameLogFormat'
+import { clearRunningGame, recordRunningGame } from './runningGame'
 
 const MAX_LOG_LINES = 4000
 const APP_VERSION = app.getVersion()
@@ -438,6 +439,7 @@ export async function launchGame(
       child = null
       starting = false
       log('system', `游戏进程已退出，退出代码 ${code ?? '未知'}`)
+      if (gameProcess.pid) void clearRunningGame(gameProcess.pid)
       void finishPlaySession({ exitCode: code })
       setState({
         status: 'exited',
@@ -480,6 +482,19 @@ export async function launchGame(
     }
     if (exited) return
 
+    const startedAt = Date.now()
+    if (gameProcess.pid) {
+      await recordRunningGame({
+        pid: gameProcess.pid,
+        startedAt,
+        instanceId: instance?.id ?? null,
+        name: instance?.name ?? versionId,
+        versionId,
+        gameDir
+      }).catch(() => undefined)
+      if (exited) void clearRunningGame(gameProcess.pid)
+    }
+
     const session = await startPlaySession({
       instanceId: instance?.id ?? null,
       name: instance?.name ?? versionId,
@@ -498,7 +513,7 @@ export async function launchGame(
       progress: 100,
       stage: '游戏运行中',
       pid: gameProcess.pid ?? null,
-      startedAt: Date.now(),
+      startedAt,
       speed: null
     })
     markVersionPlayed(versionId)

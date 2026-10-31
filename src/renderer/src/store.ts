@@ -165,6 +165,10 @@ interface LauncherStore {
   importLocalArchives: (paths: string[]) => Promise<TaskState | null>
   installModrinth: (project: ModrinthProjectView, versionId?: string) => Promise<void>
   installCurseForgePack: (project: ModrinthProjectView, fileId: string) => Promise<void>
+  downloadCurseForgeServerPack: (
+    project: ModrinthProjectView,
+    fileId: string
+  ) => Promise<void>
   setPresetManagerOpen: (open: boolean) => void
   checkPresets: (instanceId: string, mode?: 'install' | 'manual') => Promise<void>
   startPresetInstall: (
@@ -683,6 +687,25 @@ export const useLauncher = create<LauncherStore>()((set, get) => ({
       get().toast('info', `已加入安装队列：${project.title}`, '会在任务浮窗中下载 CurseForge 整合包并安装')
     } catch (error) {
       get().toast('error', '无法安装 CurseForge 整合包', cleanError(error))
+    }
+  },
+
+  downloadCurseForgeServerPack: async (project, fileId) => {
+    try {
+      const task = await window.ccl.curseforge.downloadServerPack({
+        projectId: project.projectId,
+        fileId,
+        title: project.title,
+        slug: project.slug
+      })
+      upsertTask(task, set, get)
+      get().toast(
+        'info',
+        '已开始下载服务端包',
+        `${project.title} · 完成后会打开所在文件夹`
+      )
+    } catch (error) {
+      get().toast('error', '无法下载服务端包', cleanError(error))
     }
   },
 
@@ -1470,11 +1493,15 @@ function wireEvents(set: SetState, get: () => LauncherStore): void {
           if (task.instanceId) get().selectInstance(task.instanceId)
         })
       } else if (task.kind === 'serverPack') {
-        get().toast(
-          'success',
-          '服务端包已生成',
-          `${task.message ?? 'ZIP 已保存'} · 可重新打开窗口点「验证服务端包」`
-        )
+        if (task.title.startsWith('下载服务端包')) {
+          get().toast('success', '服务端包已下载', task.message ?? 'ZIP 已保存')
+        } else {
+          get().toast(
+            'success',
+            '服务端包已生成',
+            `${task.message ?? 'ZIP 已保存'} · 可重新打开窗口点「验证服务端包」`
+          )
+        }
       } else if (task.kind === 'world') {
         get().toast(
           'success',
@@ -1505,7 +1532,9 @@ function wireEvents(set: SetState, get: () => LauncherStore): void {
                 : task.kind === 'world'
                   ? '存档操作未完成'
                   : task.kind === 'serverPack'
-                    ? '服务端包制作未完成'
+                    ? task.title.startsWith('下载服务端包')
+                      ? '服务端包下载未完成'
+                      : '服务端包制作未完成'
                   : 'Java 任务未完成'
       get().toast('error', title, task.error ?? task.message ?? '未知错误')
     }

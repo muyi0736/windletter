@@ -2,10 +2,12 @@ import AdmZip from 'adm-zip'
 import { promises as fs } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type {
+  DownloadDetail,
   DownloadSource,
   InstanceLoader,
   InstanceSummary,
-  LauncherSettings
+  LauncherSettings,
+  TaskParallelState
 } from '../../shared/types'
 import { runDownloadPool, type DownloadJob } from './downloadPool'
 import {
@@ -21,7 +23,10 @@ import { installVanillaVersion } from './installer'
 import { ensureJavaForVersion } from './java'
 import { getVersionEntry, getVersionJson } from './mojang'
 import { CancellationError } from './net'
+import { cleanupFailedPackVersions, listVersionFolderNames } from './packCleanup'
 import { collectPackReuseRoots, reuseLocalPackFiles } from './packReuse'
+import { invalidateVersionCache } from './versions'
+import { formatSourceProbe, probePackSources, sortUrlsBySourceSpeed } from './packSources'
 import { emptyDetail, type TaskProgress } from './progress'
 import { modrinthFileCandidates } from './source'
 import { pathExists, safeJoin } from './version'
@@ -314,9 +319,59 @@ async function extractOverrides(
 
 export async function importModpack(options: ImportModpackOptions): Promise<ImportModpackResult> {
   const { signal, onProgress } = options
-  const report = (stage: string, percent: number, detail = emptyDetail()) => {
-    onProgress({ stage, percent: Math.max(0, Math.min(100, percent)), detail })
+  let main: {
+    stage: string
+    percent: number
+    detail: DownloadDetail
+    message?: string
+  } = { stage: '准备中', percent: 0, detail: emptyDetail() }
+  let parallel: TaskParallelState | undefined
+  let foreground: 'install' | 'download' = 'install'
+  let lastPack: { stage: string; ratio: number; detail: DownloadDetail } | null = null
+
+  const publish = () => {
+    onProgress({
+      stage: main.stage,
+      percent: Math.max(0, Math.min(100, main.percent)),
+      detail: main.detail,
+      parallel,
+      message: main.message
+    })
   }
+  const report = (stage: string, percent: number, detail = emptyDetail(), message?: string) => {
+    main = { stage, percent, detail, message }
+    publish()
+  }
+  const reportParallel = (stage: string, progress: number, detail = emptyDetail()) => {
+    parallel = {
+      stage,
+      progress: Math.max(0, Math.min(100, progress)),
+      detail
+    }
+    publish()
+  }
+  const reportPack = (stage: string, ratio: number, detail = emptyDetail()) => {
+    const safeRatio = Math.max(0, Math.min(1, ratio))
+    lastPack = { stage, ratio: safeRatio, detail }
+    if (foreground === 'install') {
+      reportParallel(stage, safeRatio * 100, detail)
+    } else {
+      report(stage, 64 + safeRatio * 26, detail)
+    }
+  }
+  const beginDownloadForeground = () => {
+    if (foreground === 'download') return
+    foreground = 'download'
+    parallel = undefined
+    if (lastPack) report(lastPack.stage, 64 + lastPack.ratio * 26, lastPack.detail)
+    else report('下载整合包文件', 64)
+  }
+  const finishPack = (stage: string, detail: DownloadDetail) => {
+    lastPack = { stage, ratio: 1, detail }
+    if (foreground === 'install') reportParallel(stage, 100, detail)
+    else report(stage, 90, detail)
+  }
+  const packDetail = (): DownloadDetail => lastPack?.detail ?? emptyDetail()
 
   report('读取整合包', 1)
   if (signal.aborted) throw new CancellationError()
@@ -345,76 +400,22 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
   const minecraftDir = getInstanceMinecraftDir(id)
   await fs.mkdir(minecraftDir, { recursive: true })
 
+  let versionsBefore: string[] | null = []
   try {
-    if (signal.aborted) throw new CancellationError()
-    await installVanillaVersion({
-      gameDir: options.gameDir,
-      versionId: gameVersion,
-      source: options.downloadSource,
-      concurrency: options.concurrency,
-      signal,
-      onProgress: (info) => {
-        report(`安装原版 · ${info.stage}`, 3 + info.percent * 0.47, info.detail)
-      }
-    })
+    versionsBefore = await listVersionFolderNames(options.gameDir)
+  } catch {
+    // 无法读取共享 versions 时不做失败清理，宁可留下副本也不误删已有版本。
+    versionsBefore = null
+  }
 
-    const javaMajor = await readJavaMajor(options.gameDir, gameVersion)
-    let versionId = gameVersion
-    if (loader !== 'vanilla') {
-      if (signal.aborted) throw new CancellationError()
-      let javaPath: string | undefined
-      if (loader === 'forge' || loader === 'neoforge') {
-        report(`准备 ${loader === 'neoforge' ? 'NeoForge' : 'Forge'} Java`, 51)
-        try {
-          const java = await ensureJavaForVersion({
-            gameDir: options.gameDir,
-            settings: options.settings,
-            requiredMajor: javaMajor,
-            exact: true,
-            source: options.downloadSource,
-            signal,
-            onProgress: (info) => {
-              report(`准备 Java · ${info.stage}`, 51 + info.percent * 0.04, info.detail)
-            }
-          })
-          javaPath = java.path
-        } catch (error) {
-          if (javaMajor !== null && javaMajor <= 8) {
-            throw new Error(
-              `这个加载器需要 Java ${javaMajor}，但本机没有可用的 Java ${javaMajor}，官方也不再提供自动下载。请先安装 Java ${javaMajor}，在设置中指定后重试。`
-            )
-          }
-          throw error
-        }
-      }
-      const loaderName =
-        loader === 'fabric'
-          ? 'Fabric'
-          : loader === 'quilt'
-            ? 'Quilt'
-            : loader === 'neoforge'
-              ? 'NeoForge'
-              : 'Forge'
-      const loaderResult = await installLoaderProfile({
-        gameDir: options.gameDir,
-        gameVersion,
-        loader,
-        loaderVersion,
-        javaPath,
-        concurrency: options.concurrency,
-        signal,
-        onProgress: (info) => {
-          const installerLoader = loader === 'forge' || loader === 'neoforge'
-          const base = installerLoader ? 55 : 51
-          const span = installerLoader ? 7 : 12
-          report(`安装 ${loaderName} · ${info.stage}`, base + info.percent * (span / 100), info.detail)
-        }
-      })
-      versionId = loaderResult.versionId
-    }
+  const stageAbort = new AbortController()
+  const stageSignal = AbortSignal.any([signal, stageAbort.signal])
+  let installError: unknown = null
+  let packError: unknown = null
+  let javaMajor: number | null = null
+  let versionId = gameVersion
 
-    if (signal.aborted) throw new CancellationError()
-    report('下载整合包文件', 64)
+  try {
     const jobs: DownloadJob[] = files.map((file) => ({
       urls: file.urls,
       destination: safeJoin(minecraftDir, file.path),
@@ -422,70 +423,192 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
       size: file.size,
       label: basename(file.path)
     }))
-    let reusedFiles = 0
     const reuseJobs = jobs.flatMap((job) =>
       job.sha1 && job.size != null
         ? [{ destination: job.destination, sha1: job.sha1, size: job.size }]
         : []
     )
-    if (reuseJobs.length) {
-      report('查找本地模组', 64)
-      try {
-        let instances: InstanceSummary[] = []
+
+    const runPack = async (): Promise<void> => {
+      if (stageSignal.aborted) throw new CancellationError()
+      reportPack('准备整合包文件', 0)
+      let reusedFiles = 0
+      if (reuseJobs.length) {
         try {
-          instances = await listInstances()
-        } catch {
-          instances = []
+          let instances: InstanceSummary[] = []
+          try {
+            instances = await listInstances()
+          } catch {
+            instances = []
+          }
+          const roots = await collectPackReuseRoots({
+            target: minecraftDir,
+            baseGameDir: options.gameDir,
+            sources: instances.map((instance) => ({
+              gameDir: instance.external?.gameDir ?? getInstanceMinecraftDir(instance.id),
+              baseDir: instance.external?.baseDir ?? null
+            }))
+          })
+          if (roots.length) {
+            const reuse = await reuseLocalPackFiles({
+              jobs: reuseJobs,
+              roots,
+              signal: stageSignal,
+              onProgress: (info) => {
+                if (!info.checked && !info.reused && !info.label) return
+                reportPack(
+                  info.reused > 0 ? `本地复用 · ${info.reused}/${info.total}` : '查找本地模组',
+                  info.total ? info.checked / info.total : 0,
+                  {
+                    current: info.checked,
+                    total: info.total,
+                    bytesDone: info.bytes,
+                    bytesTotal: info.bytesTotal,
+                    speed: 0
+                  }
+                )
+              }
+            })
+            reusedFiles = reuse.reused
+          }
+        } catch (error) {
+          if (stageSignal.aborted || error instanceof CancellationError) {
+            throw new CancellationError()
+          }
+          // 本地扫描失败不影响正常下载。
         }
-        const roots = await collectPackReuseRoots({
-          target: minecraftDir,
-          baseGameDir: options.gameDir,
-          sources: instances.map((instance) => ({
-            gameDir: instance.external?.gameDir ?? getInstanceMinecraftDir(instance.id),
-            baseDir: instance.external?.baseDir ?? null
-          }))
-        })
-        if (roots.length) {
-          const reuse = await reuseLocalPackFiles({
-            jobs: reuseJobs,
-            roots,
-            signal,
-            onProgress: (info) => {
-              if (!info.checked && !info.reused && !info.label) return
-              report(
-                info.reused > 0 ? `本地复用 · ${info.reused}/${info.total}` : '查找本地模组',
-                64,
-                {
-                  current: info.checked,
-                  total: info.total,
-                  bytesDone: info.bytes,
-                  bytesTotal: info.bytesTotal,
-                  speed: 0
-                }
+      }
+      if (stageSignal.aborted) throw new CancellationError()
+      if (reusedFiles < jobs.length) {
+        try {
+          const probes = await probePackSources(jobs, { signal: stageSignal, probeBytes: 256 * 1024 })
+          if (probes.length >= 2) {
+            reportPack(`测速下载线路 · ${formatSourceProbe(probes)}`, 0)
+            for (const job of jobs) job.urls = sortUrlsBySourceSpeed(job.urls, probes)
+          }
+        } catch (error) {
+          if (stageSignal.aborted || error instanceof CancellationError) {
+            throw new CancellationError()
+          }
+          // 源站测速失败不影响正常下载，保留原有镜像优先顺序。
+        }
+      }
+      if (stageSignal.aborted) throw new CancellationError()
+      const downloadStage =
+        reusedFiles > 0 ? `下载整合包文件 · 本地复用 ${reusedFiles}` : '下载整合包文件'
+      let lastDetail: DownloadDetail = emptyDetail()
+      reportPack(downloadStage, 0, lastDetail)
+      await runDownloadPool(jobs, {
+        concurrency: options.concurrency,
+        hostConcurrency: Math.min(64, Math.max(32, options.concurrency)),
+        signal: stageSignal,
+        onProgress: (detail) => {
+          lastDetail = detail
+          const ratio = detail.total ? detail.current / detail.total : 1
+          reportPack(downloadStage, ratio, detail)
+        }
+      })
+      if (stageSignal.aborted) throw new CancellationError()
+      finishPack('整合包文件已就绪', lastDetail)
+    }
+
+    report('准备安装原版', 3)
+    // 后台任务不能留下未处理的拒绝：先记录错误并中止安装，等安装段结束后统一判定。
+    const packPromise = runPack().catch((error) => {
+      packError = error
+      stageAbort.abort()
+    })
+
+    try {
+      if (stageSignal.aborted) throw new CancellationError()
+      await installVanillaVersion({
+        gameDir: options.gameDir,
+        versionId: gameVersion,
+        source: options.downloadSource,
+        concurrency: options.concurrency,
+        signal: stageSignal,
+        onProgress: (info) => {
+          report(`安装原版 · ${info.stage}`, 3 + info.percent * 0.47, info.detail)
+        }
+      })
+
+      javaMajor = await readJavaMajor(options.gameDir, gameVersion)
+      if (loader !== 'vanilla') {
+        if (stageSignal.aborted) throw new CancellationError()
+        let javaPath: string | undefined
+        if (loader === 'forge' || loader === 'neoforge') {
+          report(`准备 ${loader === 'neoforge' ? 'NeoForge' : 'Forge'} Java`, 51)
+          try {
+            const java = await ensureJavaForVersion({
+              gameDir: options.gameDir,
+              settings: options.settings,
+              requiredMajor: javaMajor,
+              exact: true,
+              source: options.downloadSource,
+              signal: stageSignal,
+              onProgress: (info) => {
+                report(`准备 Java · ${info.stage}`, 51 + info.percent * 0.04, info.detail)
+              }
+            })
+            javaPath = java.path
+          } catch (error) {
+            if (javaMajor !== null && javaMajor <= 8) {
+              throw new Error(
+                `这个加载器需要 Java ${javaMajor}，但本机没有可用的 Java ${javaMajor}，官方也不再提供自动下载。请先安装 Java ${javaMajor}，在设置中指定后重试。`
               )
             }
-          })
-          reusedFiles = reuse.reused
+            throw error
+          }
         }
-      } catch (error) {
-        if (signal.aborted || error instanceof CancellationError) {
-          throw new CancellationError()
-        }
-        // 本地扫描失败不影响正常下载。
+        const loaderName =
+          loader === 'fabric'
+            ? 'Fabric'
+            : loader === 'quilt'
+              ? 'Quilt'
+              : loader === 'neoforge'
+                ? 'NeoForge'
+                : 'Forge'
+        const loaderResult = await installLoaderProfile({
+          gameDir: options.gameDir,
+          gameVersion,
+          loader,
+          loaderVersion,
+          javaPath,
+          concurrency: options.concurrency,
+          signal: stageSignal,
+          onProgress: (info) => {
+            const installerLoader = loader === 'forge' || loader === 'neoforge'
+            const base = installerLoader ? 55 : 51
+            const span = installerLoader ? 7 : 12
+            report(`安装 ${loaderName} · ${info.stage}`, base + info.percent * (span / 100), info.detail)
+          }
+        })
+        versionId = loaderResult.versionId
       }
+    } catch (error) {
+      installError = error
+      stageAbort.abort()
+    }
+
+    if (!installError) beginDownloadForeground()
+    try {
+      await packPromise
+    } catch {
+      /* packError 已记录 */
     }
     if (signal.aborted) throw new CancellationError()
-    const downloadStage =
-      reusedFiles > 0 ? `下载整合包文件 · 本地复用 ${reusedFiles}` : '下载整合包文件'
-    await runDownloadPool(jobs, {
-      concurrency: options.concurrency,
-      hostConcurrency: Math.min(64, Math.max(32, options.concurrency)),
-      signal,
-      onProgress: (detail) => {
-        const ratio = detail.total ? detail.current / detail.total : 1
-        report(downloadStage, 64 + ratio * 26, detail)
+    if (installError) {
+      if (
+        installError instanceof CancellationError &&
+        packError &&
+        !(packError instanceof CancellationError)
+      ) {
+        throw packError
       }
-    })
+      throw installError
+    }
+    if (packError) throw packError
+    report('整合包文件就绪', 90, packDetail())
 
     if (signal.aborted) throw new CancellationError()
     report('解压覆盖文件', 92)
@@ -521,6 +644,26 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
     return { instance }
   } catch (err) {
     await fs.rm(instanceDir, { recursive: true, force: true }).catch(() => undefined)
+    if (versionsBefore) {
+      try {
+        const usedVersionIds = new Set<string>()
+        for (const instance of await listInstances()) {
+          usedVersionIds.add(instance.versionId)
+          usedVersionIds.add(instance.gameVersion)
+        }
+        await cleanupFailedPackVersions({
+          gameDir: options.gameDir,
+          baseline: versionsBefore,
+          gameVersion,
+          loader,
+          loaderVersion,
+          usedVersionIds
+        })
+        invalidateVersionCache(options.gameDir)
+      } catch {
+        /* 版本清理失败不覆盖原始安装错误 */
+      }
+    }
     throw err
   }
 }

@@ -1,9 +1,10 @@
-import type { DownloadDetail } from '../../shared/types'
+import type { DownloadDetail, TaskParallelState } from '../../shared/types'
 
 export interface TaskProgressInfo {
   stage: string
   percent: number
   detail: DownloadDetail
+  parallel?: TaskParallelState
   message?: string
 }
 

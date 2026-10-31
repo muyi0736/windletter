@@ -281,8 +281,10 @@ const api: LauncherApi = {
   curseforge: {
     searchModpacks: (query, gameVersion, loader, offset) =>
       ipcRenderer.invoke('curseforge:modpacks', query, gameVersion, loader, offset),
-    modpackVersions: (projectId) =>
-      ipcRenderer.invoke('curseforge:modpack-versions', projectId)
+    modpackVersions: (projectId, scope) =>
+      ipcRenderer.invoke('curseforge:modpack-versions', projectId, scope),
+    downloadServerPack: (request) =>
+      ipcRenderer.invoke('curseforge:download-server-pack', request)
   },
   localPacks: {
     scan: (extraPath) => ipcRenderer.invoke('local-packs:scan', extraPath),
@@ -303,6 +305,10 @@ const api: LauncherApi = {
     getLogs: () => ipcRenderer.invoke('launch:get-logs'),
     onState: (cb) => subscribe<LaunchState>('launch:state', cb),
     onLog: (cb) => subscribe<LaunchLogLine>('launch:log', cb)
+  },
+  runningGame: {
+    inspect: () => ipcRenderer.invoke('running-game:inspect'),
+    stop: () => ipcRenderer.invoke('running-game:stop')
   },
   tasks: {
     list: () => ipcRenderer.invoke('tasks:list'),
