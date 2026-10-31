@@ -6,6 +6,7 @@ import { TitleBar } from './components/TitleBar'
 import { CommandPalette } from './components/CommandPalette'
 import { ToastStack } from './components/ToastStack'
 import { TaskDock } from './components/TaskDock'
+import { RunningGameNotice } from './components/RunningGameNotice'
 import { ConsoleDrawer } from './components/ConsoleDrawer'
 import { ManualPackModal } from './components/ManualPackModal'
 import { JavaIssueModal } from './components/JavaIssueModal'
@@ -230,6 +231,7 @@ export default function App() {
         <>
           <TitleBar />
           <CommandPalette />
+          <RunningGameNotice />
 
           {bootError ? (
             <main className="boot-screen boot-screen--error">

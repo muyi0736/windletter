@@ -13,10 +13,12 @@ import {
   Package,
   RefreshCw,
   Search,
+  Server,
   Sparkles
 } from 'lucide-react'
 import type {
   ContentProvider,
+  CurseForgeModpackFileScope,
   DownloadSource,
   InstanceSummary,
   LoaderVersionView,
@@ -120,6 +122,9 @@ export function DownloadsPage() {
   const createVanillaInstance = useLauncher((state) => state.createVanillaInstance)
   const installModrinth = useLauncher((state) => state.installModrinth)
   const installCurseForgePack = useLauncher((state) => state.installCurseForgePack)
+  const downloadCurseForgeServerPack = useLauncher(
+    (state) => state.downloadCurseForgeServerPack
+  )
   const importModpack = useLauncher((state) => state.importModpack)
   const cancelTask = useLauncher((state) => state.cancelTask)
   const toast = useLauncher((state) => state.toast)
@@ -154,6 +159,7 @@ export function DownloadsPage() {
   const [localPacksOpen, setLocalPacksOpen] = useState(false)
 
   const [versionProject, setVersionProject] = useState<ModrinthProjectView | null>(null)
+  const [versionScope, setVersionScope] = useState<CurseForgeModpackFileScope>('client')
   const [packVersions, setPackVersions] = useState<ModpackVersionView[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [versionsError, setVersionsError] = useState('')
@@ -507,8 +513,12 @@ export function DownloadsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, modGameVersion, modLoader, modProvider])
 
-  const openPackVersions = async (project: ModrinthProjectView) => {
+  const openPackVersions = async (
+    project: ModrinthProjectView,
+    scope: CurseForgeModpackFileScope = 'client'
+  ) => {
     setVersionProject(project)
+    setVersionScope(scope)
     setChosenVersionId(null)
     setPackVersions([])
     setVersionsError('')
@@ -516,7 +526,7 @@ export function DownloadsPage() {
     try {
       const list =
         project.provider === 'curseforge'
-          ? await window.ccl.curseforge.modpackVersions(project.projectId)
+          ? await window.ccl.curseforge.modpackVersions(project.projectId, scope)
           : await window.ccl.modrinth.versions(project.projectId)
       setPackVersions(list)
       setChosenVersionId(list[0]?.id ?? null)
@@ -533,7 +543,11 @@ export function DownloadsPage() {
     const versionId = chosenVersionId
     setVersionProject(null)
     if (project.provider === 'curseforge') {
-      void installCurseForgePack(project, versionId)
+      if (versionScope === 'server') {
+        void downloadCurseForgeServerPack(project, versionId)
+      } else {
+        void installCurseForgePack(project, versionId)
+      }
     } else {
       void installModrinth(project, versionId)
     }
@@ -1341,6 +1355,12 @@ export function DownloadsPage() {
               <div className="modpack-results">
                 {filteredPacks.map((project) => {
                   const task = taskForProject(project.projectId)
+                  const serverTask = tasks.find(
+                    (item) =>
+                      item.kind === 'serverPack' &&
+                      item.projectId === project.projectId &&
+                      (item.status === 'running' || item.status === 'paused')
+                  )
                   const loaders = project.categories.filter((item) =>
                     ['fabric', 'quilt', 'forge', 'neoforge'].includes(item.toLowerCase())
                   )
@@ -1384,6 +1404,18 @@ export function DownloadsPage() {
                           {task ? <Spinner size={12} /> : <Download size={13} />}
                           {task ? '安装中' : '安装'}
                         </button>
+                        {project.provider === 'curseforge' && (
+                          <button
+                            type="button"
+                            className="button button--ghost button--sm"
+                            disabled={Boolean(serverTask)}
+                            title="下载 CurseForge 服务端包（ServerFiles）"
+                            onClick={() => void openPackVersions(project, 'server')}
+                          >
+                            {serverTask ? <Spinner size={12} /> : <Server size={13} />}
+                            {serverTask ? '下载中' : '服务端'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="button button--ghost button--sm"
@@ -1734,18 +1766,26 @@ export function DownloadsPage() {
         onClose={() => setVersionProject(null)}
         title={
           versionProject
-            ? versionProject.localizedName ?? versionProject.title
+            ? `${versionProject.localizedName ?? versionProject.title}${
+                versionScope === 'server' ? ' · 服务端包' : ''
+              }`
             : '选择整合包版本'
         }
-        subtitle="选择一个版本安装，不再固定为最新版"
-        icon={<Boxes size={18} />}
+        subtitle={
+          versionScope === 'server'
+            ? '下载 CurseForge 服务端包（ServerFiles），不会创建客户端实例'
+            : '选择一个版本安装，不再固定为最新版'
+        }
+        icon={versionScope === 'server' ? <Server size={18} /> : <Boxes size={18} />}
         size="lg"
       >
         <div className="pack-version-picker">
           {versionsLoading ? (
             <div className="downloads-loading">
               <Spinner size={16} />
-              正在读取版本列表…
+              {versionScope === 'server'
+                ? '正在读取服务端包，首次可能需要几秒…'
+                : '正在读取版本列表…'}
             </div>
           ) : versionsError ? (
             <div className="mods-error">
@@ -1785,13 +1825,24 @@ export function DownloadsPage() {
                   </button>
                 ))}
                 {packVersions.length === 0 && (
-                  <p className="mods-empty">这个整合包没有可安装的版本。</p>
+                  <p className="mods-empty">
+                    {versionScope === 'server'
+                      ? '这个整合包没有提供 CurseForge 服务端包。'
+                      : '这个整合包没有可安装的版本。'}
+                  </p>
                 )}
               </div>
+              {versionScope === 'server' && (
+                <p className="pack-version-server-note">
+                  只下载 ZIP，不会创建客户端实例；文件保存到「下载/服务端包/整合包名」，完成后会自动打开所在文件夹。
+                </p>
+              )}
               <div className="pack-version-footer">
                 <span>
                   {chosenVersionId
-                    ? `将安装 ${packVersions.find((version) => version.id === chosenVersionId)?.versionNumber ?? ''}`
+                    ? `${
+                        versionScope === 'server' ? '将下载' : '将安装'
+                      } ${packVersions.find((version) => version.id === chosenVersionId)?.versionNumber ?? ''}`
                     : '请选择一个版本'}
                 </span>
                 <button
@@ -1800,8 +1851,8 @@ export function DownloadsPage() {
                   disabled={!chosenVersionId}
                   onClick={installChosenVersion}
                 >
-                  <Download size={14} />
-                  安装这个版本
+                  {versionScope === 'server' ? <Server size={14} /> : <Download size={14} />}
+                  {versionScope === 'server' ? '下载服务端包' : '安装这个版本'}
                 </button>
               </div>
             </>

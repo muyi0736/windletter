@@ -2,12 +2,19 @@
 
 [返回 README](../README.md)
 
-当前项目版本 0.60.13，已发布到 GitHub Release v0.60.13（2026-10-31）。最新安装包见 [GitHub Releases](https://github.com/muyi0736/windletter/releases/latest)。
+当前项目版本 0.60.20（本地构建；公开 Release 为 v0.60.20，2026-10-31）。最新公开安装包见 [GitHub Releases](https://github.com/muyi0736/windletter/releases/latest)。
 
 > 本文件保留各版本的功能说明与实测记录，方便回溯；README 只保留当前能力概览。记录按写入时的原文保存，顺序不完全按版本排列。
 
 ## 近期重点
 
+- **0.60.20** — 服务端包列表补全：除 API 标记的服务端包外，读取每个客户端版本的 serverPackFileId / alternateFileId，从 CurseForge 公开文件页补齐 Additional Files 的名称、大小、日期并缓存；ATM9 可列出 17 个 Server-Files，ATM10 可列出 19 个 ServerFiles；API/镜像缺少文件时下载改用同一文件页解析出的 CDN 地址。
+- **0.60.19** — CurseForge 服务端包下载：下载页整合包卡片新增「服务端」入口，可查看并下载 ServerFiles / ServerPack 版本到「下载/服务端包/整合包名」，不创建实例；显示实时进度、速度与大小，完成后打开文件夹，取消清理分片，服务端列表支持翻页读取。
+- **0.60.18** — CurseForge 服务端包过滤：版本列表不再显示 `ServerFiles` / `ServerPack` 文件，避免默认选中 1.2 GB 服务端包；安装入口也会再次拦截并提示选择客户端版本。
+- **0.60.17** — 阶段并行：整合包在原版/加载器安装期间同步下载包内文件，任务浮窗显示第二条下载进度；安装段结束后切换到整合包下载，任一段失败或取消都会中止另一段并沿用失败清理。
+- **0.60.16** — 安装失败清理：整合包失败/取消时移除本次新建且未被实例引用的 vanilla/loader 版本文档，保留共享 libraries/assets。
+- **0.60.15** — 稳定性：启动器重启后检测上次游戏是否仍在运行，按进程命令行校验版本/游戏目录，顶部提示可保留或结束；退出游戏自动清理记录。
+- **0.60.14** — 整合包下载选源：下载前对镜像和官方源站做 4 路 Range 吞吐量探测，按实测速度重排文件 URL；任务显示测速结果，失败保留原顺序。
 - **0.60.13** — 一键进服修复：新版 Minecraft / NeoForge 会忽略旧的 `--server` / `--port`，改为在版本支持时传入 Quick Play 的 `--quickPlayMultiplayer host:port`，旧版本继续回退旧参数。
 - **0.60.12** — 整合包下载提速：安装前扫描本机其他实例和外部 PCL2 / HMCL 版本目录，同名同大小且 SHA1 一致的文件直接硬链接或复制；整合包文件下载的单主机并发默认提高到 32（高并发设置最多 64）。
 - **0.60.11** — 启动日志可读性：解析 Minecraft 的 log4j XML 事件，按级别 / 来源 / 线程显示；新增全部、警告+、错误筛选和连续重复折叠，异常堆栈可展开，偏好会记住；启动日志文件同样可读并脱敏访问令牌。
@@ -40,7 +47,29 @@
 
 ## 历史验证记录
 
-0.60.13 一键进服实测：真实 ATM11 启动日志里出现了 `Completely ignored arguments: [--server, e75f3.mc5173.cn, --port, 52460]`，说明新版 Minecraft / NeoForge 不再识别旧版 `--server` / `--port`，而启动器此前一直走旧参数。现在 `version.ts` 检测版本 `arguments.game` 是否带 `--quickPlayMultiplayer`：支持时启用 `is_quick_play_multiplayer` 并把 `${quickPlayMultiplayer}` 填成 `host:port`；不支持时仍追加旧 `--server` / `--port`。IPv6 使用 `[host]:port`。用真实 NeoForge 26.1.2 解析结果验证：Quick Play 参数为 `e75f3.mc5173.cn:52460`，不再出现旧参数；IPv6 为 `[::1]:25565`；合成旧版 JSON 回退 `--server` / `--port`；无服务器目标时不传进服参数。2026-10-31 01:47 用安装版 0.60.13 通过 `servers.launch` 实际启动 ATM11（NeoForge 26.1.2）进 AVT：客户端日志出现 `Connecting to e75f3.mc5173.cn, 52460`，随后收到服务器同步配置（Refurbished Furniture、Silent Gear 96 traits / 159 materials），服务器 SLP 显示 1/10 在线且样本为 MUYI1028，没有出现 `Completely ignored arguments`。测试结束后通过启动器结束游戏并关闭。`npm run typecheck`、`npm run build` 通过。0.60.13 已随本次批量发布到 GitHub Release。
+0.60.20 服务端包列表补全实测：CurseForge API 的 `/files` 列表只给主文件，服务端包多数放在 “Additional Files / Server Packs” 里，只能通过客户端文件的 `serverPackFileId` / `alternateFileId` 关联；ATM10 恰好只有最新 `ServerFiles-8.4.zip` 被 API 标记，ATM9 的 153 个 API 文件里完全没有服务端包。现在服务端模式会遍历客户端版本关联 ID（API 未标记的服务器文件），用 Electron `net.fetch` 以普通浏览器 UA 读取 CurseForge 公开文件页，解析 RSC 中的文件对象（fileName、fileLength、dateCreated、isClientCompatible、flavors），缓存 30 分钟；最多补 20 个、并发 4、单页超时 8 秒，失败时保留 API 已有的服务端包，不阻塞列表。下载入口先尝试 API 文件信息，再复用同一网页缓存，用 CurseForge CDN 的 `files/<fileId/1000>/<fileId%1000>/<fileName>` 地址下载，按网页大小校验；取消/失败继续清理 `.part*`。UI 服务端弹窗显示“首次可能需要几秒”。
+
+实测：隔离开发实例 + CurseForge 镜像，ATM9（715572）服务端列表 17 条（1.1.1、1.0.8…，1,138,394,395 字节，Forge 1.20.1），ATM10（925200）19 条（8.4…6.1，NeoForge 1.21.1）；冷加载约 5.5s / 4.4s，之后命中缓存。下载页真实搜索 ATM9/ATM10 后服务端弹窗分别显示 17/19 行，ATM9 从 UI 点下载后任务进入“下载服务端包 Server-Files-1.1.1.zip”，总大小正确，取消后目录无分片残留；未完整下载 1GB 级文件。`npm run typecheck`、`npm run build` 通过；0.60.20 本地构建安装包 116,789,027 字节，SHA-256 `63babce6a44b7cbb218f3948e35cde4a6f83146fbefa626e074eb5699e98c2cb`；公开 Release 仍为 0.60.13。
+
+0.60.19 CurseForge 服务端包下载实测：下载页整合包卡片对 CurseForge 项目多一个「服务端」按钮，打开同一套版本弹窗的服务端模式；`modpackVersions(projectId, 'server')` 只返回 `isServerPack` 文件（旧镜像缺字段时按 `ServerFiles` / `ServerPack` 文件名兜底），并最多翻 8 页读取，避免最近 50 个客户端版本把较早的服务端包挤出列表。`downloadCurseForgeServerPack()` 复用 CurseForge 文件信息与 SHA1/大小校验，下载到 `downloads/serverpacks/<整合包名>/<ServerFiles>.zip`，任务显示速度、已传输、文件大小；完成后调用 `shell.showItemInFolder` 打开所在文件夹，取消/失败清理 `.part*` 分片。安装入口仍拒绝服务端包，二者语义分开。
+
+验证：本地 HTTPS 模拟 CurseForge API + 文件服务（自签名证书仅测试进程信任）：客户端列表只返回客户端包，服务端列表返回 `isServerPack: true` 的文件和只有文件名的 `ServerPack-Legacy.zip`；下载 922,394 字节完成，SHA1 `1f61011fc982a1f306f504509d362ee88587e39f` 与 API 一致，ZIP 内 4 个文件可读；同一项目重复请求返回同一运行中任务；取消真实 ATM10 下载后保存目录无分片残留。真实 ATM10（925200）服务端列表 1 条（`ServerFiles-8.4.zip`，1,256,676,660 字节），客户端列表 49 条且第一项为 8.4 客户端包，两次请求共 521ms；下载页真实搜索 ATM10 后卡片出现「服务端」，服务端弹窗显示 ServerFiles、大小、说明和「下载服务端包」按钮，浅色/深色截图检查通过。未完整下载 1.2GB 真实服务端包，完整成功路径由本地 922KB 夹具覆盖。`npm run typecheck`、`npm run build` 通过；0.60.19 本地构建安装包 116,790,584 字节，SHA-256 `5ab99569599c3b2b70d88ef261da5bd8850ff03970fbc5cc4b23b04da7cf465c`；公开 Release 仍为 0.60.13。
+
+0.60.18 CurseForge 服务端包过滤实测：ATM10 的 CurseForge 文件列表把 `ServerFiles-8.4.zip`（1,256,676,660 字节，`isServerPack: true`）排在客户端包 `All-the-Mods-10-8.4.zip` 之后发布，原逻辑按 `fileDate` 倒序后默认选中第一项，导致下载服务端文件。现在 `listCurseForgeModpackVersions` 过滤 `isServerPack`，旧镜像缺少该字段时再用 `ServerFiles` / `ServerPack` 文件名兜底；`getCurseForgeFileInfo` 在安装入口再次拦截服务端包并返回明确错误。用隔离开发实例、CurseForge 镜像验证：ATM10 版本数从 50 降为 49，第一项变为 `All the Mods 10-8.4`（205,853,510 字节），没有 ServerFiles 行；直接请求服务端文件 9366998 时任务在“读取 CurseForge 文件信息”阶段失败并提示选择客户端版本，缓存目录没有产生下载文件。`npm run typecheck`、`npm run build` 通过；0.60.18 本地构建安装包 116,789,457 字节，SHA-256 `07477cc96a859cb71c141cc0c0c025b33ba173f4954ddd4ad3ae3364f50284d6`；公开 Release 仍为 0.60.13。
+
+0.60.17 阶段并行实测：`importModpack` 现在用 `stageAbort`/`stageSignal` 同时启动原版/加载器安装和整合包下载，进度由 `main` + `parallel` + `foreground` 协调：安装段在前台时任务主进度显示原版/加载器，`TaskParallelState` 显示整合包文件、本地复用/测速/下载进度；安装完成后 `beginDownloadForeground()` 清空第二条进度，把主进度切到 64–90% 的整合包下载，最后解压覆盖和写入实例。`packPromise` 立即挂接错误处理，避免后台段先失败时产生未处理的 Promise 拒绝（夹具测试中发现并修复）。CurseForge 安装和批量本地导入的进度包装器已补上 `parallel` 透传；`TaskManager` 复制并在结束/取消时清空并行状态。
+
+夹具测试把当前 `modpacks.ts` 原样接入桩下载/安装函数，覆盖 7 种时序：安装 500ms + 整合包 1200ms 实际 1277ms（并行而非 1700ms 相加），前 543ms 任务带整合包并行进度，安装结束后主进度切到 77% 并清空第二条；安装 900ms + 整合包 200ms 实际 953ms，整合包先到 100% 并保持到安装结束；整合包在 162ms 失败时安装立即中止，返回整合包错误并触发失败清理；安装失败时整合包中止并返回安装错误；用户取消在 250ms 返回 `CancellationError`；整合包完成后安装再失败、安装完成后整合包再失败均返回正确错误；所有失败/取消都执行一次版本清理，未写入实例。`npm run typecheck`、`npm run build` 通过。
+
+真实应用集成测试（隔离 `WINDLETTER_DATA_DIR` + 独立临时 gameDir）：用一个指向真实 Minecraft 1.20.1 和两个 Modrinth CDN 文件的 `.mrpack` 触发安装，任务在 `安装原版 · 下载游戏文件` 10% 时同时报告 `下载整合包文件` 50%（1,066,821 / 1,663,035 字节，98.9 KB/s），说明安装与包下载确实同时进行；随后取消任务，“正在取消…”→“已取消”，并行进度清空，实例目录和新版本目录被清理，共享 `libraries/assets` 保留。界面用任务事件在 1180 和 1000 像素宽度、浅色和深色主题下检查：主、副两条进度、文件计数、速度和完成状态均正常，完成后第二条进度消失。尚未用真实整合包完整装完一次（会下载数百 MB 游戏资源）。0.60.17 本地构建安装包 116,789,737 字节，SHA-256 `4f60981023d901ab418398eb6048d97390c80ba542655e5f74af9ff5f47d5162`；公开发布仍待批量同步。
+
+0.60.16 安装失败清理实测：新增 `packCleanup.ts`，安装开始前读取共享 `versions` 目录基线；失败/取消时对比当前目录，只删除本次新建、名称属于该 gameVersion 或 loader/loaderVersion 且未被已注册实例引用的版本目录，同时清理版本缓存。共享 libraries/assets 保留；无法读取基线时不做清理，清理失败不覆盖原始安装错误。夹具验证：基线 `keep-base`，新建 `fake-game`（gameVersion）、`neoforge-1.2.3`、`unrelated-new`、被实例引用的 `used-neoforge-1.2.3`；结果只删除前两个，其余保留；不存在的 versions 目录返回空且不抛错。`npm run typecheck`、`npm run build` 通过。未用真实失败安装复测完整调用链，清理规则和边界已覆盖。0.60.16 为本地构建，公开 Release 仍为 0.60.13。
+
+0.60.15 残留游戏进程实测：新增 `runningGame.ts`，启动成功后在数据目录写入 `running-game.json`（PID、实例、版本、游戏目录、启动时间），退出时按 PID 清理。启动器重启时 `inspectRunningGame()` 用 PowerShell `Get-CimInstance` 读取进程名/命令行（失败回退 tasklist），只有命令行包含记录的 gameDir 或 versionId 才提示；PID 已死或命令不匹配会自动清理，避免 PID 复用误判。顶部 `RunningGameNotice` 显示实例/版本、PID 和启动时间，可“保留运行”（只隐藏，记录保留）或确认后 `taskkill /t /f` 结束进程。实测用一个带 `--gameDir` / `--version` 的 Node 假进程：重启后提示出现；保留后记录仍在；刷新后再次提示；结束进程后 PID 消失、记录删除、提示消失；错误 gameDir 的进程不提示并清理记录。`npm run typecheck`、`npm run build` 通过。0.60.15 为本地构建，公开 Release 仍为 0.60.13。
+
+0.60.14 整合包选源实测：新增 `packSources.ts`，下载前从每个候选源站挑一个 ≥512KB 的文件，用 4 路 Range 共 256KB 实测吞吐量，按速度从高到低重排每个任务的 URL；只有一个源站、没有中等大小样本或探测失败时保留原顺序，取消仍抛 `CancellationError`。任务阶段显示类似“测速下载线路 · mod.mcimirror.top 1.8 MB/s · cdn.modrinth.com 0.5 MB/s”，然后继续本地复用/下载。用两个本地限速 HTTP 源（同一 2MB 文件，慢源每 100ms 16KB、快源每 20ms 16KB）验证：探测结果 1.76 / 0.52 MB/s，快源被排到第一位；单源测速返回空。`npm run typecheck`、`npm run build` 通过。未用真实整合包冷装复测，选源逻辑和排序已覆盖。0.60.14 为本地构建，公开 Release 仍为 0.60.13，下次源码同步时一并更新。
+
+0.60.13 一键进服实测：真实 ATM11 启动日志里出现了 `Completely ignored arguments: [--server, e75f3.mc5173.cn, --port, 52460]`，说明新版 Minecraft / NeoForge 不再识别旧版 `--server` / `--port`，而启动器此前一直走旧参数。现在 `version.ts` 检测版本 `arguments.game` 是否带 `--quickPlayMultiplayer`：支持时启用 `is_quick_play_multiplayer` 并把 `${quickPlayMultiplayer}` 填成 `host:port`；不支持时仍追加旧 `--server` / `--port`。IPv6 使用 `[host]:port`。用真实 NeoForge 26.1.2 解析结果验证：Quick Play 参数为 `e75f3.mc5173.cn:52460`，不再出现旧参数；IPv6 为 `[::1]:25565`；合成旧版 JSON 回退 `--server` / `--port`；无服务器目标时不传进服参数。2026-10-31 01:47 用安装版 0.60.13 通过 `servers.launch` 实际启动 ATM11（NeoForge 26.1.2）进 AVT：客户端日志出现 `Connecting to e75f3.mc5173.cn, 52460`，随后收到服务器同步配置（Refurbished Furniture、Silent Gear 96 traits / 159 materials），服务器 SLP 显示 1/10 在线且样本为 MUYI1028，没有出现 `Completely ignored arguments`。测试结束后通过启动器结束游戏并关闭。`npm run typecheck`、`npm run build` 通过。0.60.13 已随本次批量发布到 GitHub Release v0.60.13：Actions run `41102626931`，公开安装包 116,786,162 字节，SHA-256 `e93ca25c53d20c26d641e3766c81dd79d14e930c5c9262f562775eb5debf7ebb`；`latest.json` 1311 字节，SHA-256 `83161e648b802634cfbf103b611211f30b05ba24fe50b43f196cad37483aff43`。
 
 0.60.12 整合包下载提速实测：新增 `packReuse.ts`，安装前扫描所有实例的 `mods` / `resourcepacks` / `shaderpacks` / `datapacks`，以及外部实例同级 `versions` 和共享版本目录；只接受同名同大小且 SHA1 一致的候选，命中后优先硬链接，跨卷或权限不允许时回退复制，最多扫描 60k 文件、深度 2、240 个根目录，扫描/校验失败或取消不会阻塞正常下载。任务会先显示“查找本地模组 / 本地复用 x/y”，下载阶段标注“本地复用 N”。下载层新增 `hostConcurrency`，整合包文件安装默认使用 32 条单主机连接（设置更高下载并发时最多 64），其他下载仍保持 16。实测：真实 ATM11 的 3 个 jar 复用成功且源/目标 inode 相同（5,999,917 字节），错误 SHA1 不落盘，取消返回 `CancellationError`；用当前 5 个实例收集到 15 个可扫描根目录，1188 个文件扫描、1 个命中。按当前实例统计，ATM11 的 299 个文件 / 706.4 MB 与其他实例只有 2 个同名同大小文件 / 2.2 MB，所以这次复用对“重装 ATM11”本身收益有限，冷下载提速主要来自并发调整；本地限速服务器用 32 个 1 MB 文件模拟每连接 160 KB/s，单主机 16 并发 14.2 秒 / 2.25 MB/s，32 并发 7.1 秒 / 4.52 MB/s。`npm run typecheck`、`npm run build` 通过。0.60.12 为本地构建，公开 Release 待下次源码同步。
 

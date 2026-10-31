@@ -14,9 +14,22 @@ import {
   Sparkles,
   X
 } from 'lucide-react'
+import type { TaskParallelState } from '@shared/types'
 import { useLauncher } from '../store'
 import { formatBytes, formatDuration, formatSpeed } from '../lib/format'
 import { Modal, ProgressBar, Spinner } from './ui'
+
+function parallelMeta(parallel: TaskParallelState): string {
+  const { detail } = parallel
+  if (parallel.progress >= 100) return '已完成'
+  if (detail.total > 0) {
+    return `${detail.current}/${detail.total} · ${formatSpeed(detail.speed)}`
+  }
+  if (detail.bytesTotal > 0) {
+    return `${formatBytes(detail.bytesDone)} / ${formatBytes(detail.bytesTotal)} · ${formatSpeed(detail.speed)}`
+  }
+  return formatSpeed(detail.speed)
+}
 
 export function TaskDock() {
   const tasks = useLauncher((state) => state.tasks)
@@ -169,6 +182,15 @@ export function TaskDock() {
                     tone={task.status === 'error' ? 'danger' : task.status === 'done' ? 'success' : 'accent'}
                     size="sm"
                   />
+                  {runningTask && task.parallel && (
+                    <div className="task-parallel">
+                      <div className="task-parallel-head">
+                        <span title={task.parallel.stage}>{task.parallel.stage}</span>
+                        <span>{parallelMeta(task.parallel)}</span>
+                      </div>
+                      <ProgressBar percent={task.parallel.progress} size="sm" />
+                    </div>
+                  )}
                   {!runningTask && task.status !== 'paused' && (
                     <div className="task-finished-meta">本次耗时 {formatDuration(elapsed)}</div>
                   )}

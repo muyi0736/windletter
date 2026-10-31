@@ -194,6 +194,15 @@ async function probeThroughput(
   }
 }
 
+/** 供批量下载前做一次源站吞吐量探测；返回 bytes/ms。 */
+export async function probeSourceSpeed(
+  url: string,
+  bytes = 256 * 1024,
+  signal?: AbortSignal
+): Promise<number | null> {
+  return probeThroughput(url, bytes, signal)
+}
+
 async function orderCandidatesByLatency(
   urls: string[],
   signal?: AbortSignal,

@@ -1,5 +1,7 @@
+import { net } from 'electron'
 import type {
   ContentKind,
+  CurseForgeModpackFileScope,
   LauncherSettings,
   ModpackVersionView,
   ModDependencyView,
@@ -67,6 +69,7 @@ interface CfMod {
   id?: number
   slug?: string
   name?: string
+  classId?: number
   summary?: string
   downloadCount?: number
   logo?: { url?: string }
@@ -91,6 +94,10 @@ interface CfFile {
   changelog?: string | null
   hashes?: { value?: string; algo?: number }[]
   dependencies?: { modId?: number; relationType?: number }[]
+  /** CurseForge 会在服务端包文件上标记 true；客户端整合包为 false。 */
+  isServerPack?: boolean
+  serverPackFileId?: number | null
+  alternateFileId?: number | null
 }
 
 interface CfFingerprintMatch {
@@ -127,6 +134,7 @@ export interface CurseForgeFileInfo extends CurseForgeSelection {
   gameVersions: string[]
   releaseType: number
   fileDate: string | null
+  isServerPack: boolean
 }
 
 export interface CurseForgeManifestFile {
@@ -600,53 +608,328 @@ export async function searchCurseForgeModpacks(
   }
 }
 
+function isServerPackFile(file: CfFile): boolean {
+  if (typeof file.isServerPack === 'boolean') return file.isServerPack
+  // 旧镜像可能没有 isServerPack 字段，再用文件名兜底；客户端包正常不会叫 ServerFiles/ServerPack。
+  return /(?:^|[-_.\s])server(?:files?|pack)(?:$|[-_.\s])/i.test(
+    `${file.fileName ?? ''} ${file.displayName ?? ''}`
+  )
+}
+
+export interface CurseForgeWebFile {
+  id: string
+  fileName: string
+  displayName: string
+  size: number | null
+  date: string | null
+  releaseType: number
+  isClientCompatible: boolean | null
+  gameVersions: string[]
+  loaders: string[]
+}
+
+interface WebFileCacheEntry {
+  at: number
+  value: CurseForgeWebFile | null
+}
+
+const webFileCache = new Map<string, WebFileCacheEntry>()
+const WEB_FILE_TTL = 30 * 60_000
+const WEB_FILE_FAIL_TTL = 2 * 60_000
+const WEB_FILE_MAX_FETCH = 20
+
+function parseCurseForgeFilePage(html: string, fileId: string): CurseForgeWebFile | null {
+  const escapedMarker = `\\"file\\":{\\"id\\":${fileId},`
+  const plainMarker = `"file":{"id":${fileId},`
+  let start = html.indexOf(escapedMarker)
+  let escaped = true
+  if (start < 0) {
+    start = html.indexOf(plainMarker)
+    escaped = false
+  }
+  if (start < 0) return null
+  const brace = html.indexOf('{', start)
+  if (brace < 0) return null
+  // 文件对象后面紧跟 "children"；从这里回退到最近的 }，比手写大括号扫描更稳。
+  const childMarker = escaped ? '\\"children\\"' : '"children"'
+  const childIndex = html.indexOf(childMarker, brace)
+  if (childIndex < 0) return null
+  const end = html.lastIndexOf('}', childIndex)
+  if (end < brace) return null
+  const raw = html.slice(brace, end + 1)
+  let objectText = raw
+  if (escaped) {
+    try {
+      objectText = JSON.parse(`"${raw}"`) as string
+    } catch {
+      return null
+    }
+  }
+  let parsed: {
+    id?: unknown
+    fileName?: unknown
+    displayName?: unknown
+    fileLength?: unknown
+    dateCreated?: unknown
+    releaseType?: unknown
+    isClientCompatible?: unknown
+    gameVersions?: unknown
+    flavor?: { name?: unknown } | null
+    flavors?: { name?: unknown }[]
+  }
+  try {
+    parsed = JSON.parse(objectText) as typeof parsed
+  } catch {
+    return null
+  }
+  if (String(parsed.id ?? '') !== String(fileId)) return null
+  const fileName = typeof parsed.fileName === 'string' ? parsed.fileName.trim() : ''
+  if (!fileName) return null
+  const gameVersions = Array.isArray(parsed.gameVersions)
+    ? parsed.gameVersions.filter(
+        (value): value is string => typeof value === 'string' && /^\d+\.\d+(?:\.\d+)?$/.test(value)
+      )
+    : []
+  const flavorNames = [
+    ...(Array.isArray(parsed.flavors) ? parsed.flavors : []),
+    ...(parsed.flavor ? [parsed.flavor] : [])
+  ]
+    .map((entry) => (typeof entry?.name === 'string' ? entry.name.toLowerCase() : ''))
+    .filter((value) => ['forge', 'fabric', 'quilt', 'neoforge'].includes(value))
+  return {
+    id: String(parsed.id),
+    fileName,
+    displayName:
+      typeof parsed.displayName === 'string' && parsed.displayName.trim()
+        ? parsed.displayName.trim()
+        : fileName,
+    size:
+      typeof parsed.fileLength === 'number' && Number.isFinite(parsed.fileLength)
+        ? parsed.fileLength
+        : null,
+    date: typeof parsed.dateCreated === 'string' ? parsed.dateCreated : null,
+    releaseType: typeof parsed.releaseType === 'number' ? parsed.releaseType : 1,
+    isClientCompatible:
+      typeof parsed.isClientCompatible === 'boolean' ? parsed.isClientCompatible : null,
+    gameVersions,
+    loaders: [...new Set(flavorNames)]
+  }
+}
+
+function pruneWebFileCache(): void {
+  if (webFileCache.size <= 120) return
+  const entries = [...webFileCache.entries()].sort((a, b) => a[1].at - b[1].at)
+  for (const [key] of entries.slice(0, webFileCache.size - 100)) webFileCache.delete(key)
+}
+
+async function fetchCurseForgeFilePage(
+  slug: string,
+  fileId: string
+): Promise<CurseForgeWebFile | null> {
+  const key = `${slug}:${fileId}`
+  const cached = webFileCache.get(key)
+  if (cached && Date.now() - cached.at < (cached.value ? WEB_FILE_TTL : WEB_FILE_FAIL_TTL)) {
+    return cached.value
+  }
+  let value: CurseForgeWebFile | null = null
+  try {
+    const url = `https://www.curseforge.com/minecraft/modpacks/${encodeURIComponent(slug)}/files/${encodeURIComponent(fileId)}`
+    const response = await net.fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
+      },
+      signal: AbortSignal.timeout(8_000)
+    })
+    if (response.ok) {
+      const html = await response.text()
+      if (html.length <= 2 * 1024 * 1024) value = parseCurseForgeFilePage(html, fileId)
+    }
+  } catch {
+    value = null
+  }
+  webFileCache.set(key, { at: Date.now(), value })
+  pruneWebFileCache()
+  return value
+}
+
+/**
+ * CurseForge 的 API 文件列表不包含 “Additional Files / Server Packs”。
+ * 这些文件只通过客户端文件的 serverPackFileId/alternateFileId 关联，
+ * 元数据需要从 CurseForge 的公开文件页读取；这里只在服务端包列表/下载时使用，
+ * 有缓存和数量限制，避免频繁请求网页。
+ */
+export async function getCurseForgeServerPackWebFile(
+  projectId: string,
+  fileId: string,
+  settings: LauncherSettings,
+  slugOverride?: string | null
+): Promise<CurseForgeWebFile | null> {
+  let slug = slugOverride?.trim() || null
+  if (!slug) {
+    try {
+      const project = await cfProject(projectId, settings)
+      slug = project.slug ?? null
+    } catch {
+      return null
+    }
+  }
+  if (!slug) return null
+  return fetchCurseForgeFilePage(slug, fileId)
+}
+
+
+function mapCurseForgeModpackFile(file: CfFile): ModpackVersionView {
+  const gameVersions = (file.gameVersions ?? []).filter((value) =>
+    /^\d+\.\d+(?:\.\d+)?$/.test(value)
+  )
+  const loaders = [
+    ...new Set(
+      (file.gameVersions ?? [])
+        .filter((value) =>
+          ['forge', 'fabric', 'quilt', 'neoforge'].includes(value.toLowerCase())
+        )
+        .map((value) => value.toLowerCase())
+    )
+  ]
+  const versionType =
+    file.releaseType === 2 ? 'beta' : file.releaseType === 3 ? 'alpha' : 'release'
+  return {
+    id: String(file.id),
+    name: (file.displayName ?? file.fileName ?? '').slice(0, 160),
+    versionNumber: (file.displayName ?? file.fileName ?? '').slice(0, 120),
+    versionType,
+    gameVersion: gameVersions[gameVersions.length - 1] ?? '',
+    loaders,
+    datePublished: file.fileDate ?? '',
+    fileSize: typeof file.fileLength === 'number' ? file.fileLength : null
+  }
+}
+
 export async function listCurseForgeModpackVersions(
   projectId: string,
-  settings: LauncherSettings
+  settings: LauncherSettings,
+  scope: CurseForgeModpackFileScope = 'client'
 ): Promise<ModpackVersionView[]> {
-  const raw = await cfFetch<CfFilesResponse>(
-    `${apiBase(settings)}/v1/mods/${encodeURIComponent(projectId)}/files?pageSize=50`,
-    settings
-  )
-  const versions = (raw.data ?? [])
+  const pageSize = 50
+  const maxPages = scope === 'server' ? 8 : 1
+  const files: CfFile[] = []
+  for (let page = 0; page < maxPages; page += 1) {
+    const raw = await cfFetch<CfFilesResponse>(
+      `${apiBase(settings)}/v1/mods/${encodeURIComponent(projectId)}/files?pageSize=${pageSize}&index=${page * pageSize}`,
+      settings
+    )
+    const data = raw.data ?? []
+    files.push(...data)
+    const total = raw.pagination?.totalCount
+    if (
+      data.length < pageSize ||
+      (typeof total === 'number' && files.length >= total)
+    ) {
+      break
+    }
+  }
+  const versions = files
     .filter(
       (file): file is CfFile & { id: number; fileName: string } =>
-        Boolean(file.id && file.fileName)
+        Boolean(file.id && file.fileName && isServerPackFile(file) === (scope === 'server'))
     )
-    .map((file) => {
-      const gameVersions = (file.gameVersions ?? []).filter((value) =>
-        /^\d+\.\d+(?:\.\d+)?$/.test(value)
-      )
-      const loaders = [
-        ...new Set(
-          (file.gameVersions ?? [])
-            .filter((value) =>
-              ['forge', 'fabric', 'quilt', 'neoforge'].includes(value.toLowerCase())
-            )
-            .map((value) => value.toLowerCase())
-        )
-      ]
-      const versionType =
-        file.releaseType === 2 ? 'beta' : file.releaseType === 3 ? 'alpha' : 'release'
-      return {
-        id: String(file.id),
-        name: (file.displayName ?? file.fileName).slice(0, 160),
-        versionNumber: (file.displayName ?? file.fileName).slice(0, 120),
-        versionType,
-        gameVersion: gameVersions[gameVersions.length - 1] ?? '',
-        loaders,
-        datePublished: file.fileDate ?? '',
-        fileSize: typeof file.fileLength === 'number' ? file.fileLength : null
+    .map(mapCurseForgeModpackFile)
+
+  if (scope === 'server') {
+    let slug: string | null = null
+    try {
+      slug = (await cfProject(projectId, settings)).slug ?? null
+    } catch {
+      slug = null
+    }
+    const listedIds = new Set(files.map((file) => String(file.id ?? '')))
+    const candidates = new Map<string, { client: CfFile; fromServerId: boolean }>()
+    for (const file of files) {
+      if (!file.id || isServerPackFile(file)) continue
+      for (const rawId of [file.serverPackFileId, file.alternateFileId]) {
+        if (typeof rawId !== 'number' || !Number.isSafeInteger(rawId) || rawId <= 0) continue
+        const id = String(rawId)
+        if (id === String(file.id) || listedIds.has(id)) continue
+        const existing = candidates.get(id)
+        if (existing) {
+          if (rawId === file.serverPackFileId) existing.fromServerId = true
+          continue
+        }
+        candidates.set(id, { client: file, fromServerId: rawId === file.serverPackFileId })
       }
-    })
-  versions.sort((a, b) => Date.parse(b.datePublished) - Date.parse(a.datePublished))
-  return versions
+    }
+    const ordered = [...candidates.entries()]
+      .sort(
+        (a, b) =>
+          Date.parse(b[1].client.fileDate ?? '') - Date.parse(a[1].client.fileDate ?? '')
+      )
+      .slice(0, WEB_FILE_MAX_FETCH)
+    if (slug && ordered.length > 0) {
+      const webViews = await mapWithConcurrency(
+        ordered,
+        4,
+        async ([fileId, { client, fromServerId }]) => {
+          const web = await getCurseForgeServerPackWebFile(
+            projectId,
+            fileId,
+            settings,
+            slug
+          )
+          if (!web || web.isClientCompatible === true) return null
+          const serverish =
+            web.isClientCompatible === false ||
+            /(?:^|[-_.\s])server(?:files?|pack)(?:$|[-_.\s])/i.test(
+              `${web.fileName} ${web.displayName}`
+            )
+          if (!serverish && !fromServerId) return null
+          const clientGameVersions = (client.gameVersions ?? []).filter((value) =>
+            /^\d+\.\d+(?:\.\d+)?$/.test(value)
+          )
+          const clientLoaders = [
+            ...new Set(
+              (client.gameVersions ?? [])
+                .filter((value) =>
+                  ['forge', 'fabric', 'quilt', 'neoforge'].includes(value.toLowerCase())
+                )
+                .map((value) => value.toLowerCase())
+            )
+          ]
+          const gameVersions = web.gameVersions.length
+            ? web.gameVersions
+            : clientGameVersions
+          const loaders = web.loaders.length ? web.loaders : clientLoaders
+          const versionType =
+            web.releaseType === 2 ? 'beta' : web.releaseType === 3 ? 'alpha' : 'release'
+          return {
+            id: web.id,
+            name: web.displayName.slice(0, 160),
+            versionNumber: web.displayName.slice(0, 120),
+            versionType,
+            gameVersion: gameVersions[gameVersions.length - 1] ?? '',
+            loaders,
+            datePublished: web.date ?? client.fileDate ?? '',
+            fileSize: web.size
+          } satisfies ModpackVersionView
+        }
+      )
+      for (const view of webViews) if (view) versions.push(view)
+    }
+  }
+
+  const unique = new Map(versions.map((version) => [version.id, version]))
+  return [...unique.values()].sort(
+    (a, b) => Date.parse(b.datePublished) - Date.parse(a.datePublished)
+  )
 }
 
 export async function getCurseForgeFileInfo(
   projectId: string,
   fileId: string,
-  settings: LauncherSettings
+  settings: LauncherSettings,
+  options: { allowServerPack?: boolean } = {}
 ): Promise<CurseForgeFileInfo> {
   let file: CfFile | null = null
   try {
@@ -670,13 +953,20 @@ export async function getCurseForgeFileInfo(
   if (!file?.id || !file.fileName) {
     throw new Error('CurseForge 没有找到所选整合包文件')
   }
+  const isServerPack = isServerPackFile(file)
+  if (isServerPack && !options.allowServerPack) {
+    throw new Error(
+      '这是 CurseForge 的服务端包（ServerFiles），不能作为客户端整合包安装。请返回版本列表，选择不带 ServerFiles 的客户端版本。'
+    )
+  }
   return {
     ...buildSelection(project, file, settings.curseForgeCompatDownloads),
     fileId: String(file.id),
     projectId,
     gameVersions: file.gameVersions ?? [],
     releaseType: typeof file.releaseType === 'number' ? file.releaseType : 1,
-    fileDate: typeof file.fileDate === 'string' ? file.fileDate : null
+    fileDate: typeof file.fileDate === 'string' ? file.fileDate : null,
+    isServerPack
   }
 }
 
@@ -697,7 +987,7 @@ function fileSha1(file: CfFile): string | null {
   )
 }
 
-function curseForgeCdnUrl(fileId: string, filename: string): string | null {
+export function curseForgeCdnUrl(fileId: string, filename: string): string | null {
   if (!/^\d{1,15}$/.test(fileId) || !filename) return null
   const id = Number(fileId)
   if (!Number.isSafeInteger(id) || id <= 0) return null
@@ -711,13 +1001,14 @@ function buildSelection(
 ): CurseForgeSelection {
   const slug = project.slug ?? String(project.id)
   const filename = file.fileName ?? `curseforge-${file.id}.jar`
+  const section = project.classId === MODPACK_CLASS_ID ? 'modpacks' : 'mc-mods'
   return {
     title: (project.name ?? file.displayName ?? file.fileName ?? 'CurseForge 模组').slice(0, 160),
     filename,
     url:
       httpUrl(file.downloadUrl) ??
       (compatDownloads ? curseForgeCdnUrl(String(file.id ?? ''), filename) : null),
-    manualUrl: `https://www.curseforge.com/minecraft/mc-mods/${slug}/files/${file.id}`,
+    manualUrl: `https://www.curseforge.com/minecraft/${section}/${slug}/files/${file.id}`,
     sha1: fileSha1(file),
     size: typeof file.fileLength === 'number' ? file.fileLength : null,
     fileId: String(file.id ?? ''),

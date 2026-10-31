@@ -1,10 +1,15 @@
 import AdmZip from 'adm-zip'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import type { LauncherSettings, ManualPackFile } from '../../shared/types'
 import { getConfigDir } from './config'
-import { getCurseForgeFileInfo, resolveCurseForgeManifestFile } from './curseforge'
+import {
+  curseForgeCdnUrl,
+  getCurseForgeFileInfo,
+  getCurseForgeServerPackWebFile,
+  resolveCurseForgeManifestFile
+} from './curseforge'
 import { CancellationError, downloadFile } from './net'
 import { modrinthFileCandidates } from './source'
 import { importModpack, type ImportModpackResult } from './modpacks'
@@ -458,10 +463,205 @@ export async function installCurseForgeModpack(
         onProgress({
           stage: `安装 · ${info.stage}`,
           percent: 18 + info.percent * 0.82,
-          detail: info.detail
+          detail: info.detail,
+          parallel: info.parallel
         })
     })
   } finally {
     await prepared.cleanup()
+  }
+}
+
+export interface DownloadCurseForgeServerPackOptions {
+  projectId: string
+  fileId: string
+  title: string
+  slug?: string | null
+  settings: LauncherSettings
+  signal: AbortSignal
+  onProgress: TaskProgress
+  onComplete?: (path: string) => void
+}
+
+export interface CurseForgeServerPackDownloadResult {
+  path: string
+  filename: string
+  size: number | null
+  sha1: string | null
+}
+
+function safeServerPackFilename(raw: string): string {
+  const name = basename(raw)
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .replace(/[. ]+$/, '')
+    .trim()
+  return (name || `server-pack-${Date.now()}.zip`).slice(0, 120)
+}
+
+function safeServerPackFolder(raw: string): string {
+  const name = raw
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/, '')
+    .trim()
+  return (name || 'curseforge').slice(0, 60)
+}
+
+async function removePartialDownload(destination: string): Promise<void> {
+  const folder = dirname(destination)
+  const name = basename(destination)
+  try {
+    const entries = await fs.readdir(folder)
+    for (const entry of entries) {
+      if (!entry.startsWith(`${name}.part`)) continue
+      await fs.rm(join(folder, entry), { force: true }).catch(() => undefined)
+    }
+  } catch {
+    /* best-effort cleanup */
+  }
+}
+
+export async function downloadCurseForgeServerPack(
+  options: DownloadCurseForgeServerPackOptions
+): Promise<CurseForgeServerPackDownloadResult> {
+  const { signal, onProgress, settings } = options
+  const report = (stage: string, percent: number, detail = emptyDetail()) =>
+    onProgress({ stage, percent: Math.max(0, Math.min(100, percent)), detail })
+
+  report('读取服务端包信息', 1)
+  const pageUrl = `https://www.curseforge.com/minecraft/modpacks/${
+    options.slug || options.projectId
+  }/files/${options.fileId}`
+  let source: {
+    url: string
+    filename: string
+    size: number | null
+    sha1: string | null
+  } | null = null
+  try {
+    const info = await getCurseForgeFileInfo(
+      options.projectId,
+      options.fileId,
+      settings,
+      { allowServerPack: true }
+    )
+    if (info.isServerPack && info.url) {
+      source = {
+        url: info.url,
+        filename: info.filename,
+        size: info.size,
+        sha1: info.sha1
+      }
+    }
+  } catch {
+    /* mirror/API 经常不包含 Additional Files，改用公开文件页 */
+  }
+  if (!source) {
+    report('读取服务端包网页信息', 3)
+    const web = await getCurseForgeServerPackWebFile(
+      options.projectId,
+      options.fileId,
+      settings,
+      options.slug
+    )
+    if (web && web.isClientCompatible !== true) {
+      const url = curseForgeCdnUrl(options.fileId, web.fileName)
+      if (url) {
+        source = {
+          url,
+          filename: web.fileName,
+          size: web.size,
+          sha1: null
+        }
+      }
+    }
+  }
+  if (!source) {
+    throw new Error(
+      `无法读取这个 CurseForge 服务端包。请打开 ${pageUrl} 手动下载，风信不会绕过下载限制。`
+    )
+  }
+
+  const directory = join(
+    getConfigDir(),
+    'downloads',
+    'serverpacks',
+    safeServerPackFolder(options.title)
+  )
+  await fs.mkdir(directory, { recursive: true })
+  const filename = safeServerPackFilename(source.filename)
+  const destination = join(directory, filename)
+  const total = source.size ?? 0
+  let received = 0
+  let speed = 0
+  let lastTick = Date.now()
+  let lastDone = 0
+  let lastReport = 0
+  const detail = () => ({
+    current: 0,
+    total: 1,
+    bytesDone: received,
+    bytesTotal: total,
+    speed,
+    activeFiles: [{ label: filename, bytes: received, size: total }]
+  })
+
+  report(`下载服务端包 ${filename}`, 2, detail())
+  try {
+    await downloadFile(
+      modrinthFileCandidates(source.url, settings.modrinthMirror),
+      destination,
+      {
+        sha1: source.sha1,
+        size: source.size,
+        signal,
+        onBytes: (bytes) => {
+          received += bytes
+          const now = Date.now()
+          if (now - lastTick >= 500) {
+            speed = (received - lastDone) / ((now - lastTick) / 1000)
+            lastTick = now
+            lastDone = received
+          }
+          if (now - lastReport < 300) return
+          lastReport = now
+          report(
+            `下载服务端包 ${filename}`,
+            total > 0 ? 2 + (received / total) * 97 : 2,
+            detail()
+          )
+        }
+      }
+    )
+  } catch (error) {
+    await removePartialDownload(destination)
+    throw error
+  }
+  if (signal.aborted) throw new CancellationError()
+
+  let size: number | null = source.size
+  try {
+    size = (await fs.stat(destination)).size
+  } catch {
+    /* keep the API/page size when stat fails */
+  }
+  report('服务端包下载完成', 100, {
+    current: 1,
+    total: 1,
+    bytesDone: size ?? received,
+    bytesTotal: size ?? total,
+    speed: 0,
+    activeFiles: []
+  })
+  try {
+    options.onComplete?.(destination)
+  } catch {
+    /* opening the folder is best-effort */
+  }
+  return {
+    path: destination,
+    filename,
+    size,
+    sha1: source.sha1
   }
 }
