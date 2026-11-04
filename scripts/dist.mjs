@@ -26,4 +26,4 @@ function run(command, args) {
 
 console.log('[dist] 已注入 CurseForge Key 与更新源，开始构建')
 run('npm', ['run', 'build'])
-run('npx', ['electron-builder', '--win', 'nsis'])
+run('npx', ['electron-builder', '--win', 'nsis', '--publish', 'never'])
