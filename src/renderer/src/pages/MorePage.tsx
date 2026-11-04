@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useLauncher } from '../store'
 import { cleanError } from '../lib/format'
-import { Badge, IconButton } from '../components/ui'
+import { IconButton } from '../components/ui'
 import { LauncherUpdateCard } from '../components/LauncherUpdateCard'
 import { Logo } from '../components/visuals'
 
@@ -56,16 +56,8 @@ export function MorePage() {
     <div className="page page--more">
       <header className="page-head more-head">
         <div className="page-head-copy">
-          <span className="page-eyebrow">
-            <Info size={14} />
-            更多
-          </span>
-          <h1>工具、日志与关于</h1>
-          <p>快速打开运行文件，查看启动环境，或者了解更多关于风信的信息。</p>
+          <h1>更多</h1>
         </div>
-        <Badge tone="neutral" className="more-version-badge">
-          风信启动器 v{appInfo?.version ?? '—'}
-        </Badge>
       </header>
 
       <div className="more-scroll">
@@ -74,32 +66,9 @@ export function MorePage() {
             <div className="more-about-head">
               <Logo size={54} />
               <div>
-                <h2>风信启动器</h2>
-                <span>WINDLETTER</span>
+                <h2>月月月启动器</h2>
+                <span>月无边</span>
               </div>
-              <Badge tone="accent">v{appInfo?.version ?? '—'}</Badge>
-            </div>
-            <p className="more-about-text">
-              风有信，月无边。一个专注于原版与整合包的 Minecraft 启动器，用现代桌面技术实现版本管理、实例隔离、文件补全、Java
-              自动准备与多账户登录，界面灵感来自 PCL2 的易用体验。
-            </p>
-            <div className="more-feature-chips">
-              <span>
-                <Boxes size={13} />
-                原版与整合包实例
-              </span>
-              <span>
-                <Sparkles size={13} />
-                官方源与 BMCLAPI
-              </span>
-              <span>
-                <Cpu size={13} />
-                Java 运行时管理
-              </span>
-              <span>
-                <ShieldCheck size={13} />
-                微软正版登录
-              </span>
             </div>
             <div className="more-links">
               <button
@@ -131,14 +100,13 @@ export function MorePage() {
 
           <LauncherUpdateCard />
 
-          <section className="more-card card">
+          <section className="more-card card more-logs">
             <header className="more-card-head">
               <span className="more-card-icon">
                 <Terminal size={17} />
               </span>
               <div>
                 <h3>日志与诊断</h3>
-                <p>启动失败时，日志通常能说明原因</p>
               </div>
             </header>
             <div className="log-path-box">
@@ -159,14 +127,13 @@ export function MorePage() {
             </div>
           </section>
 
-          <section className="more-card card">
+          <section className="more-card card more-files">
             <header className="more-card-head">
               <span className="more-card-icon">
                 <FolderOpen size={17} />
               </span>
               <div>
                 <h3>文件位置</h3>
-                <p>打开游戏或配置所在位置</p>
               </div>
             </header>
             <div className="more-path-list">
@@ -201,14 +168,13 @@ export function MorePage() {
             </div>
           </section>
 
-          <section className="more-card card">
+          <section className="more-card card more-runtime">
             <header className="more-card-head">
               <span className="more-card-icon">
                 <Monitor size={17} />
               </span>
               <div>
                 <h3>运行环境</h3>
-                <p>当前启动器与系统信息</p>
               </div>
             </header>
             <dl className="runtime-grid">

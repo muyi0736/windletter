@@ -794,6 +794,125 @@
   line-height: 1.55;
 }
 
+.doctor-ai-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.doctor-ai-actions-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.doctor-ai-actions-head > span {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.05em;
+}
+
+.doctor-ai-actions-head small {
+  color: var(--text-3);
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+
+.doctor-ai-action {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.doctor-ai-action.is-blocked {
+  border-style: dashed;
+  opacity: 0.78;
+}
+
+.doctor-ai-action-main {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 7px;
+}
+
+.doctor-ai-action-icon {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 1px;
+  color: var(--accent-ink);
+}
+
+.doctor-ai-action.is-blocked .doctor-ai-action-icon {
+  color: var(--warning-ink, var(--text-3));
+}
+
+.doctor-ai-action-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.doctor-ai-action-title strong {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.doctor-ai-action p {
+  margin: 3px 0 0;
+  color: var(--text-2);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.doctor-ai-action-change {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  overflow-wrap: anywhere;
+}
+
+.doctor-ai-action-blocked {
+  color: var(--warning-ink, var(--text-3)) !important;
+}
+
+.doctor-ai-action-apply {
+  align-self: flex-start;
+}
+
+.doctor-ai-action-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+}
+
+.doctor-ai-action-confirm > span {
+  color: var(--text-2);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.doctor-ai-action-confirm > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .doctor-ai-checks {
   display: flex;
   gap: 10px;

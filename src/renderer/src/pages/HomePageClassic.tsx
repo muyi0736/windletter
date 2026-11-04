@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Boxes,
   ChevronDown,
   ChevronRight,
+  Ellipsis,
   FolderOpen,
   Gamepad2,
   Info,
@@ -10,9 +11,7 @@ import {
   List,
   Package,
   Play,
-  Plus,
   RefreshCw,
-  Server,
   Square,
   Trash2,
   Upload
@@ -103,7 +102,7 @@ export function HomePageClassic() {
   const [stopOpen, setStopOpen] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(
-    () => localStorage.getItem('ccl-workbench-right-collapsed') === 'true'
+    () => localStorage.getItem('ccl-workbench-right-collapsed') !== 'false'
   )
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() =>
     localStorage.getItem('ccl-workbench-view') === 'grid' ? 'grid' : 'table'
@@ -129,41 +128,6 @@ export function HomePageClassic() {
     }
   })
   const [disk, setDisk] = useState({ freeGb: 0, totalGb: 0 })
-  const fitFrameRef = useRef<HTMLDivElement>(null)
-  const fitContentRef = useRef<HTMLDivElement>(null)
-  const [fit, setFit] = useState({ scale: 1, offsetX: 0, designWidth: 1680, tallCanvas: false })
-
-  useLayoutEffect(() => {
-    const frame = fitFrameRef.current
-    const content = fitContentRef.current
-    if (!frame || !content) return
-    const update = () => {
-      const availableWidth = frame.clientWidth
-      const availableHeight = frame.clientHeight
-      const naturalHeight = Math.max(1, content.scrollHeight)
-      if (availableWidth <= 0 || availableHeight <= 0) return
-      const tallCanvas = availableHeight / availableWidth > 0.85
-      const designWidth = tallCanvas ? availableWidth : 1680
-      const scale = Math.max(
-        0.1,
-        Math.min(1, availableWidth / designWidth, availableHeight / naturalHeight)
-      )
-      const offsetX = Math.max(0, (availableWidth - designWidth * scale) / 2)
-      setFit((previous) =>
-        Math.abs(previous.scale - scale) < 0.001 &&
-        Math.abs(previous.offsetX - offsetX) < 0.5 &&
-        previous.designWidth === designWidth &&
-        previous.tallCanvas === tallCanvas
-          ? previous
-          : { scale, offsetX, designWidth, tallCanvas }
-      )
-    }
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(frame)
-    observer.observe(content)
-    return () => observer.disconnect()
-  }, [])
 
   const account = accounts.accounts.find((item) => item.id === accounts.activeId) ?? null
   const selectedInstance = instances.find((instance) => instance.id === selectedInstanceId) ?? null
@@ -338,12 +302,6 @@ return
   const javaWarning = Boolean(targetJavaMajor && !java && !settings?.autoJava)
 
   const targetLoader = selectedInstance?.loader ?? selected?.loader ?? null
-  const targetLastPlayed = selectedInstance?.lastPlayed ?? selected?.lastPlayed ?? null
-  const targetMeta = selectedInstance
-    ? `Minecraft ${selectedInstance.gameVersion} · ${selectedInstance.modCount} 个模组 · ${relativeTime(selectedInstance.lastPlayed)}`
-    : selected
-      ? `Minecraft ${selected.id} · ${versionTypeLabel(selected.type)} · ${relativeTime(selected.lastPlayed)}`
-      : '安装一个版本，或导入一个整合包'
 
   const runningName = launch.instanceId
     ? instances.find((instance) => instance.id === launch.instanceId)?.name
@@ -553,49 +511,25 @@ return
 
   const focusName = selectedInstance?.name ?? selected?.id ?? '选择一个世界'
   const focusMeta = selectedInstance
-    ? `MINECRAFT ${selectedInstance.gameVersion} · ${(selectedInstance.loader === 'vanilla' ? 'VANILLA' : loaderLabel(selectedInstance.loader) ?? '').toUpperCase()} · ${selectedInstance.modCount} MODS`
+    ? `${selectedInstance.gameVersion} · ${loaderLabel(selectedInstance.loader) ?? '原版'} · ${selectedInstance.modCount} 模组`
     : selected
-      ? `MINECRAFT ${selected.id.toUpperCase()} · ${(loaderLabel(selected.loader) ?? versionTypeLabel(selected.type)).toUpperCase()}`
-      : 'NO TARGET SELECTED'
+      ? `${selected.id} · ${loaderLabel(selected.loader) ?? versionTypeLabel(selected.type)}`
+      : '未选择目标'
 
   return (
-    <div className="page page--home home-classic-fit" ref={fitFrameRef}>
-      <div
-        className={`home-fit-content ${fit.designWidth < 1240 ? 'is-narrow-canvas' : ''} ${fit.tallCanvas ? 'is-tall-canvas' : ''}`}
-        ref={fitContentRef}
-        style={{
-          transform: `translateX(${fit.offsetX}px) scale(${fit.scale})`,
-          width: fit.designWidth
-        }}
-      >
-        <header className="home-header">
+    <div className="page page--home home-classic">
+      <header className="home-header home-header--simple">
         <div className="home-header-copy">
-          <span className="eyebrow">Workspace / 启动</span>
           <h1>
             {greeting()}
             {account ? `，${account.name}` : '，旅人'}
           </h1>
           <p>
-            从原版到整合包，今天想进入哪个世界？
             <span className="home-header-stats">
               {instances.length} 实例 · {visibleInstalled.length} 版本
             </span>
             <PlaytimeBadge />
           </p>
-        </div>
-        <div className="home-header-actions">
-          <button type="button" className="button button--soft" onClick={() => setPage('instances')}>
-            <Boxes size={14} />
-            实例
-          </button>
-          <button type="button" className="button button--soft" onClick={() => setPage('servers')}>
-            <Server size={14} />
-            服务器
-          </button>
-          <button type="button" className="button button--primary" onClick={() => setPage('downloads')}>
-            <Plus size={14} />
-            安装版本
-          </button>
         </div>
       </header>
 
@@ -633,7 +567,7 @@ return
         <div className="center-panel">
           <section className="focus-panel">
             <div className="focus-top">
-              <span className="mono-label">Current target</span>
+              <span className="mono-label">当前目标</span>
               <span
                 className={`focus-status ${running ? 'is-live' : launchBusy || installTask ? 'is-busy' : ''}`}
               >
@@ -648,7 +582,7 @@ return
                 <p>{focusMeta}</p>
               </div>
               <button type="button" className="focus-switch" onClick={chooseTarget}>
-                切换目标
+                切换
                 <ChevronDown size={12} />
               </button>
             </div>
@@ -666,15 +600,11 @@ return
                 <span>Java</span>
                 <strong>{javaText}</strong>
               </div>
-              <div>
-                <span>上次启动</span>
-                <strong>{relativeTime(targetLastPlayed)}</strong>
-</div>
             </div>
 
             <button
               type="button"
-              className={`launch-cta ${launchBusy || installTask ? 'is-busy' : ''} ${running ? 'is-running' : ''}`}
+              className={`launch-cta home-launch ${launchBusy || installTask ? 'is-busy' : ''} ${running ? 'is-running' : ''}`}
               onClick={handleLaunch}
               title={launchBusy ? '点击取消启动' : running ? '结束游戏进程' : undefined}
             >
@@ -720,27 +650,14 @@ return
                   查看日志
                 </button>
               </div>
-            ) : (
-              <p className="launch-hint">
-                {launchBusy
-                  ? '点击按钮可取消本次启动，已下载的文件会保留'
-                  : running
-                    ? '关闭启动器不会结束游戏，可随时回到这里结束进程'
-                    : installTask
-                      ? '游戏文件准备完成后即可一键启动'
-                      : account
-                        ? `启动时自动检查 Java 与游戏文件完整性${targetLoader ? ` · ${loaderLabel(targetLoader) ?? targetLoader}` : ''}`
-                        : '推荐登录微软正版账户，也可以使用离线账户'}
-              </p>
-            )}
+            ) : null}
           </section>
 
           <section className="workbench-section">
             <div className="workbench-section-head">
               <div className="workbench-section-title">
-                <span className="mono-label">Versions</span>
                 <h2>版本</h2>
-                <span>{filteredVersions.length.toString().padStart(2, '0')}</span>
+                <span>{filteredVersions.length}</span>
               </div>
               <div className="workbench-section-actions">
                 <span className="view-toggle">
@@ -773,20 +690,27 @@ return
                   <RefreshCw size={12} className={installedLoading ? 'spin' : ''} />
                   刷新
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setCleanupOpen(true)}
-                  title="清理不再被实例或启动档案使用的版本"
-                >
-                  <Trash2 size={12} />
-                  清理
-                </button>
-                <button type="button" onClick={openLoaderModal}>
-                  安装加载器
-                </button>
-                <button type="button" onClick={() => setVersionPickerOpen(true)}>
-                  全部
-                </button>
+                <details className="head-more">
+                  <summary title="更多操作">
+                    <Ellipsis size={14} />
+                  </summary>
+                  <div className="head-more-menu">
+                    <button type="button" onClick={() => setVersionPickerOpen(true)}>
+                      全部版本
+                    </button>
+                    <button type="button" onClick={openLoaderModal}>
+                      安装加载器
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCleanupOpen(true)}
+                      title="清理不再被实例或启动档案使用的版本"
+                    >
+                      <Trash2 size={14} />
+                      清理版本
+                    </button>
+                  </div>
+                </details>
               </div>
             </div>
             <div className="workbench-filterbar">
@@ -841,9 +765,8 @@ return
           <section className="workbench-section">
             <div className="workbench-section-head">
               <div className="workbench-section-title">
-                <span className="mono-label">Instances</span>
                 <h2>实例</h2>
-                <span>{instances.length.toString().padStart(2, '0')}</span>
+                <span>{instances.length}</span>
               </div>
               <div className="workbench-section-actions">
                 <button type="button" onClick={() => void importModpack()}>
@@ -873,7 +796,7 @@ return
                         <span className="workbench-instance-copy">
                           <strong>{instance.name}</strong>
                           <small>
-                            MC {instance.gameVersion} · {loaderLabel(instance.loader) ?? '原版'} ·{' '}
+                            {instance.gameVersion} · {loaderLabel(instance.loader) ?? '原版'} ·{' '}
                             {instance.modCount} 模组
                           </small>
                         </span>
@@ -898,41 +821,48 @@ return
                             )}
                             {isRunning ? '运行中' : '启动'}
                           </button>
-                          <button
-                            type="button"
-                            className="icon-button"
-                            title="管理模组"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setModsInstance(instance)
-                            }}
-                          >
-                            <Package size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-button"
-                            title="快速预览"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setPreviewInstance(instance)
-                            }}
-                          >
-                            <Info size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-button"
-                            title="打开实例目录"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void window.ccl.instances.openFolder(instance.id).catch((error) => {
-                                toast('error', '无法打开实例目录', cleanError(error))
-                              })
-                            }}
-                          >
-                            <FolderOpen size={14} />
-                          </button>
+                          <details className="instance-more" onClick={(event) => event.stopPropagation()}>
+                            <summary className="icon-button" title="更多操作">
+                              <Ellipsis size={14} />
+                            </summary>
+                            <div className="instance-more-menu">
+                              <button
+                                type="button"
+                                className="button button--soft button--sm"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setModsInstance(instance)
+                                }}
+                              >
+                                <Package size={14} />
+                                管理模组
+                              </button>
+                              <button
+                                type="button"
+                                className="button button--soft button--sm"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setPreviewInstance(instance)
+                                }}
+                              >
+                                <Info size={14} />
+                                快速预览
+                              </button>
+                              <button
+                                type="button"
+                                className="button button--soft button--sm"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void window.ccl.instances.openFolder(instance.id).catch((error) => {
+                                    toast('error', '无法打开实例目录', cleanError(error))
+                                  })
+                                }}
+                              >
+                                <FolderOpen size={14} />
+                                打开目录
+                              </button>
+                            </div>
+                          </details>
                         </span>
                       </div>
                     </article>
@@ -975,7 +905,6 @@ return
           downloadSpeed={downloadSpeed}
           memoryMb={settings?.maxMemoryMb ?? 0}
         />
-      </div>
       </div>
 
       <ConfirmDialog

@@ -14,6 +14,7 @@ import type {
   ModFingerprintDiff
 } from '../../shared/types'
 import { getSettings } from './config'
+import { availablePhysicalMemoryMb, computeAutoMemoryMb } from './autoMemory'
 import { getInstance, getInstanceDir, getInstanceGameDir } from './instances'
 import { detectJava } from './java'
 import { resolveVersion, type ResolvedVersion } from './version'
@@ -175,7 +176,8 @@ function buildFingerprint(
   settings: ReturnType<typeof getSettings>,
   snapshot: ModSnapshot[]
 ): string {
-  const memory = instance.memoryMb ?? settings.maxMemoryMb
+  const memory =
+    instance.memoryAuto !== false ? 'auto' : instance.memoryMb ?? settings.maxMemoryMb
   const args = [settings.extraJvmArgs, instance.extraJvmArgs ?? '']
     .filter((value) => value.trim())
     .join(' ')
@@ -239,7 +241,15 @@ export async function markKnownGood(instanceId: string): Promise<KnownGoodSnapsh
     loader: instance.loader,
     loaderVersion: instance.loaderVersion,
     javaMajor: instance.javaMajor,
-    memoryMb: instance.memoryMb ?? settings.maxMemoryMb
+    memoryMb:
+      instance.memoryAuto !== false
+        ? computeAutoMemoryMb({
+            modCount: snapshot.filter((mod) => mod.enabled).length,
+            loader: instance.loader,
+            availableMb: availablePhysicalMemoryMb(),
+            totalMb: Math.floor(os.totalmem() / 1024 / 1024)
+          })
+        : instance.memoryMb ?? settings.maxMemoryMb
   }
   if (!unchanged) state.ignored = []
   await saveDiagnosticState(instance.id, state)
@@ -310,7 +320,16 @@ export async function runDiagnostics(instanceId: string): Promise<DiagnosticRepo
   const enabledMods = scan.mods.filter((mod) => mod.enabled)
 
   await checkJava(instance, baseDir, settings, resolved, enabledMods, issues)
-  checkMemory(instance, settings, enabledMods.length, issues)
+  const effectiveMemoryMb =
+    instance.memoryAuto !== false
+      ? computeAutoMemoryMb({
+          modCount: enabledMods.length,
+          loader: instance.loader,
+          availableMb: availablePhysicalMemoryMb(),
+          totalMb: Math.floor(os.totalmem() / 1024 / 1024)
+        })
+      : instance.memoryMb ?? settings.maxMemoryMb
+  checkMemory(instance, settings, enabledMods.length, issues, effectiveMemoryMb)
   await checkGameFiles(instance, gameDir, baseDir, resolved, issues)
   checkModConflicts(scan.mods, issues)
 
@@ -509,9 +528,17 @@ function checkMemory(
   instance: InstanceSummary,
   settings: ReturnType<typeof getSettings>,
   modCount: number,
-  issues: DiagnosticIssue[]
+  issues: DiagnosticIssue[],
+  allocated = instance.memoryAuto !== false
+    ? computeAutoMemoryMb({
+        modCount,
+        loader: instance.loader,
+        availableMb: availablePhysicalMemoryMb(),
+        totalMb: Math.floor(os.totalmem() / 1024 / 1024)
+      })
+    : instance.memoryMb ?? settings.maxMemoryMb
 ): void {
-  const allocated = instance.memoryMb ?? settings.maxMemoryMb
+  const auto = instance.memoryAuto !== false
   const totalMb = Math.round(os.totalmem() / 1024 / 1024)
   const recommendedMin = modCount > 120 ? 6144 : modCount > 40 ? 4096 : 2048
 
@@ -522,14 +549,14 @@ function checkMemory(
         'memory',
         'error',
         '内存分配超过系统可用范围',
-        `实例分配 ${allocated} MB，系统总计约 ${totalMb} MB。给系统留出至少 20% 内存，否则启动器、驱动和游戏都可能被系统终止。`,
+        `${auto ? '启动时自动计算' : '实例分配'} ${allocated} MB，系统总计约 ${totalMb} MB。给系统留出至少 20% 内存，否则启动器、驱动和游戏都可能被系统终止。`,
         [],
         []
       )
     )
     return
   }
-  if (allocated > totalMb * 0.6) {
+  if (!auto && allocated > totalMb * 0.6) {
     issues.push(
       issue(
         'memory-high',
@@ -547,7 +574,7 @@ function checkMemory(
         'memory',
         'error',
         '内存分配过低',
-        `实例只分配了 ${allocated} MB，Minecraft 可能无法启动。建议至少 2048 MB。`
+        `${auto ? '启动时自动计算' : '实例只分配了'} ${allocated} MB，Minecraft 可能无法启动。建议至少 2048 MB。`
       )
     )
   } else if (allocated < recommendedMin && modCount > 0) {
@@ -557,7 +584,7 @@ function checkMemory(
         'memory',
         'warning',
         '内存分配可能偏低',
-        `当前实例有 ${modCount} 个启用模组，分配 ${allocated} MB；这个规模建议至少 ${recommendedMin} MB。`
+        `当前实例有 ${modCount} 个启用模组，${auto ? '启动时自动计算' : '分配'} ${allocated} MB；这个规模建议至少 ${recommendedMin} MB。`
       )
     )
   }
@@ -711,7 +738,7 @@ function unreadableModIssue(file: string, error: unknown): DiagnosticIssue {
       'mods',
       'info',
       '模组扫描已跳过',
-      `${file} 的 jar 内含有重复的目录条目。Minecraft 和加载器通常可以正常读取它，风信只是跳过了它的元数据检查，不需要重新下载；如果游戏本身报错，再把这个文件作为排查对象。`,
+      `${file} 的 jar 内含有重复的目录条目。Minecraft 和加载器通常可以正常读取它，月月月启动器只是跳过了它的元数据检查，不需要重新下载；如果游戏本身报错，再把这个文件作为排查对象。`,
       [],
       [file]
     )

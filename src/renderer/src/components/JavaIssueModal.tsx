@@ -43,7 +43,7 @@ export function JavaIssueModal() {
     >
       <p className="manual-pack-lead">
         当前设置里的 Java 与这个版本不匹配。下载和安装不受影响，但启动前必须使用兼容的 Java。
-        可以让风信自动准备一个，或到设置里手动指定。
+        可以让月月月启动器自动准备一个，或到设置里手动指定。
       </p>
       {issue?.message && <p className="manual-pack-note">{issue.message}</p>}
     </Modal>

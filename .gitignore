@@ -13,3 +13,6 @@ scripts/download-smoke-test/.tmp/
 !.env.example
 src/main/core/*.secret.*
 *.pem
+
+.superpowers/
+docs/superpowers/

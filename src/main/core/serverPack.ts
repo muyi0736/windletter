@@ -461,7 +461,7 @@ async function collectConfigEntries(
 }
 
 function propertiesText(properties: ServerPackProperties): string {
-  const motd = cleanText(properties.motd, '风信服务端', 120).replace(/[\r\n]/g, ' ')
+  const motd = cleanText(properties.motd, '月月月服务端', 120).replace(/[\r\n]/g, ' ')
   return [
     `motd=${motd}`,
     `server-port=${properties.port}`,
@@ -565,7 +565,7 @@ function readmeText(options: {
   properties: ServerPackProperties
 }): string {
   return [
-    `风信启动器 · ${options.instanceName} 服务端包`,
+    `月月月启动器 · ${options.instanceName} 服务端包`,
     '',
     `Minecraft：${options.gameVersion}`,
     `加载器：${options.loader === 'vanilla' ? '原版' : options.loader}${options.loaderVersion ? ` ${options.loaderVersion}` : ''}`,
@@ -762,7 +762,7 @@ export async function createServerPack(
     }
 
     const properties: ServerPackProperties = {
-      motd: cleanText(request.properties.motd, '风信服务端', 120),
+      motd: cleanText(request.properties.motd, '月月月服务端', 120),
       port: Math.max(1, Math.min(65535, Math.round(request.properties.port))),
       maxPlayers: Math.max(1, Math.min(1000, Math.round(request.properties.maxPlayers))),
       onlineMode: Boolean(request.properties.onlineMode),

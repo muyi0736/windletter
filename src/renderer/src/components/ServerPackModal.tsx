@@ -44,7 +44,7 @@ export function ServerPackModal({
   const [outputPath, setOutputPath] = useState('')
   const [includeConfigs, setIncludeConfigs] = useState(true)
   const [includeBootstrap, setIncludeBootstrap] = useState(true)
-  const [motd, setMotd] = useState('风信服务端')
+  const [motd, setMotd] = useState('月月月服务端')
   const [port, setPort] = useState('25565')
   const [maxPlayers, setMaxPlayers] = useState('20')
   const [viewDistance, setViewDistance] = useState('10')

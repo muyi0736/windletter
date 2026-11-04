@@ -1,15 +1,16 @@
 import AdmZip from 'adm-zip'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 import type { DownloadSource } from '../../shared/types'
 import type { AssetIndexRaw, Library, VersionJson } from './mojangTypes'
 import { getVersionEntry, getVersionJson } from './mojang'
 import { runDownloadPool, type DownloadJob } from './downloadPool'
+import { externalMinecraftRoots, reuseExternalFile } from './externalReuse'
 import { CancellationError, downloadFile } from './net'
 import { emptyDetail, ratioPercent, type TaskProgress } from './progress'
 import { isRuleAllowed } from './rules'
-import { assetObjectUrl, orderedUrls } from './source'
+import { assetObjectUrl, clientJarCandidates, orderedUrls } from './source'
 import {
   mainArtifact,
   nativeArtifact,
@@ -75,6 +76,7 @@ export async function installVanillaVersion(options: InstallOptions): Promise<vo
     fs.mkdir(objectsDir, { recursive: true }),
     fs.mkdir(logConfigDir, { recursive: true })
   ])
+  const externalRoots = await externalMinecraftRoots(gameDir)
 
   if (signal.aborted) throw new CancellationError()
   report('获取资源索引', 2)
@@ -96,6 +98,15 @@ export async function installVanillaVersion(options: InstallOptions): Promise<vo
         const actual = await fileSha1(indexPath)
         valid = actual?.toLowerCase() === json.assetIndex.sha1.toLowerCase()
       }
+    }
+    if (!valid) {
+      valid = await reuseExternalFile(
+        externalRoots,
+        `assets/indexes/${assetIndexId}.json`,
+        indexPath,
+        json.assetIndex.size,
+        json.assetIndex.sha1
+      )
     }
     if (!valid) {
       await downloadFile(orderedUrls(json.assetIndex.url, source), indexPath, {
@@ -146,11 +157,14 @@ export async function installVanillaVersion(options: InstallOptions): Promise<vo
 
   const clientPath = join(versionDir, `${versionId}.jar`)
   jobs.push({
-    urls: orderedUrls(json.downloads.client.url, source),
+    urls: clientJarCandidates(versionId, json.downloads.client.url, source),
     destination: clientPath,
     sha1: json.downloads.client.sha1,
     size: json.downloads.client.size,
-    label: '客户端主文件'
+    label: '客户端主文件',
+    // 客户端主文件较大：BMCLAPI 专用端点与官方源同时测速/分片，
+    // 单线路被限速时可以由另一条线路补齐，而不是干等。
+    multiSource: true
   })
 
   let loggingPath: string | null = null
@@ -182,7 +196,53 @@ export async function installVanillaVersion(options: InstallOptions): Promise<vo
   }
 
   report('下载游戏文件', 5)
-  await runDownloadPool(jobs, {
+  const remainingJobs: DownloadJob[] = []
+  let reusedFiles = 0
+  let reusedBytes = 0
+  for (const job of jobs) {
+    let destinationValid = false
+    try {
+      const stat = await fs.stat(job.destination)
+      destinationValid = job.size == null || stat.size === job.size
+    } catch {
+      destinationValid = false
+    }
+    if (destinationValid) {
+      remainingJobs.push(job)
+      continue
+    }
+    const rel = relative(gameDir, job.destination)
+    if (
+      rel.startsWith('..') ||
+      rel.includes(`${sep}..${sep}`) ||
+      rel.includes('/../')
+    ) {
+      remainingJobs.push(job)
+      continue
+    }
+    const reused = await reuseExternalFile(
+      externalRoots,
+      rel.replace(/\\/g, '/'),
+      job.destination,
+      job.size,
+      job.label === '客户端主文件' ? job.sha1 : null
+    )
+    if (reused) {
+      reusedFiles += 1
+      reusedBytes += job.size ?? 0
+    } else {
+      remainingJobs.push(job)
+    }
+  }
+  if (reusedFiles > 0) {
+    report(
+      '复用本地文件',
+      5,
+      emptyDetail(),
+      `已复用 ${reusedFiles} 个本地文件，跳过下载 ${(reusedBytes / 1024 / 1024).toFixed(1)} MB`
+    )
+  }
+  await runDownloadPool(remainingJobs, {
     concurrency: options.concurrency,
     signal,
     onProgress: (detail) => {

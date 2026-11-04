@@ -69,7 +69,7 @@ export function ManualPackModal() {
     >
       <p className="manual-pack-lead">
         这些模组的作者关闭了第三方 API 下载，CurseForge
-        不会把直链交给启动器，风信也不会绕过限制。请在浏览器里逐个下载，再把下载到的 jar
+        不会把直链交给启动器，月月月启动器也不会绕过限制。请在浏览器里逐个下载，再把下载到的 jar
         一起选进来，启动器会按 SHA1 自动匹配。
       </p>
       <ul className="manual-pack-list">

@@ -102,7 +102,7 @@ function statusCopy(update: LauncherUpdateState): { title: string; detail: strin
     default:
       return {
         title: '尚未检查更新',
-        detail: `${current} · 点击检查更新获取最新版本信息。`
+        detail: current
       }
   }
 }
@@ -200,7 +200,6 @@ export function LauncherUpdateCard() {
         </span>
         <div>
           <h3>启动器更新</h3>
-          <p>检查新版本、校验 SHA-256，并在本机完成安装与重启</p>
         </div>
         <Badge tone="accent" className="update-version-badge">
           v{current}
@@ -208,9 +207,8 @@ export function LauncherUpdateCard() {
       </header>
 
       <div className="update-auto-row">
-        <span className="update-auto-copy">
+        <span className="update-auto-copy" title="仅请求版本清单，不上传账户、存档、日志或密钥">
           <strong>启动时检查更新</strong>
-          <small>仅请求版本清单，不上传账户、存档、日志或密钥</small>
         </span>
         <Switch
           checked={settings.autoCheckUpdates !== false}
@@ -385,9 +383,6 @@ export function LauncherUpdateCard() {
           {feedSaving ? '保存中…' : '保存'}
         </button>
       </div>
-      <p className="update-feed-tip">
-        填写 latest.json 地址、所在目录或 GitHub Release 地址；GitHub 源会自动改用 api.github.com，启动检查会复用 6 小时内的结果。仅支持 HTTPS，本机测试可用 localhost；未配置时不会联网。
-      </p>
     </section>
   )
 }

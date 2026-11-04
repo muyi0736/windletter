@@ -16,13 +16,38 @@ export function setUserAgentVersion(version: string): void {
 const JSON_TIMEOUT = 30_000
 const FILE_TIMEOUT = 5 * 60_000
 const STALL_TIMEOUT = 20_000
-const HOST_CONCURRENCY = 16
-const SEGMENT_MIN_BYTES = 4 * 1024 * 1024
-const SEGMENT_MAX = 16
+const HOST_CONCURRENCY = 64
+const SEGMENT_MIN_BYTES = 512 * 1024
+const SEGMENT_MAX = 64
 const SOURCE_PROBE_MIN_BYTES = 4 * 1024 * 1024
 const SOURCE_PROBE_TIMEOUT = 2_000
 const SOURCE_PROBE_TTL = 10 * 60_000
 const SPEED_PROBE_TIMEOUT = 12_000
+/** 多线路下载：分片持续低于该速度（bytes/s）时换到更快线路。 */
+const MULTI_SLOW_BPS = 150 * 1024
+/** 多线路下载：慢分片观察窗口，避免把启动慢误判成线路慢。 */
+const MULTI_SLOW_WINDOW_MS = 7_000
+const MULTI_SLOW_GRACE_MS = 2_500
+/** 多线路按速度分配分片前的测速字节数。太大会拖慢开始，太小会被瞬间带宽误导。 */
+const MULTI_SOURCE_PROBE_BYTES = 512 * 1024
+const MULTI_SOURCE_PROBE_TIMEOUT_MS = 6_000
+/** 文件末尾单独细分的区间上限/下限，以及尾段小分片大小。 */
+const MULTI_TAIL_MAX_BYTES = 12 * 1024 * 1024
+const MULTI_TAIL_MIN_BYTES = 4 * 1024 * 1024
+const MULTI_TAIL_CHUNK_BYTES = 512 * 1024
+const MULTI_TAIL_MIN_SIZE = 16 * 1024 * 1024
+/** 32 MB 以上的大文件把头部切得更细，用更多连接跑满带宽（与 PCL 的动态分段接近）。 */
+const MULTI_HEAD_LARGE_SIZE = 32 * 1024 * 1024
+const MULTI_HEAD_TARGET_BYTES = 4 * 1024 * 1024
+const MULTI_HEAD_TARGET_LARGE_BYTES = 1024 * 1024
+const MULTI_HEAD_MAX = 24
+const MULTI_HEAD_MAX_LARGE = 56
+/** 单线路分段：分片持续低于该速度时主动断线重连，避免尾段被一条慢连接拖住。 */
+const SINGLE_SLOW_BPS = 64 * 1024
+const SINGLE_SLOW_WINDOW_MS = 5_000
+const SINGLE_SLOW_GRACE_MS = 2_000
+const SINGLE_SLOW_RETRIES = 2
+const SINGLE_SLOW_MIN_REMAINING = 256 * 1024
 
 export class CancellationError extends Error {
   constructor(message = '操作已取消') {
@@ -185,8 +210,10 @@ async function probeThroughput(
         return body.byteLength
       })
     )
-    if (parts.some((value) => value < 0)) return null
-    total = parts.reduce((sum, value) => sum + value, 0)
+    if (parts.some((value) => value < 0) && !parts.some((value) => value > 0)) return null
+    // 单个 Range 探测失败（偶发重置/限流）不应把整条线路判死；
+    // 只要还有成功取到数据的部分，就按实际字节估算吞吐量。
+    total = parts.filter((value) => value > 0).reduce((sum, value) => sum + value, 0)
     const elapsed = Math.max(1, Date.now() - started)
     return total > 0 ? total / elapsed : null
   } catch {
@@ -252,7 +279,7 @@ async function orderCandidatesByLatency(
 }
 
 /* ---------- 停滞超时 ---------- */
-function createStallGuard(): {
+function createStallGuard(timeoutMs = STALL_TIMEOUT): {
   signal: AbortSignal
   touch: () => void
   clear: () => void
@@ -261,7 +288,7 @@ function createStallGuard(): {
   let timer: ReturnType<typeof setTimeout> | null = null
   const touch = (): void => {
     if (timer) clearTimeout(timer)
-    timer = setTimeout(() => controller.abort(), STALL_TIMEOUT)
+    timer = setTimeout(() => controller.abort(), timeoutMs)
   }
   touch()
   return {
@@ -360,6 +387,12 @@ export interface DownloadOptions {
   multiSource?: boolean
   /** 同一主机的最大并发连接数；整合包批量下载可高于默认值。 */
   hostConcurrency?: number
+  /** 多线路：分片持续低于该速度（bytes/s）时中止并换源；0 关闭。 */
+  slowSegmentBps?: number
+  /** 多线路：慢分片观察窗口（ms），默认 7000。 */
+  slowSegmentWindowMs?: number
+  /** 多线路：按实测速度分配分片前，每条线路的测速字节数；0 表示轮询分配。 */
+  sourceProbeBytes?: number
 }
 
 /* ---------- 多线程分片下载 ---------- */
@@ -374,6 +407,7 @@ interface SegmentMeta {
   url: string
   size: number
   count: number
+  lengths?: number[]
   etag?: string
   lastModified?: string
 }
@@ -385,18 +419,111 @@ interface MultiSegmentSource {
 }
 
 interface MultiSegmentMeta {
-  schema: 2
+  schema: 3
   size: number
   count: number
+  /** 与分段文件一一对应的长度；尾段分片与头部不同，不能再按固定长度计算。 */
+  lengths: number[]
   sources: MultiSegmentSource[]
   assignments: number[]
 }
 
 function segmentCount(size: number): number {
   if (size >= 32 * 1024 * 1024) return SEGMENT_MAX
-  if (size >= 8 * 1024 * 1024) return 12
-  if (size >= 4 * 1024 * 1024) return 8
-  return 4
+  if (size >= 8 * 1024 * 1024) return 24
+  if (size >= 2 * 1024 * 1024) return 8
+  if (size >= 512 * 1024) return 4
+  return 1
+}
+
+/**
+ * 只有标准的强 ETag 才能用于 If-Range。
+ * Azure Blob（piston-data）返回的是 0x... 形式的 ETag，服务端会忽略 If-Range
+ * 并直接返回 200 整文件，导致分段下载误判为“源不支持 Range”，退回单连接。
+ */
+function ifRangeValue(etag?: string, lastModified?: string): string | undefined {
+  if (etag && !etag.startsWith('W/') && /^"[^"]*"$/.test(etag)) return etag
+  return lastModified
+}
+
+/**
+ * 这些源要么不识 Range、要么会按 IP/连接限速甚至 403，强制多分片只会更慢。
+ * 与 PCL 的做法一致：直连 GitHub/BMCLAPI/Modrinth/OptiFine 时保持保守，
+ * MCIM、ForgeCDN 等镜像/CDN 才启用激进分片。
+ */
+function isSplitFriendly(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return !(
+      host === 'github.com' ||
+      host.endsWith('githubusercontent.com') ||
+      host === 'bmclapi2.bangbang93.com' ||
+      host === 'optifine.net'
+    )
+  } catch {
+    return false
+  }
+}
+
+function hostLimitFor(url: string, requested = HOST_CONCURRENCY): number {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (
+      host === 'github.com' ||
+      host.endsWith('githubusercontent.com') ||
+      host === 'bmclapi2.bangbang93.com' ||
+      host === 'modrinth.com' ||
+      host.endsWith('.modrinth.com') ||
+      host === 'optifine.net'
+    ) {
+      return Math.min(requested, 8)
+    }
+  } catch {
+    /* ignore */
+  }
+  return requested
+}
+
+/**
+ * 大文件把尾部约 4–12 MB 单独切成 1.5 MB 小分片，其余部分保持较大分片。
+ * 合并时按顺序拼接，因此小分片只在尾部，不改变文件内容顺序。
+ */
+function multiSourceLayout(size: number): Array<{ start: number; length: number }> {
+  if (size < MULTI_TAIL_MIN_SIZE) {
+    const count = segmentCount(size)
+    const base = Math.floor(size / count)
+    return Array.from({ length: count }, (_value, index) => ({
+      start: base * index,
+      length: index === count - 1 ? size - base * index : base
+    }))
+  }
+  const tailBytes = Math.min(
+    MULTI_TAIL_MAX_BYTES,
+    Math.max(MULTI_TAIL_MIN_BYTES, Math.floor(size * 0.1))
+  )
+  const headBytes = size - tailBytes
+  const large = size >= MULTI_HEAD_LARGE_SIZE
+  const headTarget = large ? MULTI_HEAD_TARGET_LARGE_BYTES : MULTI_HEAD_TARGET_BYTES
+  const headMax = large ? MULTI_HEAD_MAX_LARGE : MULTI_HEAD_MAX
+  const headCount = Math.min(
+    headMax,
+    Math.max(8, Math.ceil(headBytes / headTarget))
+  )
+  const base = Math.floor(headBytes / headCount)
+  const ranges: Array<{ start: number; length: number }> = []
+  for (let index = 0; index < headCount; index += 1) {
+    ranges.push({
+      start: base * index,
+      length: index === headCount - 1 ? headBytes - base * index : base
+    })
+  }
+  let offset = headBytes
+  while (offset < size) {
+    const length = Math.min(MULTI_TAIL_CHUNK_BYTES, size - offset)
+    ranges.push({ start: offset, length })
+    offset += length
+  }
+  return ranges
 }
 
 async function readSegmentMeta(path: string): Promise<SegmentMeta | null> {
@@ -405,7 +532,13 @@ async function readSegmentMeta(path: string): Promise<SegmentMeta | null> {
     if (
       typeof raw.url !== 'string' ||
       typeof raw.size !== 'number' ||
-      typeof raw.count !== 'number'
+      typeof raw.count !== 'number' ||
+      !Array.isArray(raw.lengths) ||
+      raw.lengths.length !== raw.count ||
+      !raw.lengths.every(
+        (length) => Number.isInteger(length) && Number(length) > 0
+      ) ||
+      raw.lengths.reduce((sum, length) => sum + Number(length), 0) !== raw.size
     ) {
       return null
     }
@@ -421,11 +554,20 @@ async function readMultiSegmentMeta(
   try {
     const raw = JSON.parse(await fs.readFile(path, 'utf8')) as MultiSegmentMeta
     if (
-      raw.schema !== 2 ||
+      raw.schema !== 3 ||
       typeof raw.size !== 'number' ||
       typeof raw.count !== 'number' ||
+      !Array.isArray(raw.lengths) ||
+      raw.lengths.length !== raw.count ||
       !Array.isArray(raw.sources) ||
       !Array.isArray(raw.assignments)
+    ) {
+      return null
+    }
+    const lengths = raw.lengths.map((length) => Number(length))
+    if (
+      !lengths.every((length) => Number.isInteger(length) && length > 0) ||
+      lengths.reduce((sum, length) => sum + length, 0) !== raw.size
     ) {
       return null
     }
@@ -436,7 +578,7 @@ async function readMultiSegmentMeta(
         typeof (source as MultiSegmentSource).url === 'string'
     )
     if (sources.length < 2 || raw.assignments.length !== raw.count) return null
-    return { ...raw, sources }
+    return { ...raw, lengths, sources }
   } catch {
     return null
   }
@@ -458,7 +600,7 @@ async function removeSegments(
   metaPath: string,
   count: number
 ): Promise<void> {
-  const total = Math.max(count, 32)
+  const total = Math.max(count, 48)
   for (let index = 0; index < total; index += 1) {
     await fs.rm(`${part}.seg${index}`, { force: true }).catch(() => undefined)
   }
@@ -515,8 +657,8 @@ async function downloadFileSegmented(
   expectedSha1: string | null
 ): Promise<boolean> {
   const minBytes = options.segmentMinBytes ?? SEGMENT_MIN_BYTES
-  const hostLimit = options.hostConcurrency ?? HOST_CONCURRENCY
-  if (options.size == null || options.size < minBytes) return false
+  const hostLimit = hostLimitFor(url, options.hostConcurrency ?? HOST_CONCURRENCY)
+  if (options.size == null || options.size < minBytes || !isSplitFriendly(url)) return false
   const part = `${destination}.part`
   try {
     if ((await fs.stat(part)).size > 0) return false
@@ -528,13 +670,18 @@ async function downloadFileSegmented(
   if (!probe) return false
   if (probe.size !== options.size) return false
 
-  const count = segmentCount(probe.size)
+  const layout = multiSourceLayout(probe.size)
+  const count = layout.length
+  const lengths = layout.map((range) => range.length)
+  const starts = layout.map((range) => range.start)
   const metaPath = `${part}.segments.json`
   let meta = await readSegmentMeta(metaPath)
   const compatible =
     meta &&
     meta.size === probe.size &&
     meta.count === count &&
+    meta.lengths?.length === count &&
+    meta.lengths.every((length, index) => length === lengths[index]) &&
     !(meta.etag && probe.etag && meta.etag !== probe.etag)
   if (!compatible) {
     await removeSegments(part, metaPath, count)
@@ -542,6 +689,7 @@ async function downloadFileSegmented(
       url,
       size: probe.size,
       count,
+      lengths,
       etag: probe.etag,
       lastModified: probe.lastModified
     }
@@ -555,11 +703,6 @@ async function downloadFileSegmented(
     }
   }
 
-  const base = Math.floor(probe.size / count)
-  const lengths = Array.from({ length: count }, (_value, index) =>
-    index === count - 1 ? probe.size - base * index : base
-  )
-  const starts = lengths.map((_length, index) => base * index)
   const segmentPath = (index: number): string => `${part}.seg${index}`
 
   const groupAbort = new AbortController()
@@ -569,7 +712,10 @@ async function downloadFileSegmented(
     const start = starts[index]
     const end = start + length - 1
     let lastError: unknown = null
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    let attempt = 0
+    let slowRetries = 0
+    let monitorSlow = true
+    while (attempt < 3) {
       if (groupAbort.signal.aborted) throw new CancellationError()
       let current = 0
       try {
@@ -585,20 +731,29 @@ async function downloadFileSegmented(
       const from = start + current
       const releaseHost = await acquireHost(hostOf(url) ?? 'unknown', hostLimit)
       const stall = createStallGuard()
+      const slowAbort = new AbortController()
       const signals: AbortSignal[] = [
         AbortSignal.timeout(FILE_TIMEOUT),
         stall.signal,
+        slowAbort.signal,
         groupAbort.signal
       ]
       if (options.signal) signals.push(options.signal)
+      const attemptStarted = Date.now()
+      let attemptBytes = 0
+      let windowStarted = attemptStarted
+      let windowBytes = 0
+      let slowAborted = false
       try {
         const headers: Record<string, string> = {
           'User-Agent': USER_AGENT,
           Accept: downloadAccept(url),
           Range: `bytes=${from}-${end}`
         }
-        if (meta?.etag) headers['If-Range'] = meta.etag
-        else if (meta?.lastModified) headers['If-Range'] = meta.lastModified
+        if (meta?.etag) {
+          const ifRange = ifRangeValue(meta.etag, meta.lastModified)
+          if (ifRange) headers['If-Range'] = ifRange
+        }
         const response = await fetch(url, {
           headers,
           signal: AbortSignal.any(signals)
@@ -626,6 +781,32 @@ async function downloadFileSegmented(
           transform(chunk: Buffer, _encoding, callback) {
             options.onBytes?.(chunk.length)
             stall.touch()
+            attemptBytes += chunk.length
+            windowBytes += chunk.length
+            const now = Date.now()
+            const windowElapsed = now - windowStarted
+            const remaining = length - current - attemptBytes
+            if (
+              monitorSlow &&
+              windowElapsed >= SINGLE_SLOW_WINDOW_MS &&
+              now - attemptStarted >= SINGLE_SLOW_GRACE_MS
+            ) {
+              const speed = (windowBytes * 1000) / windowElapsed
+              if (speed < SINGLE_SLOW_BPS && remaining > SINGLE_SLOW_MIN_REMAINING) {
+                slowRetries += 1
+                slowAborted = true
+                slowAbort.abort()
+                callback(
+                  new NetworkError(
+                    `分段速度过慢（${Math.max(1, Math.round(speed / 1024))} KB/s），重连`,
+                    url
+                  )
+                )
+                return
+              }
+              windowStarted = now
+              windowBytes = 0
+            }
             callback(null, chunk)
           }
         })
@@ -650,7 +831,13 @@ async function downloadFileSegmented(
         if (error instanceof RangeUnsupportedError) throw error
         lastError = error
         if (groupAbort.signal.aborted) throw error
-        if (attempt < 2) await sleep(500 * (attempt + 1))
+        if (slowAborted) {
+          if (slowRetries >= SINGLE_SLOW_RETRIES) monitorSlow = false
+          await sleep(120)
+          continue
+        }
+        attempt += 1
+        if (attempt < 3) await sleep(500 * attempt)
       } finally {
         stall.clear()
         releaseHost()
@@ -662,7 +849,11 @@ async function downloadFileSegmented(
   }
 
   try {
-    const tasks = Array.from({ length: count }, (_value, index) =>
+    // 尾段先启动，避免最后几 MB 排在前面的大分片后面等并发槽位。
+    const taskOrder = Array.from({ length: count }, (_value, index) => index).sort(
+      (left, right) => right - left
+    )
+    const tasks = taskOrder.map((index) =>
       work(index).catch((error) => {
         groupAbort.abort()
         throw error
@@ -721,8 +912,38 @@ async function downloadFileSegmented(
 }
 
 /**
- * 多线路并行分片：把文件切成 16–24 段，按线路轮流分配。
- * 每条线路单独记录 ETag；某条线路失败/限额/不支持 Range 时，后续分段自动换线路。
+ * 按权重把 count 个分片轮流分配给各线路；权重来自实测吞吐量。
+ * 使用“已分配数 / 权重”最小优先，避免慢线路占用过多分片。
+ */
+function weightedAssignments(count: number, weights: number[]): number[] {
+  const assignments: number[] = []
+  const served = weights.map(() => 0)
+  const firstAlive = Math.max(0, weights.findIndex((weight) => weight > 0))
+  for (let slot = 0; slot < count; slot += 1) {
+    let best = firstAlive
+    for (let index = 0; index < weights.length; index += 1) {
+      if (weights[index] <= 0) continue
+      const ratio = served[index] / Math.max(weights[index], 1e-6)
+      const bestRatio = served[best] / Math.max(weights[best], 1e-6)
+      if (
+        weights[best] <= 0 ||
+        ratio < bestRatio - 1e-9 ||
+        (Math.abs(ratio - bestRatio) <= 1e-9 && weights[index] > weights[best])
+      ) {
+        best = index
+      }
+    }
+    assignments.push(best)
+    served[best] += 1
+  }
+  return assignments
+}
+
+/**
+ * 多线路并行分片：头部按实测吞吐量加权分配较大分片，尾部约 4–12 MB
+ * 单独切成 1.5 MB 小分片，避免最后几个大分片被慢线路拖住。
+ * 慢于阈值或停滞的分片会从当前偏移换到最快存活线路续传；
+ * 每条线路单独记录 ETag，失败/限额/不支持 Range 时自动换线。
  */
 async function downloadFileMultiSource(
   urls: string[],
@@ -758,31 +979,156 @@ async function downloadFileMultiSource(
   }
   if (sources.length < 2) return false
 
-  const count = Math.min(24, Math.max(segmentCount(size), sources.length * 8))
+  if (options.signal?.aborted) throw new CancellationError()
+  // 大文件用 512 KB 取样；小文件按比例缩小，避免测速本身占了可观带宽。
+  const probeBytes =
+    options.sourceProbeBytes ??
+    Math.min(
+      MULTI_SOURCE_PROBE_BYTES,
+      Math.max(128 * 1024, Math.floor(size / 64))
+    )
+  const probedSpeeds = await Promise.all(
+    sources.map(async (source) => {
+      if (probeBytes <= 0) return null
+      const timeout = AbortSignal.timeout(MULTI_SOURCE_PROBE_TIMEOUT_MS)
+      const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+      const speed = await probeThroughput(source.url, probeBytes, signal)
+      return speed !== null && speed > 0 ? speed * 1000 : null
+    })
+  )
+  if (options.signal?.aborted) throw new CancellationError()
+  const knownSpeeds = probedSpeeds.filter(
+    (speed): speed is number => typeof speed === 'number' && speed > 0
+  )
+  // 测速失败通常意味着线路很慢或超时；给一个低权重兜底，避免它分走大量分片。
+  const unknownSpeed = knownSpeeds.length
+    ? Math.min(64 * 1024, Math.min(...knownSpeeds) * 0.25)
+    : 64 * 1024
+  const sourceSpeeds = probedSpeeds.map((speed) =>
+    typeof speed === 'number' && speed > 0 ? speed : unknownSpeed
+  )
+  // 支持高并发的线路才值得多分片；BMCLAPI 等直连源并发一高就 429，
+  // 测速时看不出问题，真正开跑后半个文件的分片都会失败，最后 2 MB 反复重试。
+  // 只要存在可分片线路且它没有明显更慢，就把直连源留作兜底，不参与分片分配。
+  const splitFlags = sources.map((source) => isSplitFriendly(source.url))
+  const knownSplitSpeeds = probedSpeeds
+    .map((speed, index) => (splitFlags[index] && speed != null && speed > 0 ? speed : null))
+    .filter((speed): speed is number => speed != null)
+  // 可分片线路的测速全部失败时仍给它一个下限，避免把整包交给会 429 的直连源；
+  // 如果确实测到了低速，则按实测值比较，不掩盖真正更快的直连源。
+  const bestSplitSpeed = knownSplitSpeeds.length
+    ? Math.max(...knownSplitSpeeds)
+    : splitFlags.some(Boolean)
+      ? 256 * 1024
+      : 0
+  const bestOtherSpeedValue = Math.max(
+    0,
+    ...sourceSpeeds.filter((_speed, index) => !splitFlags[index])
+  )
+  const preferSplitOnly =
+    splitFlags.some(Boolean) &&
+    bestSplitSpeed > 0 &&
+    bestOtherSpeedValue <= bestSplitSpeed * 2
+  const weights = sourceSpeeds.map((speed, index) => {
+    if (!splitFlags[index] && hostOf(sources[index].url) === 'bmclapi2.bangbang93.com') {
+      // BMCLAPI 在实际分段请求时容易 429，只保留为全部分片线路失效后的兜底。
+      return 0
+    }
+    if (preferSplitOnly && !splitFlags[index]) {
+      // Modrinth 官方/GitHub 等不分片源保留一小部分分片，作为真正的第二线路；
+      // 它们不走高并发，慢分片会按阈值换回主线路。
+      return Math.max(1, Math.round(speed * 0.1))
+    }
+    return Math.max(1, speed)
+  })
+  console.info(
+    `[net] 多线路测速：${sources
+      .map((source, index) => {
+        const label =
+          weights[index] <= 0
+            ? '（仅兜底）'
+            : preferSplitOnly && !splitFlags[index]
+              ? '（少量兜底）'
+              : ''
+        return `${hostOf(source.url) ?? '未知'}=${Math.max(1, Math.round(sourceSpeeds[index] / 1024))}KB/s${label}`
+      })
+      .join('，')}`
+  )
+
+  const layout = multiSourceLayout(size)
+  const count = layout.length
+  const lengths = layout.map((range) => range.length)
+  const starts = layout.map((range) => range.start)
   const metaPath = `${part}.segments.json`
   const existing = await readMultiSegmentMeta(metaPath)
-  if (!existing || existing.size !== size || existing.count !== count) {
+  if (
+    !existing ||
+    existing.size !== size ||
+    existing.count !== count ||
+    existing.lengths.some((length, index) => length !== lengths[index])
+  ) {
     await removeSegments(part, metaPath, count)
   }
-  const assignments = Array.from({ length: count }, (_value, index) => index % sources.length)
-  const meta: MultiSegmentMeta = { schema: 2, size, count, sources, assignments }
+  const assignments = weightedAssignments(count, weights)
+  const meta: MultiSegmentMeta = {
+    schema: 3,
+    size,
+    count,
+    lengths,
+    sources,
+    assignments
+  }
   await writeMultiSegmentMeta(metaPath, meta)
 
-  const base = Math.floor(size / count)
-  const lengths = Array.from({ length: count }, (_value, index) =>
-    index === count - 1 ? size - base * index : base
-  )
-  const starts = lengths.map((_length, index) => base * index)
   const segmentPath = (index: number): string => `${part}.seg${index}`
   const dead = new Set<number>()
   const groupAbort = new AbortController()
+  const slowBps = options.slowSegmentBps ?? MULTI_SLOW_BPS
+  const slowWindowMs = Math.max(1_000, options.slowSegmentWindowMs ?? MULTI_SLOW_WINDOW_MS)
 
   const nextAlive = (preferred: number): number => {
+    // 优先在同级分片线路里换；直连兜底源只有其余线路都不可用时才启用。
+    for (let step = 1; step <= sources.length; step += 1) {
+      const index = (preferred + step) % sources.length
+      if (!dead.has(index) && weights[index] > 0) return index
+    }
     for (let step = 1; step <= sources.length; step += 1) {
       const index = (preferred + step) % sources.length
       if (!dead.has(index)) return index
     }
     return -1
+  }
+
+  /** 当前速度估计最高的存活线路（可排除正在使用的线路）。 */
+  const bestSource = (exclude = -1): number => {
+    const splitAlive = sources.some(
+      (source, index) => !dead.has(index) && index !== exclude && weights[index] > 0
+    )
+    let best = -1
+    let bestSpeed = -1
+    for (let index = 0; index < sources.length; index += 1) {
+      if (index === exclude || dead.has(index)) continue
+      if (splitAlive && weights[index] <= 0) continue
+      const speed = sourceSpeeds[index] ?? 0
+      if (speed > bestSpeed) {
+        best = index
+        bestSpeed = speed
+      }
+    }
+    return best
+  }
+
+  const bestOtherSpeed = (exclude: number): number => {
+    const splitAlive = sources.some(
+      (source, index) => !dead.has(index) && index !== exclude && weights[index] > 0
+    )
+    let best = 0
+    for (let index = 0; index < sources.length; index += 1) {
+      if (index === exclude || dead.has(index)) continue
+      if (splitAlive && weights[index] <= 0) continue
+      best = Math.max(best, sourceSpeeds[index] ?? 0)
+    }
+    return best
   }
 
   const work = async (index: number): Promise<void> => {
@@ -815,22 +1161,37 @@ async function downloadFileMultiSource(
       }
       const source = sources[sourceIndex]
       const from = start + current
-      const releaseHost = await acquireHost(hostOf(source.url) ?? 'unknown', hostLimit)
-      const stall = createStallGuard()
+      const releaseHost = await acquireHost(
+        hostOf(source.url) ?? 'unknown',
+        hostLimitFor(source.url, hostLimit)
+      )
+      // 多线路时分片无数据 8 秒就换线，比单线路的 20 秒更积极，避免卡死分片拖尾。
+      const stall = createStallGuard(
+        slowBps > 0 ? Math.max(2_500, slowWindowMs + 1_000) : STALL_TIMEOUT
+      )
+      const slowAbort = new AbortController()
       const signals: AbortSignal[] = [
         AbortSignal.timeout(FILE_TIMEOUT),
         stall.signal,
+        slowAbort.signal,
         groupAbort.signal
       ]
       if (options.signal) signals.push(options.signal)
+      const attemptStarted = Date.now()
+      let attemptBytes = 0
+      let windowStarted = attemptStarted
+      let windowBytes = 0
+      let slowAborted = false
       try {
         const headers: Record<string, string> = {
           'User-Agent': USER_AGENT,
           Accept: downloadAccept(source.url),
           Range: `bytes=${from}-${end}`
         }
-        if (source.etag) headers['If-Range'] = source.etag
-        else if (source.lastModified) headers['If-Range'] = source.lastModified
+        if (source.etag) {
+          const ifRange = ifRangeValue(source.etag, source.lastModified)
+          if (ifRange) headers['If-Range'] = ifRange
+        }
         const response = await fetch(source.url, {
           headers,
           signal: AbortSignal.any(signals)
@@ -869,6 +1230,37 @@ async function downloadFileMultiSource(
           transform(chunk: Buffer, _encoding, callback) {
             options.onBytes?.(chunk.length)
             stall.touch()
+            attemptBytes += chunk.length
+            windowBytes += chunk.length
+            const now = Date.now()
+            const windowElapsed = now - windowStarted
+            if (
+              slowBps > 0 &&
+              windowElapsed >= slowWindowMs &&
+              now - attemptStarted >= MULTI_SLOW_GRACE_MS
+            ) {
+              const speed = (windowBytes * 1000) / windowElapsed
+              const other = bestOtherSpeed(sourceIndex)
+              // 绝对慢（几十 KB/s）或相对慢（不到最快线路的三成）都换源，
+              // 但只有另一条线路至少快一倍且达到最低可用速度时才值得中断。
+              const tooSlow = speed < slowBps || speed < other * 0.3
+              if (tooSlow && other >= Math.max(200 * 1024, speed * 2)) {
+                slowAborted = true
+                slowAbort.abort()
+                console.warn(
+                  `[net] ${hostOf(source.url) ?? '未知线路'} 分片仅 ${Math.max(1, Math.round(speed / 1024))}KB/s，切换到更快线路`
+                )
+                callback(
+                  new NetworkError(
+                    `分片速度过慢（${Math.max(1, Math.round(speed / 1024))} KB/s），切换线路`,
+                    source.url
+                  )
+                )
+                return
+              }
+              windowStarted = now
+              windowBytes = 0
+            }
             callback(null, chunk)
           }
         })
@@ -887,14 +1279,42 @@ async function downloadFileMultiSource(
             source.url
           )
         }
+        const elapsed = Math.max(0.25, (Date.now() - attemptStarted) / 1000)
+        const measured = attemptBytes / elapsed
+        const previous = sourceSpeeds[sourceIndex] ?? measured
+        sourceSpeeds[sourceIndex] =
+          previous > 0 ? previous * 0.65 + measured * 0.35 : measured
+        assignments[index] = sourceIndex
         return
       } catch (error) {
         if (options.signal?.aborted) throw new CancellationError()
         lastError = error
-        const next = nextAlive(sourceIndex)
-        if (next >= 0) assignments[index] = next
+        const elapsed = Math.max(0.25, (Date.now() - attemptStarted) / 1000)
+        const measured = attemptBytes / elapsed
+        const stalled = stall.signal.aborted
+        if (stalled) {
+          console.warn(
+            `[net] ${hostOf(source.url) ?? '未知线路'} 分片停滞超过 ${Math.round(
+              (slowBps > 0 ? Math.max(2_500, slowWindowMs + 1_000) : STALL_TIMEOUT) / 1000
+            )}s，切换线路`
+          )
+        }
+        if (slowAborted || stalled) {
+          // 慢速/卡死线路降权，并把剩余区间交给当前更快的存活线路。
+          const previous = sourceSpeeds[sourceIndex] ?? measured
+          sourceSpeeds[sourceIndex] = stalled
+            ? Math.max(1, Math.min(previous, 64 * 1024))
+            : Math.max(1, Math.min(previous, measured))
+          const next = bestSource(sourceIndex)
+          if (next >= 0) assignments[index] = next
+        } else {
+          const next = nextAlive(sourceIndex)
+          if (next >= 0) assignments[index] = next
+        }
         if (groupAbort.signal.aborted) throw error
-        if (attempt < 4) await sleep(350 * (attempt + 1))
+        if (attempt < 4) {
+          await sleep(slowAborted || stalled ? 120 : 350 * (attempt + 1))
+        }
       } finally {
         stall.clear()
         releaseHost()
@@ -906,7 +1326,11 @@ async function downloadFileMultiSource(
   }
 
   try {
-    const tasks = Array.from({ length: count }, (_value, index) =>
+    // 尾段先启动：直连源有并发上限时，最后 1–2 MB 不会排在几十个大分片后面等槽位。
+    const taskOrder = Array.from({ length: count }, (_value, index) => index).sort(
+      (left, right) => right - left
+    )
+    const tasks = taskOrder.map((index) =>
       work(index).catch((error) => {
         groupAbort.abort()
         throw error
@@ -980,13 +1404,13 @@ export async function downloadFile(
   await fs.mkdir(dirname(destination), { recursive: true })
   const part = `${destination}.part`
   const metaPath = `${part}.json`
-  const hostLimit = options.hostConcurrency ?? HOST_CONCURRENCY
   let lastError: Error | null = null
   if (
     options.multiSource &&
     options.size != null &&
     options.size >= (options.segmentMinBytes ?? SEGMENT_MIN_BYTES) &&
-    urls.length > 1
+    urls.length > 1 &&
+    urls.some((url) => isSplitFriendly(url))
   ) {
     try {
       const completed = await downloadFileMultiSource(
@@ -1001,17 +1425,43 @@ export async function downloadFile(
       lastError = friendlyError(error, urls[0])
     }
   }
-  const candidates =
+  let candidates: string[]
+  if (options.multiSource && urls.length > 1) {
+    // 多线路失败后先重试可分片的官方线路；直接回退 BMCLAPI 单连接会把最后几十 MB 拖成几分钟。
+    candidates = [...urls].sort(
+      (left, right) => Number(isSplitFriendly(right)) - Number(isSplitFriendly(left))
+    )
+  } else if (
     options.probeSources &&
     options.size != null &&
     options.size >= SOURCE_PROBE_MIN_BYTES &&
     urls.length > 1
-      ? await orderCandidatesByLatency(
-          urls,
-          options.signal,
-          options.probeBytes ?? 0
-        )
-      : urls
+  ) {
+    candidates = await orderCandidatesByLatency(
+      urls,
+      options.signal,
+      options.probeBytes ?? 0
+    )
+  } else {
+    candidates = urls
+  }
+  if (
+    options.size != null &&
+    options.size >= (options.segmentMinBytes ?? SEGMENT_MIN_BYTES) &&
+    candidates.length > 1 &&
+    hostOf(candidates[0]) !== 'bmclapi2.bangbang93.com'
+  ) {
+    // MCIM 镜像优先；其次才按普通源排序。避免源站 256 KB 测速把不分片/较慢的
+    // Modrinth 官方排到前面，导致整个文件退回单连接或走慢速节点。
+    const priorityOf = (url: string): number => {
+      const host = hostOf(url)
+      if (host === 'mod.mcimirror.top') return 0
+      return isSplitFriendly(url) ? 1 : 2
+    }
+    candidates = [...candidates].sort(
+      (left, right) => priorityOf(left) - priorityOf(right)
+    )
+  }
 
   for (const url of candidates) {
     let attempt = 0
@@ -1053,7 +1503,8 @@ export async function downloadFile(
         if (
           offset === 0 &&
           options.size != null &&
-          options.size >= (options.segmentMinBytes ?? SEGMENT_MIN_BYTES)
+          options.size >= (options.segmentMinBytes ?? SEGMENT_MIN_BYTES) &&
+          isSplitFriendly(url)
         ) {
           try {
             const completed = await downloadFileSegmented(
@@ -1077,12 +1528,12 @@ export async function downloadFile(
         }
         if (offset > 0) {
           headers.Range = `bytes=${offset}-`
-          if (meta?.etag) headers['If-Range'] = meta.etag
-          else if (meta?.lastModified) headers['If-Range'] = meta.lastModified
+          const ifRange = ifRangeValue(meta?.etag, meta?.lastModified)
+          if (ifRange) headers['If-Range'] = ifRange
         }
 
         const host = hostOf(url)
-        if (host) releaseHost = await acquireHost(host, hostLimit)
+        if (host) releaseHost = await acquireHost(host, hostLimitFor(url, options.hostConcurrency ?? HOST_CONCURRENCY))
         if (options.signal?.aborted) throw new CancellationError()
         stall = createStallGuard()
 

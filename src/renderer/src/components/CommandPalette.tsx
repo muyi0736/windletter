@@ -246,7 +246,7 @@ export function CommandPalette() {
       {
         id: 'action:logs-folder',
         label: '打开日志文件夹',
-        hint: '风信日志目录',
+        hint: '月月月日志目录',
         keywords: ['日志', '文件夹', 'log'],
         category: '操作',
         icon: <FolderOpen size={15} />,

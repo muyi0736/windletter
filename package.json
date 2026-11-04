@@ -1,8 +1,8 @@
 {
   "name": "windletter-launcher",
-  "version": "0.60.20",
+  "version": "0.60.51",
   "private": true,
-  "description": "风信启动器 - 风有信，月无边。一个受 PCL2 启发的 Minecraft 启动器",
+  "description": "月月月启动器 - 月无边。一个受 PCL2 启发的 Minecraft 启动器",
   "main": "./out/main/index.js",
   "author": "Windletter",
   "license": "MIT",
@@ -15,12 +15,13 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test:download": "vite build --config scripts/download-smoke-test/vite.config.ts && node scripts/download-smoke-test/.tmp/dist/test.cjs",
     "aliases:mcmod": "node scripts/mcmod-alias-import/index.mjs",
+    "glossary:build": "node scripts/build-community-glossary.mjs",
     "update:manifest": "node scripts/make-update-manifest.mjs",
-    "dist": "electron-vite build && electron-builder --win nsis"
+    "dist": "node scripts/dist.mjs"
   },
   "build": {
     "appId": "com.windletter.launcher",
-    "productName": "风信启动器",
+    "productName": "月月月启动器",
     "directories": {
       "output": "release"
     },
@@ -43,6 +44,10 @@
       {
         "from": "build/playtime-watch.exe",
         "to": "playtime-watch.exe"
+      },
+      {
+        "from": "resources/glossary",
+        "to": "glossary"
       }
     ]
   },

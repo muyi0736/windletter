@@ -149,11 +149,22 @@ export interface CurseForgeManifestFile {
  * 整合包清单解析用的轻量查询：正常文件只请求一次文件接口；
  * 只有作者关闭第三方下载时才补一次项目信息，用来拼出正确的网页地址。
  */
+const manifestFileCache = new Map<
+  string,
+  { at: number; value: CurseForgeManifestFile }
+>()
+const MANIFEST_FILE_TTL = 6 * 60 * 60_000
+
 export async function resolveCurseForgeManifestFile(
   projectId: string,
   fileId: string,
   settings: LauncherSettings
 ): Promise<CurseForgeManifestFile> {
+  const cacheKey = `${apiBase(settings)}|${projectId}|${fileId}`
+  const cached = manifestFileCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < MANIFEST_FILE_TTL) {
+    return cached.value
+  }
   const raw = await cfFetch<{ data?: CfFile }>(
     `${apiBase(settings)}/v1/mods/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}`,
     settings
@@ -176,13 +187,19 @@ export async function resolveCurseForgeManifestFile(
       /* keep numeric id */
     }
   }
-  return {
+  const result: CurseForgeManifestFile = {
     filename: file.fileName,
     url: directUrl,
     manualUrl: `https://www.curseforge.com/minecraft/mc-mods/${slug}/files/${file.id}`,
     sha1: fileSha1(file),
     size: typeof file.fileLength === 'number' ? file.fileLength : null
   }
+  manifestFileCache.set(cacheKey, { at: Date.now(), value: result })
+  if (manifestFileCache.size > 5000) {
+    const entries = [...manifestFileCache.entries()].sort((a, b) => a[1].at - b[1].at)
+    for (const [key] of entries.slice(0, 1000)) manifestFileCache.delete(key)
+  }
+  return result
 }
 
 function loaderType(loader: string): number | null {
@@ -221,19 +238,40 @@ async function cfRequest<T>(
   if (!key && !mirror) {
     throw new Error('请先在设置中填写 CurseForge API key（console.curseforge.com 免费申请）')
   }
-  let response: Response
-  try {
-    response = await fetch(url, {
-      ...init,
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'application/json',
-        ...(init.headers ?? {}),
-        ...(key && !mirror ? { 'x-api-key': key } : {})
-      },
-      signal: AbortSignal.timeout(20_000)
-    })
-  } catch {
+  let response: Response | null = null
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        ...init,
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'application/json',
+          ...(init.headers ?? {}),
+          ...(key && !mirror ? { 'x-api-key': key } : {})
+        },
+        signal: AbortSignal.timeout(20_000)
+      })
+    } catch {
+      response = null
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)))
+        continue
+      }
+      break
+    }
+    if ((response.status === 429 || response.status >= 500) && attempt < 2) {
+      const retryAfter = Number(response.headers.get('retry-after') ?? '')
+      const delay =
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(5_000, retryAfter * 1000)
+          : 500 * (attempt + 1)
+      await response.body?.cancel().catch(() => undefined)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      continue
+    }
+    break
+  }
+  if (!response) {
     throw new Error('无法连接 CurseForge API，请检查网络或自定义 API 地址')
   }
   if (response.status === 401 || response.status === 403) {

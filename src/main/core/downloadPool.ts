@@ -12,6 +12,8 @@ export interface DownloadJob {
   label?: string
   /** 升级/修复时不能只按大小判断，必须核对已有文件的 SHA1。 */
   verifySha1?: boolean
+  /** 大文件允许同任务的多个候选 URL 同时测速/分片。 */
+  multiSource?: boolean
 }
 
 interface DownloadPoolResult {
@@ -123,6 +125,7 @@ export async function runDownloadPool(
           size: job.size,
           signal: options.signal,
           hostConcurrency: options.hostConcurrency,
+          multiSource: job.multiSource,
           onBytes: (bytes) => {
             received += bytes
             entry.bytes += bytes

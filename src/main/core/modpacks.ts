@@ -37,6 +37,8 @@ const MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 const MAX_INDEX_BYTES = 8 * 1024 * 1024
 const MAX_ENTRY_BYTES = 512 * 1024 * 1024
 const MAX_OVERRIDE_BYTES = 2 * 1024 * 1024 * 1024
+/** 整合包内 ≥8 MB 的文件启用镜像/官方双线路与尾段细分。 */
+const PACK_MULTI_SOURCE_MIN_BYTES = 8 * 1024 * 1024
 
 interface MrpackFile {
   path?: string
@@ -421,7 +423,9 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
       destination: safeJoin(minecraftDir, file.path),
       sha1: file.sha1,
       size: file.size,
-      label: basename(file.path)
+      label: basename(file.path),
+      multiSource:
+        (file.size ?? 0) >= PACK_MULTI_SOURCE_MIN_BYTES && file.urls.length > 1
     }))
     const reuseJobs = jobs.flatMap((job) =>
       job.sha1 && job.size != null
@@ -497,6 +501,7 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
       const downloadStage =
         reusedFiles > 0 ? `下载整合包文件 · 本地复用 ${reusedFiles}` : '下载整合包文件'
       let lastDetail: DownloadDetail = emptyDetail()
+      let packProgressFloor = 0
       reportPack(downloadStage, 0, lastDetail)
       await runDownloadPool(jobs, {
         concurrency: options.concurrency,
@@ -504,8 +509,15 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
         signal: stageSignal,
         onProgress: (detail) => {
           lastDetail = detail
-          const ratio = detail.total ? detail.current / detail.total : 1
-          reportPack(downloadStage, ratio, detail)
+          const fileRatio = detail.total ? detail.current / detail.total : 1
+          const byteRatio =
+            detail.bytesTotal > 0 ? detail.bytesDone / detail.bytesTotal : 0
+          // 最后一个文件下载时文件数比例几乎不动；同时按字节推进，进度条才不会看起来卡死。
+          packProgressFloor = Math.min(
+            1,
+            Math.max(packProgressFloor, fileRatio, byteRatio)
+          )
+          reportPack(downloadStage, packProgressFloor, detail)
         }
       })
       if (stageSignal.aborted) throw new CancellationError()
@@ -573,6 +585,7 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
           gameVersion,
           loader,
           loaderVersion,
+          source: options.downloadSource,
           javaPath,
           concurrency: options.concurrency,
           signal: stageSignal,

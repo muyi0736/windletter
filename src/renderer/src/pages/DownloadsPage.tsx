@@ -796,12 +796,7 @@ export function DownloadsPage() {
     <div className="page page--downloads-hub">
       <header className="page-head downloads-head">
         <div className="page-head-copy">
-          <span className="page-eyebrow">
-            <Download size={14} />
-            下载中心
-          </span>
-          <h1>获取内容</h1>
-          <p>原版、加载器、整合包和模组，在这里一次准备好。</p>
+          <h1>下载</h1>
         </div>
         <div className="downloads-head-actions">
           <div className="source-control">
@@ -813,8 +808,8 @@ export function DownloadsPage() {
               size="sm"
               value={source}
               options={[
-                { value: 'mirror', label: 'BMCLAPI 镜像' },
-                { value: 'official', label: '官方源' }
+                { value: 'mirror', label: '镜像' },
+                { value: 'official', label: '官方' }
               ]}
               onChange={(value) => void handleSourceChange(value)}
             />
@@ -937,7 +932,6 @@ export function DownloadsPage() {
                             <h2>{selectedEntry.id}</h2>
                             <p>
                               {versionTypeLabel(selectedEntry.type)} · {formatDate(selectedEntry.releaseTime)}
-                              {selectedEntry.id === latest ? ' · 最新正式版' : ''}
                             </p>
                           </div>
                         </div>
@@ -945,7 +939,6 @@ export function DownloadsPage() {
                         <div className="game-loader-section">
                           <div className="game-loader-head">
                             <span>实例类型</span>
-                            <span>原版与加载器都会创建独立实例</span>
                           </div>
                           <div className="game-loader-list">
                             {LOADERS.map((loader) => {
@@ -970,18 +963,10 @@ export function DownloadsPage() {
                                   }}
                                 >
                                   <span className="game-loader-name">
-                                    {loader.value === 'none' ? '原版（不装加载器）' : loader.label}
+                                    {loader.value === 'none' ? '原版' : loader.label}
                                   </span>
-                                  <span className="game-loader-state">
-                                    {matching.length > 0
-                                      ? `已有 ${
-                                          matching.length > 1
-                                            ? `${matching.length} 个`
-                                            : exists.name
-                                        } · 可再建`
-                                      : loader.value === 'none'
-                                        ? '创建独立原版实例'
-                                        : '可以添加'}
+                                  <span className={`game-loader-state ${matching.length > 0 ? 'is-installed' : ''}`}>
+                                    {matching.length > 0 ? '已安装' : '可安装'}
                                   </span>
                                   <ChevronRight size={14} />
                                 </button>
@@ -1028,39 +1013,23 @@ export function DownloadsPage() {
                                   }
                                 >
                                   <span className="game-loader-name">OptiFine</span>
-                                  <span className="game-loader-state">
+                                  <span className={`game-loader-state ${exists ? 'is-installed' : disabled ? 'is-disabled' : ''}`}>
                                     {exists
-                                      ? `已有 ${
-                                          matching.length > 1
-                                            ? `${matching.length} 个`
-                                            : exists.name
-                                        } · 可再建`
+                                      ? '已安装'
                                       : optifineLoading
-                                        ? '检查可用版本…'
+                                        ? '检查中'
                                         : optifineError
-                                          ? '读取失败，点击重试'
+                                          ? '读取失败'
                                           : unavailable
-                                            ? '暂无此版本'
-                                            : `${optifineVersions.length} 个${
-                                                previewOnly ? '测试版' : '版本'
-                                              }可用`}
+                                            ? '不可用'
+                                            : '可安装'}
                                   </span>
                                   <ChevronRight size={14} />
                                 </button>
                               )
                             })()}
                           </div>
-                          <p className="game-loader-note">
-                            游戏文件只下载一份；实例只隔离 mods、config、saves 等个人内容。删除原版实例不会删除版本文件。
-                          </p>
-                          {!optifineLoading &&
-                            !optifineError &&
-                            optifineVersions.length === 0 && (
-                              <p className="game-loader-note">
-                                OptiFine 的更新通常落后于最新正式版，官方尚未发布 Minecraft{' '}
-                                {selectedEntry.id} 的构建。可切换到 OptiFine 已支持的旧版本再安装。
-                              </p>
-                            )}
+
                         </div>
 
                         {loaderChoice !== 'none' && (
@@ -1142,20 +1111,16 @@ export function DownloadsPage() {
                           <div className="game-install-footer-copy">
                             <span className={`game-install-status ${installedReady ? 'is-ready' : ''}`}>
                               {loaderMatches.length > 0
-                                ? `已有 ${
-                                    loaderMatches.length > 1
-                                      ? `${loaderMatches.length} 个`
-                                      : selectedInstance.name
-                                  }，再创建会得到独立实例`
+                                ? '已安装 · 再创建会新建实例'
                                 : loaderChoice === 'none'
                                   ? installedReady
-                                    ? '原版文件已就绪 · 将创建独立实例'
+                                    ? '原版文件已安装'
                                     : installedSelected
-                                      ? '原版文件不完整 · 创建时会补齐'
-                                      : '下载原版并创建独立实例'
+                                      ? '原版文件不完整'
+                                      : '下载原版并创建实例'
                                   : `将创建 ${loaderLabel(loaderChoice)} 实例`}
                             </span>
-                            {loaderChoice === 'none' && (
+                            {loaderChoice === 'none' && !installedReady && (
                               <button
                                 type="button"
                                 className="link-button game-install-secondary"
@@ -1165,10 +1130,10 @@ export function DownloadsPage() {
                                 }}
                               >
                                 {installedReady
-                                  ? '原版游戏文件已安装'
+                                  ? '仅补全文件'
                                   : installedSelected
-                                    ? '只补全游戏文件，不创建实例'
-                                    : '只下载游戏文件，不创建实例'}
+                                    ? '仅补全文件'
+                                    : '仅下载文件'}
                               </button>
                             )}
                           </div>

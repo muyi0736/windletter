@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { PackagePlus, RefreshCw } from 'lucide-react'
 import { useLauncher } from './store'
-import { applyAccent, applyTheme, customBackgroundUrl } from './lib/appearance'
+import { applyAccent, applyTheme } from './lib/appearance'
 import { TitleBar } from './components/TitleBar'
+import { CustomBackground } from './components/CustomBackground'
 import { CommandPalette } from './components/CommandPalette'
 import { ToastStack } from './components/ToastStack'
 import { TaskDock } from './components/TaskDock'
@@ -24,6 +25,8 @@ import { ServersPage } from './pages/ServersPage'
 import { DownloadsPage } from './pages/DownloadsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { MorePage } from './pages/MorePage'
+
+const EMPTY_BACKGROUNDS: string[] = []
 
 function CurrentPage() {
   const page = useLauncher((state) => state.page)
@@ -51,7 +54,10 @@ export default function App() {
   const page = useLauncher((state) => state.page)
   const theme = useLauncher((state) => state.settings?.theme)
   const accent = useLauncher((state) => state.settings?.accent)
-  const backgroundImage = useLauncher((state) => state.settings?.backgroundImage)
+  const backgroundImages = useLauncher(
+    (state) => state.settings?.backgroundImages ?? EMPTY_BACKGROUNDS
+  )
+  const backgroundIntervalSec = useLauncher((state) => state.settings?.backgroundIntervalSec ?? 30)
   const backgroundDim = useLauncher((state) => state.settings?.backgroundDim ?? 35)
   const backgroundBlur = useLauncher((state) => state.settings?.backgroundBlur ?? 0)
   const memorySaver = useLauncher((state) => state.settings?.memorySaver)
@@ -116,14 +122,14 @@ export default function App() {
     if (accent) applyAccent(accent)
   }, [accent])
 
-  const backgroundUrl = customBackgroundUrl(backgroundImage)
+  const hasCustomBackground = backgroundImages.length > 0
 
   useEffect(() => {
-    document.documentElement.dataset.customBackground = backgroundUrl ? 'true' : 'false'
+    document.documentElement.dataset.customBackground = hasCustomBackground ? 'true' : 'false'
     return () => {
       document.documentElement.dataset.customBackground = 'false'
     }
-  }, [backgroundUrl])
+  }, [hasCustomBackground])
 
   useEffect(() => {
     const hasFiles = (event: DragEvent): boolean =>
@@ -194,25 +200,17 @@ export default function App() {
   return (
     <div
       className={`app-shell ${consoleOpen ? 'console-open' : ''} ${
-        backgroundUrl ? 'has-custom-background' : ''
+        hasCustomBackground ? 'has-custom-background' : ''
       }`}
     >
-      {backgroundUrl && (
-        <>
-          <div
-            className="custom-background"
-            style={{
-              backgroundImage: `url("${backgroundUrl}")`,
-              filter: backgroundBlur > 0 ? `blur(${backgroundBlur}px)` : undefined
-            }}
-            aria-hidden="true"
-          />
-          <div
-            className="custom-background-veil"
-            style={{ opacity: Math.max(0, Math.min(80, backgroundDim)) / 100 }}
-            aria-hidden="true"
-          />
-        </>
+      {hasCustomBackground && (
+        <CustomBackground
+          key={backgroundImages.join('\n')}
+          images={backgroundImages}
+          intervalSec={backgroundIntervalSec}
+          dim={backgroundDim}
+          blur={backgroundBlur}
+        />
       )}
       {dragging && (
         <div className="drop-overlay">

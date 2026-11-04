@@ -17,6 +17,8 @@ import { emptyDetail, type TaskProgress } from './progress'
 
 const MAX_ENTRY_BYTES = 512 * 1024 * 1024
 const MAX_OVERRIDE_BYTES = 2 * 1024 * 1024 * 1024
+/** CurseForge 清单逐文件查询是纯网络等待；实测 24 路 200 个文件 7.5 秒且无 429。 */
+const CF_RESOLVE_CONCURRENCY = 24
 
 interface CfManifestFile {
   projectID?: number
@@ -128,7 +130,7 @@ export async function prepareCurseForgePackArchive(
     const archive = await getCurseForgeFileInfo(options.projectId, options.fileId, settings)
     if (!archive.url) {
       throw new Error(
-        `CurseForge 未提供自动下载地址（作者限制了第三方分发）。请打开 ${archive.manualUrl} 手动下载后导入，风信不会绕过下载限制。`
+        `CurseForge 未提供自动下载地址（作者限制了第三方分发）。请打开 ${archive.manualUrl} 手动下载后导入，月月月启动器不会绕过下载限制。`
       )
     }
     report(`下载整合包 ${archive.filename}`, 3)
@@ -138,6 +140,7 @@ export async function prepareCurseForgePackArchive(
       {
         sha1: archive.sha1,
         size: archive.size,
+        multiSource: (archive.size ?? 0) >= 8 * 1024 * 1024,
         signal,
         onBytes: (() => {
           let done = 0
@@ -232,7 +235,7 @@ export async function prepareCurseForgePackArchive(
       }
     }
     await Promise.all(
-      Array.from({ length: Math.min(4, manifestFiles.length) }, async () => {
+      Array.from({ length: Math.min(CF_RESOLVE_CONCURRENCY, manifestFiles.length) }, async () => {
         while (true) {
           const index = cursor
           cursor += 1
@@ -578,7 +581,7 @@ export async function downloadCurseForgeServerPack(
   }
   if (!source) {
     throw new Error(
-      `无法读取这个 CurseForge 服务端包。请打开 ${pageUrl} 手动下载，风信不会绕过下载限制。`
+      `无法读取这个 CurseForge 服务端包。请打开 ${pageUrl} 手动下载，月月月启动器不会绕过下载限制。`
     )
   }
 

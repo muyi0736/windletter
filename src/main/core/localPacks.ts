@@ -180,7 +180,7 @@ function baseRoots(): LocalPackRoot[] {
   const home = homedir()
   const appData = process.env.APPDATA ?? join(home, 'AppData', 'Roaming')
   const roots: LocalPackRoot[] = [
-    { label: '风信下载目录', path: join(getConfigDir(), 'downloads') },
+    { label: '月月月下载目录', path: join(getConfigDir(), 'downloads') },
     { label: '系统下载', path: join(home, 'Downloads') },
     { label: '桌面', path: join(home, 'Desktop') },
     { label: '文档', path: join(home, 'Documents') },
@@ -694,7 +694,7 @@ export async function scanLocalPacks(
     (root) =>
       !savedRoots.includes(root) &&
       !versionRoots.includes(root) &&
-      !['风信下载目录', '系统下载', '桌面', '文档'].includes(root.label)
+      !['月月月下载目录', '系统下载', '桌面', '文档'].includes(root.label)
   )
   for (const root of instanceRoots) {
     if (!(await pathExists(root.path))) continue
@@ -882,6 +882,7 @@ export async function importInstalledPack(
         gameVersion,
         loader,
         loaderVersion,
+        source: settings.source,
         javaPath,
         concurrency: settings.downloadConcurrency,
         signal,

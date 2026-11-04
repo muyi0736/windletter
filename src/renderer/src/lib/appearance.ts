@@ -39,3 +39,7 @@ export function applyAccent(accent: AccentName | null | undefined): AccentName {
 export function customBackgroundUrl(name: string | null | undefined): string | null {
   return name ? `windletter-bg://background/${encodeURIComponent(name)}` : null
 }
+
+export function customBackgroundUrls(names: string[] | null | undefined): string[] {
+  return (names ?? []).map((name) => customBackgroundUrl(name)).filter((url): url is string => Boolean(url))
+}

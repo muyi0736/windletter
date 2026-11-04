@@ -3582,6 +3582,25 @@
   gap: 10px;
 }
 
+.java-assign-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  color: var(--text-2);
+  font-size: 8.5px;
+  line-height: 1.6;
+}
+
+.java-assign-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--warning);
+}
+
 .java-assign-list {
   display: flex;
   flex-direction: column;
@@ -3619,6 +3638,14 @@
   border-radius: 8px;
   background: var(--accent-soft);
   color: var(--accent-ink);
+}
+
+.java-assign-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .java-assign-copy {
@@ -4255,160 +4282,6 @@
   }
 }
 
-/* Classic home: fit the whole workbench into the window like a zoomed-out fullscreen */
-.home-classic-fit {
-  position: relative;
-  display: block;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  padding: 0;
-  gap: 0;
-}
-
-.home-fit-content {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  width: 1680px;
-  transform-origin: top left;
-  will-change: transform;
-}
-
-/* The zoomed layout always keeps the full three-column workbench; viewport
-   breakpoints must not turn it into the stacked mobile arrangement. */
-.home-fit-content .workbench-layout {
-  display: grid !important;
-  grid-template-columns: 260px minmax(0, 1fr) 300px !important;
-  grid-template-areas: none !important;
-  gap: 16px !important;
-  flex: 0 0 auto !important;
-  align-items: start;
-}
-
-.home-fit-content .workbench-layout.is-right-collapsed {
-  grid-template-columns: 260px minmax(0, 1fr) 56px !important;
-}
-
-.home-fit-content .left-panel {
-  display: flex !important;
-  flex-direction: column !important;
-  grid-area: auto !important;
-  overflow: visible !important;
-}
-
-.home-fit-content .center-panel {
-  grid-area: auto !important;
-  overflow: visible !important;
-}
-
-.home-fit-content .right-panel {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  grid-area: auto !important;
-  grid-template-columns: none !important;
-  overflow: visible !important;
-  padding-right: 0 !important;
-}
-
-.home-fit-content .right-panel.is-collapsed {
-  align-items: center !important;
-  padding: 38px 0 0 !important;
-}
-
-.home-fit-content .right-panel.is-collapsed .right-rail {
-  flex-direction: column !important;
-}
-
-.home-fit-content .right-panel.is-collapsed .right-panel-toggle {
-  position: absolute !important;
-  top: 0 !important;
-  right: 50% !important;
-  transform: translateX(50%) !important;
-}
-
-.home-fit-content .library-table-head,
-.home-fit-content .library-table-row {
-  grid-template-columns: 38px minmax(120px, 1fr) 78px 66px 86px 118px !important;
-  gap: 8px !important;
-}
-
-.home-fit-content .library-table-head > span:nth-child(4),
-.home-fit-content .library-table-row > span:nth-child(4) {
-  display: block !important;
-}
-
-/* Narrow design canvases keep all columns but drop the two secondary table columns. */
-.home-fit-content.is-narrow-canvas .library-table-head,
-.home-fit-content.is-narrow-canvas .library-table-row {
-  grid-template-columns: 34px minmax(100px, 1fr) 66px 96px !important;
-  gap: 6px !important;
-}
-
-.home-fit-content.is-narrow-canvas .library-table-head > *:nth-child(3),
-.home-fit-content.is-narrow-canvas .library-table-row > *:nth-child(3),
-.home-fit-content.is-narrow-canvas .library-table-head > *:nth-child(5),
-.home-fit-content.is-narrow-canvas .library-table-row > *:nth-child(5) {
-  display: none !important;
-}
-
-
-/* Near-square/tall windows: use a compact three-column layout at the real width
-   so every card keeps its natural spacing and the page fills the height. */
-.home-fit-content.is-tall-canvas .workbench-layout {
-  grid-template-columns: 220px minmax(0, 1fr) 240px !important;
-  gap: 12px !important;
-}
-
-.home-fit-content.is-tall-canvas .left-panel {
-  gap: 8px !important;
-}
-
-.home-fit-content.is-tall-canvas .quick-card {
-  padding: 10px !important;
-  gap: 6px !important;
-}
-
-.home-fit-content.is-tall-canvas .right-panel {
-  gap: 8px !important;
-}
-
-.home-fit-content.is-tall-canvas .sidebar-card {
-  padding: 10px !important;
-  gap: 6px !important;
-}
-
-.home-fit-content.is-tall-canvas .center-panel {
-  gap: 10px !important;
-}
-
-.home-fit-content.is-tall-canvas .center-panel .focus-panel {
-  min-height: 0 !important;
-  padding: 14px !important;
-  gap: 9px !important;
-}
-
-.home-fit-content.is-tall-canvas .focus-icon {
-  width: 52px !important;
-  height: 52px !important;
-}
-
-.home-fit-content.is-tall-canvas .focus-name h2 {
-  font-size: 30px !important;
-}
-
-.home-fit-content.is-tall-canvas .workbench-section {
-  gap: 6px !important;
-}
-
-.home-fit-content.is-tall-canvas .library-table-body {
-  max-height: 150px !important;
-}
-
 .task-parallel {
   margin-top: 5px;
   padding: 5px 6px;
@@ -4444,3 +4317,4 @@
   margin-top: 4px;
   opacity: 0.8;
 }
+

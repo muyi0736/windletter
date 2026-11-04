@@ -18,7 +18,6 @@ import type {
   InstanceSummary,
   InstanceSettingsPatch,
   InstanceTransferRequest,
-  JavaAssignmentApply,
   LauncherSettings,
   LoaderInstanceRequest,
   ModInstallRequest,
@@ -29,6 +28,7 @@ import type {
   PreviewableContentKind,
   ServerPackRequest,
   TaskParallelState,
+  TranslationBatchRequest,
   VanillaInstanceRequest,
   VersionCleanupPreview,
   VersionCleanupResult,
@@ -44,7 +44,7 @@ import {
   updateSettings
 } from './core/config'
 import {
-  pickCustomBackground,
+  pickCustomBackgrounds,
   pruneBackgrounds,
   registerBackgroundProtocol
 } from './core/background'
@@ -78,7 +78,8 @@ import {
   updateInstanceSettings
 } from './core/instances'
 import { clearJavaCache, chooseJava, detectJava, ensureJavaForVersion } from './core/java'
-import { applyJavaAssignments, buildJavaAssignments } from './core/javaAssignments'
+import { buildJavaAssignments } from './core/javaAssignments'
+import { releaseMemory } from './core/memoryOptimize'
 import { installVanillaVersion } from './core/installer'
 import {
   createLoaderInstance,
@@ -100,7 +101,18 @@ import {
   installCurseForgeModpack
 } from './core/curseforgePack'
 import { getAiConfigView, updateAiConfig } from './core/ai'
-import { analyzeWithAi } from './core/aiDoctor'
+import { analyzeWithAi, applyAiFix } from './core/aiDoctor'
+import {
+  applyTranslation,
+  enableTranslationPack,
+  previewTranslation,
+  scanTranslation,
+  translateBatch
+} from './core/translation'
+import {
+  getTranslationGlossary,
+  saveTranslationGlossary
+} from './core/translationGlossary'
 import { answerKubeJsQuestion } from './core/kubeJsQa'
 import { verifyKubeJsRuntime } from './core/kubeJsRuntime'
 import { inspectServerPack, verifyServerPack } from './core/serverPackCheck'
@@ -267,7 +279,7 @@ import {
   setUpdaterListener
 } from './core/updater'
 
-app.setName('风信启动器')
+app.setName('月月月启动器')
 setUserAgentVersion(app.getVersion())
 
 function resolveDataRoot(): string {
@@ -297,7 +309,8 @@ function applyDownloadProxy(raw: string): void {
 app.setPath('userData', resolveDataRoot())
 app.setAppUserModelId('com.windletter.launcher')
 
-// 省内存模式：默认开启。关闭硬件加速，并让 Chromium 主动回收后台窗口内存。
+// 省内存模式：默认开启。只让 Chromium 主动回收后台窗口内存，不再关闭硬件加速；
+// 关闭 GPU 会让全屏模糊和切页动画退化成软件合成，实际更卡。
 // 必须在 app ready 之前决定，切换后需要重启。
 let memorySaver = true
 try {
@@ -306,7 +319,6 @@ try {
   memorySaver = true
 }
 if (memorySaver) {
-  app.commandLine.appendSwitch('disable-gpu')
   app.commandLine.appendSwitch('enable-features', 'CalculateNativeWinOcclusion')
 }
 
@@ -728,9 +740,8 @@ async function cleanupUnusedVersions(rawIds: unknown): Promise<VersionCleanupRes
 
 async function cleanupVersionsAfterInstanceDelete(instance: InstanceSummary): Promise<string[]> {
   if (instance.external) return []
-  // 原版版本是所有实例共享的游戏文件，也可能被直接启动使用。
-  // 删除原版实例只删隔离的 mods/config/saves，版本本身交给版本管理清理。
-  if (instance.loader === 'vanilla') return []
+  // 原版/加载器实例都参与清理：删除最后一个引用该版本的实例时，
+  // 移除 versions/<id>。libraries/assets 是跨版本共享的，不在这里删除。
   const settings = getSettings()
   const gameDir = instance.baseDir ?? settings.gameDir
   const candidates: string[] = []
@@ -809,7 +820,7 @@ function registerIpc(): void {
       /* 磁盘信息不可用时保持 0 */
     }
     return {
-      name: '风信启动器',
+      name: '月月月启动器',
       version: app.getVersion(),
       electron: process.versions.electron,
       chrome: process.versions.chrome,
@@ -1005,84 +1016,7 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
   })
 
   ipcMain.handle('app:release-memory', async (_event, rawScope: unknown) => {
-    const scope = rawScope === 'system' ? 'system' : 'app'
-    const totalKb = () =>
-      app
-        .getAppMetrics()
-        .reduce((sum, metric) => sum + (metric.memory?.workingSetSize ?? 0), 0)
-    const beforeKb = totalKb()
-    for (const win of BrowserWindow.getAllWindows()) {
-      try {
-        const dbg = win.webContents.debugger
-        if (!dbg.isAttached()) dbg.attach('1.3')
-        await dbg.sendCommand('HeapProfiler.collectGarbage').catch(() => undefined)
-        await dbg
-          .sendCommand('Memory.simulatePressureNotification', { level: 'critical' })
-          .catch(() => undefined)
-        dbg.detach()
-      } catch {
-        /* 调试器不可用时只做系统级回收 */
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250))
-
-    if (process.platform === 'win32' && scope === 'system') {
-      const script = `$code = @'
-using System;
-using System.Runtime.InteropServices;
-public static class WindletterMemory {
-  [DllImport("psapi.dll")] public static extern bool EmptyWorkingSet(IntPtr hProcess);
-}
-'@
-Add-Type -TypeDefinition $code
-$before = (Get-CimInstance Win32_Process | Measure-Object -Property WorkingSetSize -Sum).Sum
-$count = 0
-Get-Process | ForEach-Object { try { if ([WindletterMemory]::EmptyWorkingSet($_.Handle)) { $script:count++ } } catch {} }
-Start-Sleep -Milliseconds 600
-$after = (Get-CimInstance Win32_Process | Measure-Object -Property WorkingSetSize -Sum).Sum
-[pscustomobject]@{ before = [double]$before; after = [double]$after; count = $script:count } | ConvertTo-Json -Compress`
-      try {
-        const { stdout } = await promisify(execFile)(
-          'powershell.exe',
-          ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-          { windowsHide: true, timeout: 45000 }
-        )
-        const parsed = JSON.parse(stdout.trim() || '{}') as {
-          before?: number
-          after?: number
-          count?: number
-        }
-        if (typeof parsed.before === 'number' && typeof parsed.after === 'number') {
-          return {
-            beforeKb: Math.round(parsed.before / 1024),
-            afterKb: Math.round(parsed.after / 1024),
-            processes: Number(parsed.count) || 0
-          }
-        }
-      } catch {
-        /* 回退到只回收启动器自身 */
-      }
-    }
-
-    const pids = [...new Set([process.pid, ...app.getAppMetrics().map((metric) => metric.pid)])]
-    if (process.platform === 'win32' && pids.length > 0) {
-      const script = `$code = @'
-using System;
-using System.Runtime.InteropServices;
-public static class WindletterMemory {
-  [DllImport("psapi.dll")] public static extern bool EmptyWorkingSet(IntPtr hProcess);
-}
-'@
-Add-Type -TypeDefinition $code
-Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object { [WindletterMemory]::EmptyWorkingSet($_.Handle) | Out-Null }`
-      await promisify(execFile)(
-        'powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-        { windowsHide: true, timeout: 15000 }
-      ).catch(() => undefined)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    return { beforeKb, afterKb: totalKb() }
+    return releaseMemory(rawScope === 'system' ? 'system' : 'app')
   })
 
   ipcMain.handle('app:image-data-url', async (_event, rawPath: unknown) => {
@@ -1192,7 +1126,7 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
         ? (value.properties as Record<string, unknown>)
         : {}
     const properties = {
-      motd: typeof propertiesRaw.motd === 'string' ? propertiesRaw.motd.slice(0, 120) : '风信服务端',
+      motd: typeof propertiesRaw.motd === 'string' ? propertiesRaw.motd.slice(0, 120) : '月月月服务端',
       port: typeof propertiesRaw.port === 'number' ? propertiesRaw.port : 25565,
       maxPlayers: typeof propertiesRaw.maxPlayers === 'number' ? propertiesRaw.maxPlayers : 20,
       onlineMode: propertiesRaw.onlineMode !== false,
@@ -1263,6 +1197,72 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
     if (!serverPackVerifier) return false
     serverPackVerifier.abort()
     return true
+  })
+
+  ipcMain.handle('translation:scan', async (_event, rawId: unknown, rawScope: unknown) => {
+    return scanTranslation(requireInstanceId(rawId), rawScope)
+  })
+  ipcMain.handle('translation:glossary', () => getTranslationGlossary())
+  ipcMain.handle('translation:save-glossary', (_event, raw: unknown) => {
+    return saveTranslationGlossary(raw)
+  })
+  ipcMain.handle('translation:translate', (_event, raw: unknown) => {
+    if (!raw || typeof raw !== 'object') throw new Error('无效的翻译请求')
+    const value = raw as Record<string, unknown>
+    return translateBatch({
+      instanceId: requireInstanceId(value.instanceId),
+      items: Array.isArray(value.items)
+        ? (value.items as TranslationBatchRequest['items'])
+        : [],
+      glossary: Array.isArray(value.glossary)
+        ? (value.glossary as TranslationBatchRequest['glossary'])
+        : []
+    })
+  })
+  ipcMain.handle('translation:preview', (_event, raw: unknown) => {
+    if (!raw || typeof raw !== 'object') throw new Error('无效的预览请求')
+    const value = raw as Record<string, unknown>
+    if (typeof value.fileId !== 'string' || !value.fileId.trim()) {
+      throw new Error('无效的预览文件')
+    }
+    return previewTranslation({
+      instanceId: requireInstanceId(value.instanceId),
+      fileId: value.fileId,
+      translations:
+        value.translations && typeof value.translations === 'object'
+          ? (value.translations as Record<string, string>)
+          : {},
+      bilingual: value.bilingual === true
+    })
+  })
+  ipcMain.handle('translation:apply', (_event, raw: unknown) => {
+    if (!raw || typeof raw !== 'object') throw new Error('无效的应用请求')
+    const value = raw as Record<string, unknown>
+    const files = Array.isArray(value.files) ? value.files : []
+    return applyTranslation({
+      instanceId: requireInstanceId(value.instanceId),
+      bilingual: value.bilingual === true,
+      files: files.map((item) => {
+        const row = (item ?? {}) as Record<string, unknown>
+        return {
+          fileId: typeof row.fileId === 'string' ? row.fileId : '',
+          translations:
+            row.translations && typeof row.translations === 'object'
+              ? (row.translations as Record<string, string>)
+              : {},
+          expectedModified:
+            typeof row.expectedModified === 'number' ? row.expectedModified : 0,
+          expectedTargetModified:
+            typeof row.expectedTargetModified === 'number'
+              ? row.expectedTargetModified
+              : null
+        }
+      })
+    })
+  })
+
+  ipcMain.handle('translation:enable-pack', async (_event, rawId: unknown) => {
+    return enableTranslationPack(requireInstanceId(rawId))
   })
 
   ipcMain.handle('workshop:report', async (_event, rawId: unknown) => {
@@ -1575,7 +1575,7 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
   })
 
   ipcMain.handle('settings:get', () => getSettings())
-  ipcMain.handle('settings:choose-background', () => pickCustomBackground(mainWindow))
+  ipcMain.handle('settings:choose-backgrounds', () => pickCustomBackgrounds(mainWindow))
   ipcMain.handle('settings:update', async (_event, patch: unknown) => {
     if (!patch || typeof patch !== 'object') throw new Error('无效的设置')
     const before = getSettings()
@@ -1621,8 +1621,8 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
     if (before.cacheLimitMb !== settings.cacheLimitMb) {
       setContentCacheLimit(settings.cacheLimitMb)
     }
-    if (before.backgroundImage !== settings.backgroundImage) {
-      await pruneBackgrounds(settings.backgroundImage)
+    if (before.backgroundImages.join('\n') !== settings.backgroundImages.join('\n')) {
+      await pruneBackgrounds(settings.backgroundImages)
     }
     return settings
   })
@@ -2554,6 +2554,10 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
         patch.memoryMb = Math.max(512, Math.min(32768, Math.round(value.memoryMb)))
       } else throw new Error('无效的内存大小')
     }
+    if ('memoryAuto' in value) {
+      if (typeof value.memoryAuto !== 'boolean') throw new Error('无效的内存管理方式')
+      patch.memoryAuto = value.memoryAuto
+    }
     if ('extraJvmArgs' in value) {
       if (typeof value.extraJvmArgs !== 'string') throw new Error('无效的 JVM 参数')
       patch.extraJvmArgs = value.extraJvmArgs.slice(0, 4000)
@@ -2563,6 +2567,10 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
       else if (typeof value.javaPath === 'string' && value.javaPath.length <= 1024) {
         patch.javaPath = value.javaPath
       } else throw new Error('无效的 Java 路径')
+    }
+    if ('javaAuto' in value) {
+      if (typeof value.javaAuto !== 'boolean') throw new Error('无效的 Java 管理方式')
+      patch.javaAuto = value.javaAuto
     }
     return updateInstanceSettings(id, patch)
   })
@@ -2954,6 +2962,9 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
   ipcMain.handle('ai:analyze', async (_event, rawId: unknown) => {
     return analyzeWithAi(requireInstanceId(rawId))
   })
+  ipcMain.handle('ai:apply-fix', async (_event, rawId: unknown, request: unknown) => {
+    return applyAiFix(requireInstanceId(rawId), request)
+  })
 
   ipcMain.handle('servers:list', () => listServers())
   ipcMain.handle('servers:add', (_event, input: unknown) => addServer(input))
@@ -3067,18 +3078,6 @@ Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object
   })
 
   ipcMain.handle('java:assignments', () => buildJavaAssignments())
-
-  ipcMain.handle('java:apply-assignments', async (_event, rawList: unknown) => {
-    if (!Array.isArray(rawList)) throw new Error('无效的 Java 分配请求')
-    const list: JavaAssignmentApply[] = rawList.slice(0, 100).map((raw) => {
-      if (!raw || typeof raw !== 'object') throw new Error('无效的 Java 分配项')
-      const value = raw as Record<string, unknown>
-      const instanceId = requireInstanceId(value.instanceId)
-      const javaPath = value.javaPath === null ? null : typeof value.javaPath === 'string' ? value.javaPath : null
-      return { instanceId, javaPath }
-    })
-    return applyJavaAssignments(list)
-  })
 
   ipcMain.handle('java:download-for-version', async (_event, rawId: unknown) => {
     const versionId = requireVersionId(rawId)

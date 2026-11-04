@@ -996,7 +996,7 @@ async function writeVerificationLog(
       `${basename(path).replace(/\.zip$/i, '')}-${stamp}.log`
     )
     const header = [
-      `风信启动器 · 服务端包启动测试`,
+      `月月月启动器 · 服务端包启动测试`,
       `时间：${new Date().toLocaleString()}`,
       `实例：${instance.name}（${instance.loader}${instance.loaderVersion ? ` ${instance.loaderVersion}` : ''} · Minecraft ${instance.gameVersion}）`,
       `服务端包：${path}`,

@@ -173,7 +173,7 @@ export function PlaytimeBadge() {
           <EmptyState
             icon={<Clock3 size={26} />}
             title="还没有游戏时长记录"
-            description="从风信启动一次游戏后，这里会自动记录每次游玩时长和本周统计。"
+            description="从月月月启动器启动一次游戏后，这里会自动记录每次游玩时长和本周统计。"
           />
         ) : (
           <div className="playtime-report">

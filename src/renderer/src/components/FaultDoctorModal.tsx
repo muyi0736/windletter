@@ -18,6 +18,7 @@ import {
 import type {
   AiConfigView,
   AiDiagnosisView,
+  AiFixAction,
   DiagnosticIssue,
   DiagnosticReport
 } from '@shared/types'
@@ -83,6 +84,8 @@ export function FaultDoctorModal() {
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [aiResult, setAiResult] = useState<AiDiagnosisView | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [aiFixing, setAiFixing] = useState<string | null>(null)
+  const [aiFixError, setAiFixError] = useState<string | null>(null)
   const [aiForm, setAiForm] = useState({
     enabled: false,
     baseUrl: '',
@@ -98,6 +101,8 @@ export function FaultDoctorModal() {
     setError(null)
     setAiResult(null)
     setAiError(null)
+    setAiFixing(null)
+    setAiFixError(null)
     setAiSetupOpen(false)
 
     void (async () => {
@@ -295,6 +300,7 @@ export function FaultDoctorModal() {
     if (!target || !aiConfig?.enabled || aiAnalyzing) return
     setAiAnalyzing(true)
     setAiError(null)
+    setAiFixError(null)
     try {
       const result = await window.ccl.ai.analyze(target.instanceId)
       setAiResult(result)
@@ -302,6 +308,28 @@ export function FaultDoctorModal() {
       setAiError(cleanError(caught))
     } finally {
       setAiAnalyzing(false)
+    }
+  }
+
+  const applyAiFix = async (action: AiFixAction) => {
+    if (!target || aiFixing || !action.applicable) return
+    const key = `${action.type}:${action.file ?? action.memoryMb ?? ''}`
+    setAiFixing(key)
+    setAiFixError(null)
+    try {
+      const result = await window.ccl.ai.applyFix({
+        instanceId: target.instanceId,
+        type: action.type,
+        file: action.file,
+        memoryMb: action.memoryMb
+      })
+      setReport(result.report)
+      setAiResult(null)
+      toast('success', '修复已应用', result.message)
+    } catch (caught) {
+      setAiFixError(cleanError(caught))
+    } finally {
+      setAiFixing(null)
     }
   }
 
@@ -530,7 +558,7 @@ export function FaultDoctorModal() {
               <Badge tone="neutral">可关闭</Badge>
             </header>
             <p className="doctor-privacy">
-              本地体检不会联网。只有你点击「让 AI 分析」时，才会发送脱敏后的实例信息、体检结果、崩溃日志尾部和模组文件名；不会发送存档、账户凭据或服务器地址。
+              本地体检不会联网。只有你点击「让 AI 分析」时，才会发送脱敏后的实例信息、体检结果、崩溃日志尾部、最近一次启动器日志尾部和模组文件名；不会发送存档、账户凭据或服务器地址。AI 可能提出禁用模组或调整内存的动作，但不会自动执行：执行前会再次本地校验，并由你确认。
             </p>
 
             {aiConfigLoading ? (
@@ -596,7 +624,14 @@ export function FaultDoctorModal() {
                     onClearKey={() => void clearAiKey()}
                   />
                 )}
-                {aiResult && <AiResult result={aiResult} />}
+                {aiResult && (
+                  <AiResult
+                    result={aiResult}
+                    fixing={aiFixing}
+                    fixError={aiFixError}
+                    onApply={(action) => void applyAiFix(action)}
+                  />
+                )}
 
               </>
             ) : (
@@ -927,7 +962,21 @@ function AiSetup({
   )
 }
 
-function AiResult({ result }: { result: AiDiagnosisView }) {
+function AiResult({
+  result,
+  fixing,
+  fixError,
+  onApply
+}: {
+  result: AiDiagnosisView
+  fixing: string | null
+  fixError: string | null
+  onApply: (action: AiFixAction) => void
+}) {
+  const [confirmKey, setConfirmKey] = useState<string | null>(null)
+  const actionKey = (action: AiFixAction): string =>
+    `${action.type}:${action.file ?? action.memoryMb ?? ''}`
+
   return (
     <div className="doctor-ai-result">
       <div className="doctor-ai-result-head">
@@ -955,6 +1004,103 @@ function AiResult({ result }: { result: AiDiagnosisView }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {result.actions.length > 0 && (
+        <div className="doctor-ai-actions">
+          <div className="doctor-ai-actions-head">
+            <span>可执行的修复</span>
+            <small>AI 提出，本地证据二次校验；确认后才会改动</small>
+          </div>
+          {result.actions.map((action) => {
+            const key = actionKey(action)
+            const busy = fixing === key
+            return (
+              <div
+                key={key}
+                className={`doctor-ai-action${action.applicable ? '' : ' is-blocked'}`}
+              >
+                <div className="doctor-ai-action-main">
+                  <span className="doctor-ai-action-icon">
+                    {action.applicable ? <Wrench size={14} /> : <AlertTriangle size={14} />}
+                  </span>
+                  <div>
+                    <div className="doctor-ai-action-title">
+                      <strong>{action.title}</strong>
+                      {action.applicable ? (
+                        <Badge tone={action.risk === 'low' ? 'success' : 'warning'}>
+                          {action.risk === 'low' ? '低风险' : '需确认'}
+                        </Badge>
+                      ) : (
+                        <Badge tone="neutral">已拦截</Badge>
+                      )}
+                    </div>
+                    {action.detail && <p>{action.detail}</p>}
+                    {action.type === 'set_memory' &&
+                      action.currentMemoryMb != null &&
+                      action.memoryMb != null && (
+                        <span className="doctor-ai-action-change">
+                          当前 {action.currentMemoryMb} MB → {action.memoryMb} MB
+                        </span>
+                      )}
+                    {action.type === 'disable_mod' && action.file && (
+                      <span className="doctor-ai-action-change">{action.file}</span>
+                    )}
+                    {!action.applicable && action.blockedReason && (
+                      <p className="doctor-ai-action-blocked">
+                        未通过本地校验：{action.blockedReason}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {action.applicable &&
+                  (confirmKey === key ? (
+                    <div className="doctor-ai-action-confirm">
+                      <span>
+                        {action.type === 'disable_mod'
+                          ? `将禁用 ${action.file}，文件会改名为 .disabled，不会删除。`
+                          : `将把实例内存从 ${action.currentMemoryMb ?? '当前值'} MB 调整为 ${action.memoryMb} MB。`}
+                      </span>
+                      <div>
+                        <button
+                          type="button"
+                          className="button button--ghost button--sm"
+                          disabled={busy}
+                          onClick={() => setConfirmKey(null)}
+                        >
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          className="button button--primary button--sm"
+                          disabled={busy}
+                          onClick={() => {
+                            setConfirmKey(null)
+                            onApply(action)
+                          }}
+                        >
+                          {busy ? <Spinner size={12} /> : <CheckCircle2 size={12} />}
+                          确认应用
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button button--soft button--sm doctor-ai-action-apply"
+                      disabled={Boolean(fixing)}
+                      onClick={() => setConfirmKey(key)}
+                    >
+                      <Wrench size={12} />
+                      应用这个修复
+                    </button>
+                  ))}
+              </div>
+            )
+          })}
+          {fixError && <p className="doctor-ai-error">{fixError}</p>}
         </div>
       )}
 
@@ -999,7 +1145,7 @@ function formatTimestamp(timestamp: number): string {
 
 function buildReportText(report: DiagnosticReport, errors: number, warnings: number): string {
   const lines = [
-    `风信 · 故障医生`,
+    `月月月 · 故障医生`,
     `实例：${report.instanceName}`,
     `状态：${report.status}（${errors} 错误 / ${warnings} 提醒）`,
     `可运行快照：${

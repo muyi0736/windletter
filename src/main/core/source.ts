@@ -1,6 +1,6 @@
 import type { DownloadSource } from '../../shared/types'
 
-const MIRROR_BASE = 'https://bmclapi2.bangbang93.com'
+export const MIRROR_BASE = 'https://bmclapi2.bangbang93.com'
 const MODRINTH_MIRROR = 'https://mod.mcimirror.top'
 const CURSEFORGE_ALT_HOST = 'mediafilez.forgecdn.net'
 export const OFFICIAL_MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'
@@ -14,6 +14,18 @@ export function toMirrorUrl(rawUrl: string): string | null {
     if (url.hostname === 'bmclapi2.bangbang93.com') return rawUrl
     const host = url.hostname.toLowerCase()
     if (host === 'libraries.minecraft.net') return `${MIRROR_BASE}/maven${url.pathname}`
+    if (host === 'maven.fabricmc.net' || host === 'maven.minecraftforge.net') {
+      return `${MIRROR_BASE}/maven${url.pathname}`
+    }
+    if (host === 'maven.neoforged.net' || host === 'neoforged.forgecdn.net') {
+      let path = url.pathname
+      if (path.startsWith('/releases/')) path = path.slice('/releases'.length)
+      else if (path.startsWith('/maven/')) path = path.slice('/maven'.length)
+      return `${MIRROR_BASE}/maven${path}`
+    }
+    if (host === 'meta.fabricmc.net') {
+      return `${MIRROR_BASE}/fabric-meta${url.pathname}`
+    }
     if (host === 'resources.download.minecraft.net') return `${MIRROR_BASE}/assets${url.pathname}`
     if (
       host === 'piston-meta.mojang.com' ||
@@ -34,6 +46,21 @@ export function orderedUrls(rawUrl: string, source: DownloadSource): string[] {
   const result =
     source === 'mirror' ? [mirror ?? rawUrl, rawUrl] : [rawUrl, mirror ?? rawUrl]
   return [...new Set(result)]
+}
+
+/**
+ * BMCLAPI 的通用 /v1/objects 路径是慢速兜底；客户端主文件有专门的
+ * /version/<id>/client 端点，实测 26.1.1 从约 300 KB/s 提升到约 1.5 MB/s。
+ */
+export function clientJarCandidates(
+  versionId: string,
+  rawUrl: string,
+  source: DownloadSource
+): string[] {
+  const bmcl = `${MIRROR_BASE}/version/${encodeURIComponent(versionId)}/client`
+  return source === 'mirror'
+    ? [...new Set([bmcl, rawUrl])]
+    : [...new Set([rawUrl, bmcl])]
 }
 
 export function runtimeFileCandidates(rawUrl: string): string[] {

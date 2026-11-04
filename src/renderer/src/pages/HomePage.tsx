@@ -101,9 +101,7 @@ export function HomePage() {
 
   const [stopOpen, setStopOpen] = useState(false)
   const [stopping, setStopping] = useState(false)
-  const [rightCollapsed, setRightCollapsed] = useState(
-    () => localStorage.getItem('ccl-home-activity-collapsed') !== 'false'
-  )
+  const [rightCollapsed, setRightCollapsed] = useState(true)
   const [listMode, setListMode] = useState<'instances' | 'versions'>('instances')
   const [pendingVersionDelete, setPendingVersionDelete] = useState<string | null>(null)
   const [deletingVersion, setDeletingVersion] = useState(false)
@@ -217,10 +215,10 @@ export function HomePage() {
   const targetLoader = selectedInstance?.loader ?? selected?.loader ?? null
   const targetLastPlayed = selectedInstance?.lastPlayed ?? selected?.lastPlayed ?? null
   const targetMeta = selectedInstance
-    ? `Minecraft ${selectedInstance.gameVersion} · ${selectedInstance.modCount} 个模组 · ${relativeTime(selectedInstance.lastPlayed)}`
+    ? `${selectedInstance.gameVersion} · ${selectedInstance.modCount} 模组`
     : selected
-      ? `Minecraft ${selected.id} · ${versionTypeLabel(selected.type)} · ${relativeTime(selected.lastPlayed)}`
-      : '安装一个版本，或导入一个整合包'
+      ? `${selected.loader ? `${loaderLabel(selected.loader)} · ${versionTypeLabel(selected.type)}` : versionTypeLabel(selected.type)}`
+      : '安装一个版本或导入整合包'
 
   const runningName = launch.instanceId
     ? instances.find((instance) => instance.id === launch.instanceId)?.name
@@ -235,12 +233,12 @@ export function HomePage() {
       : running
         ? '结束游戏'
         : !account
-          ? '添加账户后启动'
+          ? '添加账户并启动'
           : !selected && !selectedInstance
             ? instances.length
               ? '选择一个实例'
               : '获取一个游戏版本'
-            : '启动游戏'
+            : '启动'
 
   const launchSub = installTask
     ? `${installTask.stage} · ${Math.round(installTask.progress)}%`
@@ -249,10 +247,10 @@ export function HomePage() {
       : running
         ? `${runningName} 正在运行${launch.pid ? ` · PID ${launch.pid}` : ''}`
         : !account
-          ? '离线或微软账户都可以启动'
+          ? ''
           : !selected && !selectedInstance
-            ? '从下载中心或实例页开始'
-            : `${formatMemory(settings?.maxMemoryMb ?? 0)} 内存 · ${selectedInstance ? `Minecraft ${selectedInstance.gameVersion}` : selected?.id ?? ''}`
+            ? ''
+            : ''
 
   const progressPercent = installTask ? installTask.progress : launchBusy ? (launch.progress ?? 0) : 0
   const targetStatus = running ? '运行中' : launchBusy ? '准备中' : installTask ? '安装中' : '就绪'
@@ -393,7 +391,7 @@ export function HomePage() {
     <Gamepad2 size={24} />
   )
 
-  const focusName = selectedInstance?.name ?? selected?.id ?? '选择一个世界'
+  const focusName = selectedInstance?.name ?? (selected ? `Minecraft ${selected.inheritsFrom ?? selected.id}` : '选择一个世界')
   const focusMeta = selectedInstance
     ? `MINECRAFT ${selectedInstance.gameVersion} · ${(selectedInstance.loader === 'vanilla' ? 'VANILLA' : loaderLabel(selectedInstance.loader) ?? '').toUpperCase()} · ${selectedInstance.modCount} MODS`
     : selected
@@ -404,13 +402,11 @@ export function HomePage() {
     <div className="page page--home home-simple">
       <header className="home-header home-header--simple">
         <div className="home-header-copy">
-          <span className="eyebrow">Workspace / 启动</span>
           <h1>
             {greeting()}
             {account ? `，${account.name}` : '，旅人'}
           </h1>
           <p>
-            从原版到整合包，今天想进入哪个世界？
             <span className="home-header-stats">
               {instances.length} 实例 · {visibleInstalled.length} 版本
             </span>
@@ -423,7 +419,7 @@ export function HomePage() {
         <div className="home-simple-main">
           <section className="card home-target-card">
             <div className="home-target-head">
-              <span className="mono-label">Current target</span>
+              <span className="mono-label">当前目标</span>
               <span
                 className={`focus-status ${running ? 'is-live' : launchBusy || installTask ? 'is-busy' : ''}`}
               >
@@ -438,7 +434,7 @@ export function HomePage() {
                 <p>{targetMeta}</p>
               </div>
               <button type="button" className="focus-switch" onClick={chooseTarget}>
-                切换目标
+                切换
                 <ChevronDown size={12} />
               </button>
             </div>
@@ -465,7 +461,7 @@ export function HomePage() {
                 )}
                 <span className="home-target-fact-copy">
                   <em>账户</em>
-                  <strong>{account?.name ?? '添加账户'}</strong>
+                  <strong>{account?.name ?? '未登录'}</strong>
                 </span>
               </button>
               <button
@@ -512,7 +508,7 @@ export function HomePage() {
               )}
               <span className="launch-cta-copy">
                 <strong>{launchLabel}</strong>
-                <small>{launchSub}</small>
+                {launchSub && <small>{launchSub}</small>}
               </span>
               <span className="launch-cta-tail">
                 {running ? (
@@ -546,19 +542,7 @@ export function HomePage() {
                   查看日志
                 </button>
               </div>
-            ) : (
-              <p className="launch-hint">
-                {launchBusy
-                  ? '点击按钮可取消本次启动，已下载的文件会保留'
-                  : running
-                    ? '关闭启动器不会结束游戏，可随时回到这里结束进程'
-                    : installTask
-                      ? '游戏文件准备完成后即可一键启动'
-                      : account
-                        ? `启动时自动检查 Java 与游戏文件完整性${targetLoader ? ` · ${loaderLabel(targetLoader) ?? targetLoader}` : ''}`
-                        : '推荐登录微软正版账户，也可以使用离线账户'}
-              </p>
-            )}
+            ) : null}
           </section>
 
           <section className="card home-library-card">
@@ -645,7 +629,7 @@ export function HomePage() {
                         <div className="home-instance-copy">
                           <strong>{instance.name}</strong>
                           <small>
-                            Minecraft {instance.gameVersion} · {loaderLabel(instance.loader) ?? '原版'} ·{' '}
+                            {instance.gameVersion} · {loaderLabel(instance.loader) ?? '原版'} ·{' '}
                             {instance.modCount} 模组 · {relativeTime(instance.lastPlayed)}
                           </small>
                         </div>
@@ -666,30 +650,6 @@ export function HomePage() {
                               <Play size={11} fill="currentColor" />
                             )}
                             {isRunning ? '运行中' : '启动'}
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-button"
-                            title="管理模组"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setModsInstance(instance)
-                            }}
-                          >
-                            <Package size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-button"
-                            title="打开实例目录"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void window.ccl.instances.openFolder(instance.id).catch((error) => {
-                                toast('error', '无法打开实例目录', cleanError(error))
-                              })
-                            }}
-                          >
-                            <FolderOpen size={14} />
                           </button>
                           <button
                             type="button"

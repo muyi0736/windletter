@@ -1,10 +1,13 @@
 import AdmZip from 'adm-zip'
+import os from 'node:os'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { app } from 'electron'
 import { createWriteStream, existsSync, promises as fs, type WriteStream } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { LaunchLogLine, LaunchState } from '../../shared/types'
 import { ensureFreshAccount } from './auth'
+import { computeAutoMemoryMb } from './autoMemory'
+import { releaseMemory } from './memoryOptimize'
 import { getActiveAccount, getLogDir, getSettings, markVersionPlayed } from './config'
 import { getInstance, getInstanceDir, getInstanceMinecraftDir, markInstancePlayed } from './instances'
 import { ensureJavaForVersion } from './java'
@@ -287,22 +290,37 @@ export async function launchGame(
     const gameDir = instance
       ? instance.external?.gameDir ?? getInstanceMinecraftDir(instance.id)
       : baseDir
+    let launchModCount = instance?.modCount ?? 0
+    if (instance) {
+      try {
+        const entries = await fs.readdir(join(gameDir, 'mods'))
+        launchModCount = entries.filter((name) => name.toLowerCase().endsWith('.jar')).length
+      } catch {
+        /* 没有 mods 目录时保留实例记录值 */
+      }
+    }
     const launchSettings = instance
       ? {
           ...settings,
-          maxMemoryMb: instance.memoryMb ?? settings.maxMemoryMb,
+          maxMemoryMb:
+            instance.memoryAuto === false
+              ? instance.memoryMb ?? settings.maxMemoryMb
+              : settings.maxMemoryMb,
           extraJvmArgs: [settings.extraJvmArgs, instance.extraJvmArgs ?? '']
             .filter((value) => value.trim())
             .join(' ')
             .slice(0, 4000),
-          javaPath: instance.javaPath ?? settings.javaPath
+          javaPath:
+            instance.javaAuto === false
+              ? instance.javaPath ?? settings.javaPath
+              : settings.javaPath
         }
       : settings
     log(
       'system',
       instance
-        ? `风信启动器 ${APP_VERSION} 正在启动整合包「${instance.name}」（Minecraft ${instance.gameVersion}）`
-        : `风信启动器 ${APP_VERSION} 正在启动 Minecraft ${versionId}`
+        ? `月月月启动器 ${APP_VERSION} 正在启动整合包「${instance.name}」（Minecraft ${instance.gameVersion}）`
+        : `月月月启动器 ${APP_VERSION} 正在启动 Minecraft ${versionId}`
     )
     if (instance) log('system', `加载器：${instance.loader === 'vanilla' ? '原版' : instance.loader}`)
     if (instance?.external) log('system', `外部实例：直接使用 ${instance.external.gameDir}`)
@@ -343,8 +361,33 @@ export async function launchGame(
 
     if (signal.aborted) throw new CancellationError()
 
+    if (settings.optimizeMemoryBeforeLaunch) {
+      setState({ stage: '优化内存', message: '正在回收系统工作集', progress: 8, speed: null })
+      const beforeFreeMb = Math.floor(os.freemem() / 1024 / 1024)
+      try {
+        const result = await releaseMemory('system', signal)
+        const afterFreeMb = Math.floor(os.freemem() / 1024 / 1024)
+        log(
+          'system',
+          `启动前内存优化：系统工作集 ${Math.round(result.beforeKb / 1024)} → ${Math.round(
+            result.afterKb / 1024
+          )} MB${typeof result.processes === 'number' ? `（${result.processes} 个进程）` : ''}，可用内存 ${beforeFreeMb} → ${afterFreeMb} MB`
+        )
+      } catch (error) {
+        if (signal.aborted) throw new CancellationError()
+        log(
+          'system',
+          `启动前内存优化失败，继续启动：${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+    }
+    if (signal.aborted) throw new CancellationError()
+
     setState({ stage: '准备 Java', message: '正在查找 Java 环境', progress: 12 })
     let lastJavaStage = ''
+    if (instance && instance.javaAuto !== false) {
+      log('system', 'Java：启动时自动选择（忽略之前保存的自动路径）')
+    }
     const java = await ensureJavaForVersion({
       gameDir: baseDir,
       settings: launchSettings,
@@ -368,6 +411,27 @@ export async function launchGame(
     })
     log('system', `使用 Java ${java.version}（${java.path}）`)
 
+    const autoMemory = Boolean(instance && instance.memoryAuto !== false)
+    const availableMemoryMb = Math.max(512, Math.floor(os.freemem() / 1024 / 1024))
+    const totalMemoryMb = Math.max(1024, Math.floor(os.totalmem() / 1024 / 1024))
+    const launchMemoryMb =
+      autoMemory && instance
+        ? computeAutoMemoryMb({
+            modCount: launchModCount,
+            loader: instance.loader,
+            availableMb: availableMemoryMb,
+            totalMb: totalMemoryMb,
+            is32Bit: java.arch === 'x86'
+          })
+        : launchSettings.maxMemoryMb
+    const finalSettings = { ...launchSettings, maxMemoryMb: launchMemoryMb }
+    log(
+      'system',
+      autoMemory && instance
+        ? `内存分配：启动时自动计算 ${launchMemoryMb} MB（可用 ${availableMemoryMb} / 总 ${totalMemoryMb} MB，${launchModCount} 个模组）`
+        : `内存分配：${launchMemoryMb} MB`
+    )
+
     if (signal.aborted) throw new CancellationError()
     setState({ stage: '准备游戏文件', message: '正在整理运行库与资源', progress: 68, speed: null })
     await prepareNatives(
@@ -390,7 +454,7 @@ export async function launchGame(
         clientId: freshAccount.clientId,
         xuid: ''
       },
-      settings: launchSettings,
+      settings: finalSettings,
       javaPath: java.path,
       launcherVersion: APP_VERSION,
       loggingPath: hasLogging ? loggingPath : null,
@@ -413,7 +477,6 @@ export async function launchGame(
     setState({ status: 'starting', stage: '启动游戏', message: '正在创建游戏进程', progress: 82 })
     await fs.mkdir(gameDir, { recursive: true })
     log('system', `游戏目录：${gameDir}`)
-    log('system', `内存分配：${launchSettings.maxMemoryMb} MB`)
 
     const stdoutBuffer = createLineBuffer('stdout')
     const stderrBuffer = createLineBuffer('stderr')

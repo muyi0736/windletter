@@ -27,7 +27,7 @@ function stepIcon(step: AuthCheckStep) {
 function formatDiagnostic(diagnostic: AuthDiagnosticView): string {
   const time = new Date(diagnostic.at).toLocaleString('zh-CN', { hour12: false })
   const lines = [
-    '风信启动器 · 登录自检',
+    '月月月启动器 · 登录自检',
     `时间：${time}`,
     `结论：${VERDICT_META[diagnostic.verdict].label} — ${diagnostic.summary}`,
     ''

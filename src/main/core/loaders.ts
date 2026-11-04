@@ -3,11 +3,13 @@ import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import type { InstanceLoader, LoaderVersionView } from '../../shared/types'
+import type { DownloadSource } from '../../shared/types'
 import type { Library, VersionJson } from './mojangTypes'
 import { runDownloadPool, type DownloadJob } from './downloadPool'
 import { CancellationError, downloadFile, fetchJson, fetchText } from './net'
 import { installOptiFineProfile, listOptiFineVersions } from './optifine'
 import { emptyDetail, type TaskProgress } from './progress'
+import { MIRROR_BASE, orderedUrls } from './source'
 import { mainArtifact, pathExists, safeJoin, writeFileAtomic } from './version'
 
 const FABRIC_META = 'https://meta.fabricmc.net/v2'
@@ -44,6 +46,8 @@ export interface LoaderInstallOptions {
   gameVersion: string
   loader: SupportedLoader
   loaderVersion?: string | null
+  /** 下载源；镜像源下加载器运行库和安装器优先走 BMCLAPI/USTC。 */
+  source?: DownloadSource
   /** Forge's installer is a Java program; Fabric/Quilt do not use it. */
   javaPath?: string
   concurrency: number
@@ -223,19 +227,72 @@ function neoForgeInstallerUrl(gameVersion: string, version: string): string {
   return `${NEOFORGE_MAVEN}/net/neoforged/neoforge/${version}/neoforge-${version}-installer.jar`
 }
 
-function patchNeoForgeInstaller(input: string, output: string): void {
+function installerLibraryJobs(
+  installerPath: string,
+  gameDir: string,
+  source: DownloadSource
+): DownloadJob[] {
+  const jobs: DownloadJob[] = []
+  const seen = new Set<string>()
+  try {
+    const zip = new AdmZip(installerPath)
+    for (const name of ['install_profile.json', 'version.json']) {
+      const entry = zip.getEntry(name)
+      if (!entry) continue
+      let parsed: {
+        libraries?: Array<{
+          name?: string
+          downloads?: {
+            artifact?: { path?: string; url?: string; sha1?: string; size?: number }
+          }
+        }>
+      }
+      try {
+        parsed = JSON.parse(entry.getData().toString('utf8')) as typeof parsed
+      } catch {
+        continue
+      }
+      for (const library of parsed.libraries ?? []) {
+        const artifact = library.downloads?.artifact
+        if (!artifact?.path || !artifact?.url) continue
+        const destination = safeJoin(join(gameDir, 'libraries'), artifact.path)
+        if (seen.has(destination)) continue
+        seen.add(destination)
+        jobs.push({
+          urls: orderedUrls(artifact.url, source),
+          destination,
+          sha1: artifact.sha1 ?? null,
+          size: artifact.size ?? null,
+          label: library.name ?? artifact.path
+        })
+      }
+    }
+  } catch {
+    /* 安装器损坏时交给后续 Java 安装器报错 */
+  }
+  return jobs
+}
+
+function patchLoaderInstaller(
+  input: string,
+  output: string,
+  replacements: Array<[string, string]>
+): void {
   const zip = new AdmZip(input)
   for (const entry of zip.getEntries()) {
     if (entry.isDirectory) continue
+    const name = entry.entryName.toLowerCase()
+    // 只改 JSON/文本资源；class 常量池长度变化会破坏字节码。
+    if (name.endsWith('.class') || name.endsWith('.jar')) continue
     const data = entry.getData()
-    if (!data.includes(Buffer.from('maven.neoforged.net'))) continue
-    const text = data
-      .toString('latin1')
-      .split('https://maven.neoforged.net')
-      .join(NEOFORGE_CDN)
-      .split('http://maven.neoforged.net')
-      .join(NEOFORGE_CDN)
-    zip.updateFile(entry, Buffer.from(text, 'latin1'))
+    let text = data.toString('latin1')
+    let changed = false
+    for (const [from, to] of replacements) {
+      if (!text.includes(from)) continue
+      text = text.split(from).join(to)
+      changed = true
+    }
+    if (changed) zip.updateFile(entry, Buffer.from(text, 'latin1'))
   }
   zip.writeZip(output)
 }
@@ -271,18 +328,21 @@ function runForgeInstaller(
   installerPath: string,
   gameDir: string,
   signal: AbortSignal,
-  onLine: (line: string, lineCount: number) => void
+  onLine: (line: string, lineCount: number) => void,
+  mirror?: string
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
       reject(new CancellationError())
       return
     }
-    const child = spawn(
-      javaPath,
-      ['-Djava.awt.headless=true', '-jar', installerPath, '--installClient', gameDir],
-      { cwd: gameDir, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
-    )
+    const args = ['-Djava.awt.headless=true', '-jar', installerPath, '--installClient', gameDir]
+    if (mirror) args.push('--mirror', mirror)
+    const child = spawn(javaPath, args, {
+      cwd: gameDir,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
     let output = ''
     let lineCount = 0
     let lastEmit = 0
@@ -341,7 +401,7 @@ async function installForgeProfile(
   options: LoaderInstallOptions,
   kind: 'forge' | 'neoforge' = 'forge'
 ): Promise<LoaderInstallResult> {
-  const { gameDir, gameVersion, signal, onProgress, javaPath } = options
+  const { gameDir, gameVersion, signal, onProgress, javaPath, source = 'mirror' } = options
   if (!SAFE_VERSION.test(gameVersion)) throw new Error('无效的 Minecraft 版本')
   if (!javaPath) {
     throw new Error(`安装 ${kind === 'neoforge' ? 'NeoForge' : 'Forge'} 需要可用的 Java 运行环境`)
@@ -444,13 +504,16 @@ async function installForgeProfile(
         : neoForgeInstallerUrl(gameVersion, loaderVersion)
     let installerSha1: string | null = null
     try {
-      const raw = await fetchText([`${installerUrl}.sha1`], { signal, timeoutMs: 15_000 })
+      const raw = await fetchText(orderedUrls(`${installerUrl}.sha1`, source), {
+        signal,
+        timeoutMs: 15_000
+      })
       const match = raw.match(/[0-9a-f]{40}/i)
       if (match) installerSha1 = match[0]
     } catch {
       installerSha1 = null
     }
-    await downloadFile([installerUrl], installerPath, {
+    await downloadFile(orderedUrls(installerUrl, source), installerPath, {
       sha1: installerSha1,
       signal,
       onBytes: (current) => {
@@ -466,16 +529,59 @@ async function installForgeProfile(
 
     if (signal.aborted) throw new CancellationError()
     let executableInstaller = installerPath
-    if (kind === 'neoforge') {
+    if (kind === 'neoforge' && source !== 'mirror') {
       report('修补 NeoForge 安装器镜像', 13)
       const patched = join(tempDir, 'neoforge-installer-patched.jar')
-      patchNeoForgeInstaller(installerPath, patched)
+      patchLoaderInstaller(installerPath, patched, [
+        ['https://maven.neoforged.net', NEOFORGE_CDN],
+        ['http://maven.neoforged.net', NEOFORGE_CDN]
+      ])
       executableInstaller = patched
     }
+    // 安装器内部是逐文件串行下载；先用 32 路下载池把 install_profile/version
+    // 里的运行库补齐，安装器只处理缺失项，Forge 1.20.1 实测可省约 40 秒。
+    const prefetch = installerLibraryJobs(installerPath, gameDir, source)
+    if (prefetch.length > 0) {
+      try {
+        report(`预下载 ${label} 运行库`, 13)
+        await runDownloadPool(prefetch, {
+          concurrency: Math.max(16, options.concurrency),
+          signal,
+          onProgress: (detail) => {
+            const ratio = detail.total ? detail.current / detail.total : 1
+            report(`预下载 ${label} 运行库`, 13 + ratio, detail)
+          }
+        })
+      } catch (error) {
+        if (signal.aborted) throw error instanceof CancellationError ? error : new CancellationError()
+        // 预下载失败不阻断安装器，安装器会自己重试缺失文件。
+      }
+    }
     report(`运行 ${label} 安装器`, 14)
-    await runForgeInstaller(javaPath, executableInstaller, gameDir, signal, (line, count) => {
+    const installerMirror = source === 'mirror' ? `${MIRROR_BASE}/maven/` : undefined
+    const onInstallerLine = (line: string, count: number) => {
       report(`运行安装器 · ${line}`, 15 + Math.min(68, count * 0.35))
-    })
+    }
+    try {
+      await runForgeInstaller(
+        javaPath,
+        executableInstaller,
+        gameDir,
+        signal,
+        onInstallerLine,
+        installerMirror
+      )
+    } catch (error) {
+      if (!installerMirror || signal.aborted) throw error
+      report(`镜像安装失败，改用官方 ${label} 安装器`, 14)
+      await runForgeInstaller(
+        javaPath,
+        executableInstaller,
+        gameDir,
+        signal,
+        onInstallerLine
+      )
+    }
 
     if (signal.aborted) throw new CancellationError()
     report(`整理 ${label} 配置`, 86)
@@ -536,7 +642,7 @@ async function installForgeProfile(
       if (!artifact) continue
       if (await pathExists(safeJoin(librariesDir, artifact.path))) continue
       missing.push({
-        urls: [artifact.url],
+        urls: orderedUrls(artifact.url, source),
         destination: safeJoin(librariesDir, artifact.path),
         sha1: artifact.sha1,
         size: artifact.size,
@@ -579,7 +685,7 @@ export async function installLoaderProfile(options: LoaderInstallOptions): Promi
     const kind = options.loader
     return withForgeLock(() => installForgeProfile(options, kind))
   }
-  const { gameDir, gameVersion, signal, onProgress } = options
+  const { gameDir, gameVersion, signal, onProgress, source = 'mirror' } = options
   const loader = options.loader as NetworkLoader
   if (!SAFE_VERSION.test(gameVersion)) throw new Error('无效的 Minecraft 版本')
   const report = (stage: string, percent: number, detail = emptyDetail()) => {
@@ -597,7 +703,7 @@ export async function installLoaderProfile(options: LoaderInstallOptions): Promi
   if (!profile) {
     report('获取加载器配置', 10)
     const url = `${metaBase(loader)}/versions/loader/${encodeURIComponent(gameVersion)}/${encodeURIComponent(loaderVersion)}/profile/json`
-    const fetched = await fetchJson<VersionJson>([url], { signal })
+    const fetched = await fetchJson<VersionJson>(orderedUrls(url, source), { signal })
     if (!fetched || !fetched.id || !SAFE_ID.test(fetched.id)) {
       throw new Error('加载器配置异常，无法安装')
     }
@@ -626,7 +732,7 @@ export async function installLoaderProfile(options: LoaderInstallOptions): Promi
     const artifact = mainArtifact(library as Library)
     if (!artifact) continue
     jobs.push({
-      urls: [artifact.url],
+      urls: orderedUrls(artifact.url, source),
       destination: safeJoin(librariesDir, artifact.path),
       sha1: artifact.sha1,
       size: artifact.size,

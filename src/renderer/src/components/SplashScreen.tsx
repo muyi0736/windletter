@@ -1,13 +1,13 @@
 export function SplashScreen({ leaving, ready }: { leaving: boolean; ready: boolean }) {
-  const letters = ['风', '信']
+  const letters = ['月', '月', '月']
   return (
     <div
       className={`splash ${leaving ? 'is-leaving' : ''} ${ready ? 'is-ready' : ''}`}
       role="status"
       aria-live="polite"
-      aria-label={ready ? '准备就绪' : '正在启动风信启动器'}
+      aria-label={ready ? '准备就绪' : '正在启动月月月启动器'}
     >
-      <span className="splash-foot splash-foot--left">WINDLETTER</span>
+      <span className="splash-foot splash-foot--left">月无边</span>
       <span className="splash-foot splash-foot--right">MINECRAFT JAVA EDITION</span>
 
       <div className="splash-center">
@@ -26,15 +26,15 @@ export function SplashScreen({ leaving, ready }: { leaving: boolean; ready: bool
           </svg>
         </div>
 
-        <span className="splash-kicker">WINDLETTER / WORKSPACE</span>
-        <h1 className="splash-wordmark" aria-label="风信启动器">
+        <span className="splash-kicker">WORKSPACE</span>
+        <h1 className="splash-wordmark" aria-label="月月月启动器">
           {letters.map((letter, index) => (
-            <span key={letter} style={{ animationDelay: `${0.28 + index * 0.08}s` }}>
+            <span key={index} style={{ animationDelay: `${0.28 + index * 0.08}s` }}>
               {letter}
             </span>
           ))}
         </h1>
-        <span className="splash-sub">风有信 · 月无边</span>
+        <span className="splash-sub">月无边</span>
 
         <div className="splash-progress" aria-hidden="true">
           <span className="splash-progress-fill" />

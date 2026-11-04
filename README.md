@@ -47,7 +47,7 @@ npm run dev
 npm run typecheck
 npm run test:download   # 本地 HTTP 冒烟：断点续传、SHA1、缓存硬链接、停滞切换、分主机并发
 npm run build
-npm run dist            # 生成 NSIS 安装包
+npm run dist            # 生成 NSIS 安装包；内置 CF key 与默认 GitHub 更新源
 ```
 
 Electron 或 electron-builder 的二进制下载被网络阻断时，可以使用镜像后重试：

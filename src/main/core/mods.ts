@@ -43,8 +43,10 @@ import { safeJoin } from './version'
 const API_BASE = 'https://api.modrinth.com/v2'
 const PAGE_SIZE = 20
 const MAX_DEPENDENCIES = 20
-const CONTENT_SEGMENT_MIN_BYTES = 1 * 1024 * 1024
+const CONTENT_SEGMENT_MIN_BYTES = 512 * 1024
 const CONTENT_DOWNLOAD_CONCURRENCY = 3
+/** ≥8 MB 的 Mod 使用镜像/官方双线路与尾段细分。 */
+const CONTENT_MULTI_SOURCE_MIN_BYTES = 8 * 1024 * 1024
 
 export interface InstallProgressHooks {
   onPlan?: (info: { files: number; bytesTotal: number }) => void
@@ -771,6 +773,7 @@ async function installFiles(
           sha1: file.sha1,
           size: file.size,
           segmentMinBytes: CONTENT_SEGMENT_MIN_BYTES,
+          multiSource: (file.size ?? 0) >= CONTENT_MULTI_SOURCE_MIN_BYTES,
           probeSources: true,
           signal: hooks?.signal,
           onBytes: hooks?.onBytes
@@ -981,6 +984,7 @@ async function downloadModFiles(
           sha1: file.sha1,
           size: file.size,
           segmentMinBytes: CONTENT_SEGMENT_MIN_BYTES,
+          multiSource: (file.size ?? 0) >= CONTENT_MULTI_SOURCE_MIN_BYTES,
           probeSources: true
         }
       )

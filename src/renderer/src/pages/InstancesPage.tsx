@@ -8,6 +8,7 @@ import {
   DatabaseBackup,
   Download,
   ExternalLink,
+  Ellipsis,
   Folder,
   FolderOpen,
   FolderSearch,
@@ -15,6 +16,7 @@ import {
   HardDrive,
   Images,
   Info,
+  Languages,
   PackagePlus,
   Palette,
   Play,
@@ -32,6 +34,7 @@ import {
 } from 'lucide-react'
 import type { InstanceSummary, ModrinthProjectView } from '@shared/types'
 import { useLauncher } from '../store'
+import { useTranslationSession } from '../lib/translationSession'
 import {
   cleanError,
   formatCount,
@@ -58,6 +61,7 @@ import { ScreenshotGalleryModal } from '../components/ScreenshotGalleryModal'
 import { InstanceTransferModal } from '../components/InstanceTransferModal'
 import { ServerPackModal } from '../components/ServerPackModal'
 import { PackWorkshopModal } from '../components/PackWorkshopModal'
+import { TranslationModal } from '../components/TranslationModal'
 import { VanillaInstanceModal } from '../components/VanillaInstanceModal'
 import { BackupManagerModal } from '../components/BackupManagerModal'
 
@@ -84,6 +88,7 @@ export function InstancesPage() {
   const selectedInstanceId = useLauncher((state) => state.selectedInstanceId)
   const refreshInstances = useLauncher((state) => state.refreshInstances)
   const selectInstance = useLauncher((state) => state.selectInstance)
+  const translationSession = useTranslationSession()
   const startInstance = useLauncher((state) => state.startInstance)
   const importModpack = useLauncher((state) => state.importModpack)
   const installModrinth = useLauncher((state) => state.installModrinth)
@@ -115,6 +120,7 @@ export function InstancesPage() {
   const [transferInstance, setTransferInstance] = useState<InstanceSummary | null>(null)
   const [serverPackInstance, setServerPackInstance] = useState<InstanceSummary | null>(null)
   const [workshopInstance, setWorkshopInstance] = useState<InstanceSummary | null>(null)
+  const [translationInstance, setTranslationInstance] = useState<InstanceSummary | null>(null)
   const [preview, setPreview] = useState<ModrinthProjectView | null>(null)
   const searchSeq = useRef(0)
   const discoverStarted = useRef(false)
@@ -234,12 +240,7 @@ export function InstancesPage() {
     <div className="page page--instances">
       <header className="page-head instances-head">
         <div className="page-head-copy">
-          <span className="page-eyebrow">
-            <Boxes size={14} />
-            实例与整合包
-          </span>
-          <h1>一整包世界，直接出发</h1>
-          <p>管理已安装的实例；也可以新建一个隔离的原版实例，或到「下载 → 整合包」寻找整合包。</p>
+          <h1>实例</h1>
         </div>
         <div className="instances-head-actions">
           <button
@@ -248,38 +249,27 @@ export function InstancesPage() {
             onClick={() => setVanillaOpen(true)}
           >
             <Gamepad2 size={15} />
-            新建原版实例
+            新建原版
           </button>
-          <button
-            type="button"
-            className="button button--soft"
-            onClick={() => window.dispatchEvent(new Event('windletter:version-folders'))}
-            title="切换版本文件夹"
-          >
-            <FolderOpen size={15} />
-            版本文件夹
-          </button>
-          <button
-            type="button"
-            className="button button--soft"
-            disabled={instancesLoading}
-            onClick={() => void refreshInstances()}
-          >
-            <RefreshCw size={15} className={instancesLoading ? 'spin' : ''} />
-            刷新
-          </button>
-          <button
-            type="button"
-            className="button button--soft"
-            onClick={() => setPresetManagerOpen(true)}
-          >
-            <Sparkles size={15} />
-            预设模组
-          </button>
-          <button type="button" className="button button--soft" onClick={() => setLocalPacksOpen(true)}>
-            <FolderSearch size={15} />
-            扫描本地
-          </button>
+          <details className="head-more">
+            <summary className="button button--soft" title="更多操作">
+              <Ellipsis size={16} />
+            </summary>
+            <div className="head-more-menu">
+              <button type="button" onClick={() => window.dispatchEvent(new Event('windletter:version-folders'))}>
+                <FolderOpen size={14} /> 版本文件夹
+              </button>
+              <button type="button" disabled={instancesLoading} onClick={() => void refreshInstances()}>
+                <RefreshCw size={14} className={instancesLoading ? 'spin' : ''} /> 刷新
+              </button>
+              <button type="button" onClick={() => setPresetManagerOpen(true)}>
+                <Sparkles size={14} /> 预设模组
+              </button>
+              <button type="button" onClick={() => setLocalPacksOpen(true)}>
+                <FolderSearch size={14} /> 扫描本地
+              </button>
+            </div>
+          </details>
           <button type="button" className="button button--primary" onClick={() => void importModpack()}>
             <PackagePlus size={15} />
             导入整合包
@@ -295,7 +285,6 @@ export function InstancesPage() {
             { value: 'mine', label: `我的实例 ${instances.length ? `· ${instances.length}` : ''}` }
           ]}
         />
-        <span className="instances-tabs-hint">每个实例的模组、配置与存档彼此隔离；新整合包请到「下载」页</span>
       </div>
 
       {tab === 'mine' ? (
@@ -310,7 +299,7 @@ export function InstancesPage() {
               <EmptyState
                 icon={<Boxes size={26} />}
                 title="还没有实例"
-                description="新建一个隔离的原版实例，或导入 .mrpack / .zip 整合包。风信会补齐原版、加载器与模组文件。"
+                description="新建隔离的原版实例，或导入 .mrpack / .zip。"
                 action={
                   <div className="picker-empty-actions">
                     <button
@@ -351,6 +340,16 @@ export function InstancesPage() {
                 const isSelected = instance.id === selectedInstanceId
                 const isRunning = launchActive && launch.instanceId === instance.id
                 const canLaunch = !launchActive
+                const translating =
+                  translationSession.busy && translationSession.instanceId === instance.id
+                const translatingElsewhere =
+                  translationSession.busy && translationSession.instanceId !== instance.id
+                const translatePercent =
+                  translating && translationSession.progress.total > 0
+                    ? Math.round(
+                        (translationSession.progress.done / translationSession.progress.total) * 100
+                      )
+                    : 0
                 const boundFolder =
                   instance.external?.baseDir ??
                   instance.baseDir ??
@@ -372,9 +371,6 @@ export function InstancesPage() {
                       </span>
                       <div className="instance-card-title">
                         <strong title={instance.name}>{instance.name}</strong>
-                        <span title={instance.summary}>
-                          {instance.summary || `Minecraft ${instance.gameVersion} 整合包`}
-                        </span>
                       </div>
                       {instance.favorite && (
                         <Star size={14} fill="currentColor" className="instance-favorite-mark" />
@@ -384,7 +380,7 @@ export function InstancesPage() {
                     </div>
 
                     <div className="instance-tags">
-                      <span className="type-tag type-tag--release">Minecraft {instance.gameVersion}</span>
+                      <span className="type-tag type-tag--release">{instance.gameVersion}</span>
                       <span className={`loader-tag loader-tag--${loaderKind(instance.loader)}`}>
                         {instance.loader === 'vanilla'
                           ? '原版'
@@ -408,15 +404,6 @@ export function InstancesPage() {
                       <span>
                         <Clock3 size={12} />
                         {relativeTime(instance.lastPlayed)}
-                      </span>
-                      <span>
-                        <HardDrive size={12} />
-                        {formatDate(instance.installedAt)} 安装
-                      </span>
-                      <span title={boundFolder}>
-                        <Folder size={12} />
-                        {instance.external ? '外部 · ' : ''}
-                        {boundFolder ? folderLabel(boundFolder) : '当前文件夹'}
                       </span>
                     </div>
 
@@ -453,6 +440,12 @@ export function InstancesPage() {
                         <Boxes size={14} />
                         内容
                       </button>
+                      <details className="instance-more" onClick={(event) => event.stopPropagation()}>
+                        <summary className="button button--soft button--sm" title="更多操作">
+                          <Ellipsis size={14} />
+                          更多
+                        </summary>
+                        <div className="instance-more-menu">
                       <button
                         type="button"
                         className="button button--soft button--sm"
@@ -465,6 +458,25 @@ export function InstancesPage() {
                       >
                         <Palette size={14} />
                         资源
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--soft button--sm"
+                        disabled={translatingElsewhere}
+                        title={
+                          translating
+                            ? '汉化正在后台进行，点击查看进度'
+                            : translatingElsewhere
+                              ? '另一个实例的汉化正在后台进行'
+                              : '批量汉化任务书、lang 和配置说明'
+                        }
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setTranslationInstance(instance)
+                        }}
+                      >
+                        <Languages size={14} />
+                        {translating ? `汉化 ${translatePercent}%` : '汉化'}
                       </button>
                       <button
                         type="button"
@@ -570,6 +582,8 @@ export function InstancesPage() {
                           <Trash2 size={15} />
                         </IconButton>
                       </span>
+                        </div>
+                      </details>
                     </div>
                   </article>
                 )
@@ -842,6 +856,11 @@ export function InstancesPage() {
         onClose={() => setWorkshopInstance(null)}
       />
 
+      <TranslationModal
+        instance={translationInstance}
+        onClose={() => setTranslationInstance(null)}
+      />
+
 
       <InstanceSettingsModal
         open={settingsInstance !== null}
@@ -856,7 +875,7 @@ export function InstancesPage() {
         message={
           pendingDelete?.external ? (
             <>
-              将从风信实例列表移除 <strong>{pendingDelete.name}</strong>。
+              将从月月月启动器实例列表移除 <strong>{pendingDelete.name}</strong>。
               <br />
               外部目录 <strong>{pendingDelete.external.gameDir}</strong> 中的游戏文件、模组与存档不会被删除。
             </>
@@ -864,7 +883,7 @@ export function InstancesPage() {
             <>
               将删除实例 <strong>{pendingDelete.name}</strong> 及其模组、配置与存档。
               <br />
-              原版版本 <strong>{pendingDelete.gameVersion}</strong> 的游戏文件会被保留，可在版本管理中清理；backups/worlds 存档备份会一并删除。
+              原版版本 <strong>{pendingDelete.gameVersion}</strong> 在不再被其他实例使用时会自动清理；共享的 libraries、assets 与 Java 运行时保留。backups/worlds 存档备份会一并删除。
             </>
           ) : (
             <>

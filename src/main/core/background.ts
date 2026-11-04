@@ -35,12 +35,12 @@ export function getBackgroundDir(): string {
   return join(getConfigDir(), BACKGROUND_DIR)
 }
 
-export async function pickCustomBackground(
+export async function pickCustomBackgrounds(
   owner: BrowserWindow | null = null
-): Promise<string | null> {
+): Promise<string[]> {
   const options: OpenDialogOptions = {
-    title: '选择自定义背景',
-    properties: ['openFile'],
+    title: '添加自定义背景',
+    properties: ['openFile', 'multiSelections'],
     filters: [
       {
         name: '图片',
@@ -51,22 +51,30 @@ export async function pickCustomBackground(
   const result = owner
     ? await dialog.showOpenDialog(owner, options)
     : await dialog.showOpenDialog(options)
-  if (result.canceled || result.filePaths.length === 0) return null
+  if (result.canceled || result.filePaths.length === 0) return []
+  if (result.filePaths.length > 20) throw new Error('一次最多选择 20 张图片')
 
-  const source = result.filePaths[0]
-  const ext = extname(source).replace(/^\./, '').toLowerCase()
-  if (!IMAGE_EXTENSIONS.has(ext)) throw new Error('不支持的图片格式')
-  const stat = await fs.stat(source)
-  if (stat.size > MAX_BYTES) throw new Error('图片不能超过 40 MB')
+  const sources: { path: string; ext: string }[] = []
+  for (const source of result.filePaths) {
+    const ext = extname(source).replace(/^\./, '').toLowerCase()
+    if (!IMAGE_EXTENSIONS.has(ext)) throw new Error(`不支持的图片格式：${basename(source)}`)
+    const stat = await fs.stat(source)
+    if (stat.size > MAX_BYTES) throw new Error(`图片不能超过 40 MB：${basename(source)}`)
+    sources.push({ path: source, ext })
+  }
 
-  const name = `custom-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
   const dir = getBackgroundDir()
   await fs.mkdir(dir, { recursive: true })
-  await fs.copyFile(source, join(dir, name))
-  return name
+  return Promise.all(
+    sources.map(async ({ path: source, ext }) => {
+      const name = `custom-${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
+      await fs.copyFile(source, join(dir, name))
+      return name
+    })
+  )
 }
 
-export async function pruneBackgrounds(keep: string | null): Promise<void> {
+export async function pruneBackgrounds(keep: string[]): Promise<void> {
   const dir = getBackgroundDir()
   let entries
   try {
@@ -77,7 +85,7 @@ export async function pruneBackgrounds(keep: string | null): Promise<void> {
   await Promise.all(
     entries
       .filter((entry) => entry.isFile() && BACKGROUND_NAME.test(entry.name))
-      .filter((entry) => entry.name !== keep)
+      .filter((entry) => !keep.includes(entry.name))
       .map((entry) => fs.rm(join(dir, entry.name), { force: true }).catch(() => undefined))
   )
 }

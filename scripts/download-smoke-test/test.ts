@@ -21,10 +21,81 @@ let maxActiveSmall = 0
 const smallPayload = Buffer.alloc(1024, 9)
 const smallSha1 = createHash('sha1').update(smallPayload).digest('hex')
 
+// Azure Blob（piston-data）返回 0x... 形式的 ETag，If-Range 会被忽略并回 200 整文件。
+const azurePayload = Buffer.alloc(2 * 1024 * 1024 + 321, 21)
+const azureSha1 = createHash('sha1').update(azurePayload).digest('hex')
+let azureRangeRequests = 0
+let azureIfRangeRequests = 0
+
+// 单线路分段：一个 512 KB 分片先用约 20 KB/s 传输，验证慢分片会被主动重连。
+const slowPayload = Buffer.alloc(4 * 1024 * 1024, 33)
+const slowSha1 = createHash('sha1').update(slowPayload).digest('hex')
+let slowRangeServed = false
+
 const server = createServer((req, res) => {
   requests += 1
   const range = req.headers.range
   if (range) rangeHeaders.push(range)
+  if (req.url === '/slow-range') {
+    const match = /bytes=(\d+)-(\d+)/.exec(range ?? '')
+    const start = match ? Number(match[1]) : 0
+    const end = match ? Number(match[2]) : slowPayload.length - 1
+    const chunk = slowPayload.subarray(start, end + 1)
+    res.writeHead(range ? 206 : 200, {
+      'Content-Length': chunk.length,
+      'Content-Type': 'application/octet-stream',
+      ...(range
+        ? { 'Content-Range': `bytes ${start}-${end}/${slowPayload.length}` }
+        : {})
+    })
+    if (start === 524288 && end === 1048575 && !slowRangeServed) {
+      slowRangeServed = true
+      let offset = 0
+      const timer = setInterval(() => {
+        if (res.destroyed) {
+          clearInterval(timer)
+          return
+        }
+        const part = chunk.subarray(offset, offset + 1024)
+        offset += part.length
+        res.write(part)
+        if (offset >= chunk.length) {
+          clearInterval(timer)
+          res.end()
+        }
+      }, 50)
+      return
+    }
+    res.end(chunk)
+    return
+  }
+  if (req.url === '/azure.bin') {
+    if (req.headers['if-range']) {
+      azureIfRangeRequests += 1
+      res.writeHead(200, {
+        'Content-Length': azurePayload.length,
+        'Content-Type': 'application/octet-stream',
+        ETag: '0x8DE8FCE9402ECE6'
+      })
+      res.end(azurePayload)
+      return
+    }
+    azureRangeRequests += 1
+    const match = /bytes=(\d+)-(\d+)/.exec(range ?? '')
+    const start = match ? Number(match[1]) : 0
+    const end = match ? Number(match[2]) : azurePayload.length - 1
+    const chunk = azurePayload.subarray(start, end + 1)
+    res.writeHead(range ? 206 : 200, {
+      'Content-Length': chunk.length,
+      'Content-Type': 'application/octet-stream',
+      ETag: '0x8DE8FCE9402ECE6',
+      ...(range
+        ? { 'Content-Range': `bytes ${start}-${end}/${azurePayload.length}` }
+        : {})
+    })
+    res.end(chunk)
+    return
+  }
   if (req.url === '/stall') {
     res.writeHead(200, { 'Content-Length': smallPayload.length, ETag: '"stall"' })
     return
@@ -94,6 +165,36 @@ async function main(): Promise<void> {
   const [s1, s2] = await Promise.all([fs.stat(dest1), fs.stat(dest2)])
   assert.equal(s1.ino, s2.ino, 'hardlink reuse expected')
 
+  const azureDest = join(out, 'azure.bin')
+  await downloadFile(
+    [`http://127.0.0.1:${address.port}/azure.bin`],
+    azureDest,
+    { sha1: azureSha1, size: azurePayload.length }
+  )
+  assert.equal(
+    createHash('sha1').update(await fs.readFile(azureDest)).digest('hex'),
+    azureSha1,
+    'azure-style etag payload hash'
+  )
+  assert.equal(azureIfRangeRequests, 0, 'invalid Azure ETag must not be sent as If-Range')
+  assert.ok(azureRangeRequests >= 4, `expected segmented azure download, got ${azureRangeRequests}`)
+
+  const slowDest = join(out, 'slow-range.bin')
+  const slowStarted = Date.now()
+  await downloadFile(
+    [`http://127.0.0.1:${address.port}/slow-range`],
+    slowDest,
+    { sha1: slowSha1, size: slowPayload.length }
+  )
+  const slowElapsed = Date.now() - slowStarted
+  assert.equal(
+    createHash('sha1').update(await fs.readFile(slowDest)).digest('hex'),
+    slowSha1,
+    'slow segment payload hash'
+  )
+  assert.ok(slowRangeServed, 'slow segment was not requested')
+  assert.ok(slowElapsed < 10_000, `slow segment was not reconnected: ${slowElapsed}ms`)
+
   const stallDest = join(out, 'stall-fallback.bin')
   const stallStarted = Date.now()
   await downloadFile(
@@ -116,7 +217,7 @@ async function main(): Promise<void> {
     })
   })
   await Promise.all(smallJobs)
-  assert.ok(maxActiveSmall <= 16, `host concurrency exceeded: ${maxActiveSmall}`)
+  assert.ok(maxActiveSmall <= 64, `host concurrency exceeded: ${maxActiveSmall}`)
   assert.ok(maxActiveSmall > 1, 'expected parallel host downloads')
 
   console.log(JSON.stringify({

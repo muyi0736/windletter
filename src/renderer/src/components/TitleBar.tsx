@@ -64,8 +64,7 @@ export function TitleBar() {
       <div className="titlebar-brand">
         <Logo size={30} />
         <div className="brand-text">
-          <strong>风信启动器</strong>
-          <span>WINDLETTER</span>
+          <strong>月月月启动器</strong>
         </div>
       </div>
 

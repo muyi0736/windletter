@@ -1,0 +1,1140 @@
+/* UI refresh: quieter copy, clearer type, compact actions. */
+:root {
+  --refresh-line: color-mix(in srgb, var(--border) 86%, transparent);
+}
+
+/* Page headings: one clear title, no slogan/subtitle in the six main pages. */
+.page--home .page-eyebrow,
+.page--instances .page-eyebrow,
+.page--downloads-hub .page-eyebrow,
+.page--servers .page-eyebrow,
+.page--settings .page-eyebrow,
+.page--more .page-eyebrow {
+  display: none;
+}
+
+.page--home .page-head-copy p,
+.page--instances .page-head-copy p,
+.page--downloads-hub .page-head-copy p,
+.page--servers .page-head-copy p,
+.page--settings .page-head-copy p,
+.page--more .page-head-copy p {
+  display: none;
+}
+
+.page--home .home-header h1 {
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+.page--instances .page-head h1,
+.page--downloads-hub .page-head h1,
+.page--servers .page-head h1,
+.page--settings .page-head h1,
+.page--more .page-head h1 {
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.page--home .home-header {
+  margin-bottom: 14px;
+}
+
+.page--home .home-header p {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.page--home .home-header-stats {
+  font-size: 11.5px;
+}
+
+/* Home target card: the title is the instance, metadata is secondary. */
+.home-target-copy h2 {
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.home-target-copy p {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.home-target-head .mono-label {
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+.home-target-fact-copy em {
+  font-size: 10.5px;
+}
+
+.home-target-fact-copy strong {
+  font-size: 12.5px;
+}
+
+.launch-cta-copy strong {
+  font-size: 13px;
+}
+
+.launch-cta-copy small {
+  font-size: 11px;
+}
+
+.launch-hint,
+.home-library-head .home-library-actions button:not(:last-child) {
+  /* kept for reference; hint removed in JSX */
+}
+
+/* Home right rail: icon-only, no empty text. */
+.right-panel.is-collapsed {
+  width: 52px;
+  min-width: 52px;
+}
+
+.right-rail-activity {
+  gap: 2px;
+  padding: 7px 0;
+}
+
+.right-rail-activity span {
+  display: none;
+}
+
+.right-rail-activity em {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+}
+
+/* Home rows: keep only start + manage; icons hidden in JSX. */
+.home-instance-copy small {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.home-instance-actions .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+/* Instances: cards carry name + chips + time; actions collapse into ⋯. */
+.instance-card-title span {
+  display: none;
+}
+
+.instance-card-title strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.instance-tags .type-tag,
+.instance-tags .loader-tag,
+.instance-tags .instance-tag-muted {
+  font-size: 10.5px;
+  height: 21px;
+  padding: 0 7px;
+}
+
+.instance-meta {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.instance-actions {
+  gap: 6px;
+}
+
+.instance-more {
+  position: relative;
+}
+
+.instance-more summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.instance-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.instance-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 190px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong, var(--border));
+  background: var(--surface);
+  box-shadow: var(--shadow-md, 0 16px 36px rgba(0, 0, 0, 0.3));
+  display: grid;
+  gap: 2px;
+}
+
+.instance-more-menu .button {
+  justify-content: flex-start;
+  width: 100%;
+  height: 30px;
+  font-size: 11.5px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.instance-more-menu .button:hover {
+  background: var(--surface-2);
+}
+
+.instance-more-menu .instance-actions-tail {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding-top: 5px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.instance-more-menu .instance-actions-tail .icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+/* Downloads: status is a compact chip, not a sentence. */
+.game-version-row small,
+.game-install-head p {
+  font-size: 11px;
+}
+
+.game-loader-name {
+  font-size: 12.5px;
+}
+
+.game-loader-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.game-loader-state.is-installed {
+  color: var(--success, #7bd3a0);
+  border-color: color-mix(in srgb, var(--success, #7bd3a0) 34%, transparent);
+  background: color-mix(in srgb, var(--success, #7bd3a0) 9%, transparent);
+}
+
+.game-loader-state.is-disabled {
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
+.game-loader-note {
+  display: none;
+}
+
+.game-install-footer-copy {
+  gap: 6px;
+}
+
+.game-install-status {
+  font-size: 11.5px;
+}
+
+/* Servers: no FILE decoration; keep protocol + bound instance only. */
+.server-index-head > span:first-child {
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+.server-file-code {
+  font-size: 9.5px;
+  color: var(--text-3);
+}
+
+.server-file-meta {
+  font-size: 11px;
+}
+
+.dossier-subtitle {
+  font-size: 11.5px;
+}
+
+.dossier-meta {
+  grid-template-columns: 1fr 1fr;
+}
+
+.dossier-cell {
+  font-size: 11.5px;
+}
+
+.dossier-screen-facts {
+  display: none;
+}
+
+.dossier-roster-summary {
+  font-size: 11px;
+}
+
+/* Settings: explanations live in ? tooltips. */
+.settings-section-head p {
+  display: none;
+}
+
+.settings-section-head h2 {
+  font-size: 15px;
+}
+
+.settings-row {
+  min-height: 52px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.settings-row-copy strong {
+  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-help {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 9.5px;
+  line-height: 13px;
+  text-align: center;
+  cursor: help;
+  flex: 0 0 auto;
+}
+
+.settings-row-copy p {
+  display: none;
+}
+
+/* More: compact brand and card headers. */
+.more-about-head h2 {
+  font-size: 20px;
+}
+
+.more-about-head span {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.more-about-text,
+.more-feature-chips {
+  display: none;
+}
+
+.more-card-head p {
+  display: none;
+}
+
+.more-card-head h3 {
+  font-size: 13px;
+}
+
+/* Title bar: account one line. */
+.titlebar-account-text small {
+  display: none;
+}
+
+.titlebar-account-text strong {
+  font-size: 12px;
+}
+
+.brand-text span {
+  display: none;
+}
+
+.brand-text strong {
+  font-size: 13px;
+}
+
+/* Page transition: 180-220ms quiet fade + 6px rise. */
+.page-transition {
+  animation: refresh-page-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation-duration: 0.01ms;
+  }
+
+  .page-transition,
+  .nav-item,
+  .nav-item svg {
+    transition: none !important;
+  }
+}
+
+/* Instances header overflow */
+.instances-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.head-more {
+  position: relative;
+}
+
+.head-more summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.head-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.head-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  width: 168px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong, var(--border));
+  background: var(--surface);
+  box-shadow: var(--shadow-md, 0 16px 36px rgba(0, 0, 0, 0.3));
+  display: grid;
+  gap: 2px;
+}
+
+.head-more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 31px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 11.5px;
+  text-align: left;
+}
+
+.head-more-menu button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Compact primary launch action on Home */
+.home-target-card .home-launch {
+  width: auto;
+  min-width: 168px;
+  max-width: 250px;
+  min-height: 42px;
+  margin-left: auto;
+  align-self: flex-end;
+  padding: 0 16px;
+  border-radius: 9px;
+}
+
+.home-target-card .home-launch .launch-cta-copy strong {
+  font-size: 13px;
+}
+
+.home-target-card .home-launch .launch-cta-tail {
+  font-size: 8.5px;
+}
+
+/* Workbench home: same quiet hierarchy and normal scale as the other pages. */
+.home-classic {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+  padding-bottom: 18px;
+}
+
+.home-classic .home-header {
+  margin-bottom: 0;
+}
+
+.home-classic .home-header h1 {
+  margin: 0 0 6px;
+}
+
+.home-classic .home-header p {
+  margin-top: 0;
+}
+
+.home-classic .focus-panel {
+  gap: 14px;
+  padding: 20px;
+}
+
+.home-classic .focus-top .mono-label {
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.home-classic .focus-status {
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.home-classic .focus-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 10px;
+}
+
+.home-classic .focus-identity {
+  gap: 14px;
+}
+
+.home-classic .focus-name h2 {
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.home-classic .focus-name p {
+  margin-top: 5px;
+  font-family: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0;
+}
+
+.home-classic .focus-switch {
+  height: 30px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.home-classic .focus-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 11px 0;
+}
+
+.home-classic .focus-facts > div {
+  padding: 0 12px;
+}
+
+.home-classic .focus-facts span {
+  margin-bottom: 3px;
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.home-classic .focus-facts strong {
+  font-size: 12.5px;
+}
+
+.home-classic .focus-panel .launch-cta.home-launch {
+  width: auto;
+  min-width: 168px;
+  max-width: 250px;
+  min-height: 42px;
+  margin-left: auto;
+  align-self: flex-end;
+  padding: 0 16px;
+  border-radius: 9px;
+}
+
+.home-classic .focus-panel .home-launch .launch-cta-copy strong {
+  font-size: 13px;
+}
+
+.home-classic .focus-panel .home-launch .launch-cta-copy small {
+  font-size: 10.5px;
+}
+
+.home-classic .focus-panel .home-launch .launch-cta-tail {
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+}
+
+.home-classic .focus-panel .home-launch:not(.is-busy):not(.is-running) .launch-cta-tail {
+  font-size: 0;
+  gap: 0;
+}
+
+.home-classic .workbench-section-title > span {
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.home-classic .workbench-section-actions {
+  gap: 6px;
+}
+
+.home-classic .workbench-section-actions button,
+.home-classic .workbench-section-actions summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.home-classic .workbench-section-actions button:hover,
+.home-classic .workbench-section-actions summary:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.home-classic .workbench-section-actions summary {
+  list-style: none;
+}
+
+.home-classic .workbench-section-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-classic .workbench-section-actions .head-more-menu button {
+  justify-content: flex-start;
+  height: 31px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.home-classic .workbench-instance-card .instance-more-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+  transform-origin: bottom right;
+}
+
+/* Loader status chips must not stretch */
+.game-loader-row .game-loader-state {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 54px;
+  margin-left: auto;
+}
+
+/* Non-wide settings rows keep control right-aligned */
+.settings-row:not(.settings-row--wide) .settings-row-control {
+  margin-left: auto;
+}
+
+.home-target-fact-copy em {
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+.home-target-card .home-launch:not(.is-busy):not(.is-running) .launch-cta-tail {
+  font-size: 0;
+  gap: 0;
+}
+
+.home-target-card .home-launch:not(.is-busy):not(.is-running) .launch-cta-tail svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* More visible page and overlay motion */
+.page-transition {
+  animation: refresh-page-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-overlay {
+  animation: refresh-overlay-in 0.2s ease-out;
+}
+
+@keyframes refresh-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  animation: refresh-modal-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.instance-more-menu,
+.head-more-menu {
+  transform-origin: top right;
+  animation: refresh-pop-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Nav active state gets a small, visible settle instead of an instant swap */
+.nav-item.is-active {
+  animation: refresh-nav-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-nav-in {
+  from {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+  to {
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent-border);
+  }
+}
+
+/* Software rendering: skip full-screen blur and whole-page transforms.
+   These are the two expensive paths for WARP/SwiftShader compositing. */
+html[data-renderer='software'] *,
+html[data-renderer='software'] *::before,
+html[data-renderer='software'] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-renderer='software'] .page-transition {
+  animation: refresh-page-in-lite 0.12s ease-out;
+}
+
+@keyframes refresh-page-in-lite {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+html[data-renderer='software'] .modal-overlay {
+  animation: refresh-overlay-in-lite 0.1s ease-out;
+}
+
+@keyframes refresh-overlay-in-lite {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+html[data-renderer='software'] .modal {
+  animation: refresh-modal-in-lite 0.14s ease-out;
+}
+
+@keyframes refresh-modal-in-lite {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+html[data-renderer='software'] .instance-more-menu,
+html[data-renderer='software'] .head-more-menu {
+  animation: refresh-pop-in-lite 0.1s ease-out;
+}
+
+@keyframes refresh-pop-in-lite {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+html[data-renderer='software'] .nav-item.is-active {
+  animation: none;
+}
+
+html[data-renderer='software'] .custom-background-layer.is-current {
+  animation-duration: 0.3s;
+}
+
+/* Comfortable reading scale: the old 7.5–11.5px density was too small. */
+.nav-item {
+  height: 32px;
+  font-size: 13px;
+}
+
+.titlebar .brand strong,
+.titlebar strong {
+  font-size: 14px;
+}
+
+.downloads-nav-title {
+  font-size: 10px;
+}
+
+.downloads-nav button,
+.downloads-nav-disabled {
+  padding: 10px;
+  font-size: 13px;
+}
+
+.downloads-nav svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modpack-row {
+  gap: 12px;
+  padding: 12px 4px;
+}
+
+.modpack-row-icon {
+  width: 50px;
+  height: 50px;
+}
+
+.modpack-row-head strong {
+  font-size: 16px;
+}
+
+.modpack-row-head span {
+  font-size: 10.5px;
+}
+
+.modpack-row-body p {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.modpack-row-meta {
+  gap: 8px;
+  font-size: 10.5px;
+}
+
+.instance-tag-muted {
+  font-size: 10.5px;
+}
+
+.loader-tag,
+.type-tag {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 9.5px;
+}
+
+.button {
+  font-size: 12.5px;
+}
+
+.button--sm {
+  height: 32px;
+  font-size: 11.5px;
+}
+
+.button--xs {
+  height: 28px;
+  font-size: 11px;
+}
+
+.text-input input {
+  font-size: 13.5px;
+}
+
+.form-label {
+  font-size: 12.5px;
+}
+
+.form-hint {
+  font-size: 10.5px;
+}
+
+.settings-nav-item {
+  height: 36px;
+  font-size: 12.5px;
+}
+
+.settings-section-head h2 {
+  font-size: 17px;
+}
+
+.settings-section-head p {
+  font-size: 11px;
+}
+
+.settings-row-copy > strong {
+  font-size: 13.5px;
+}
+
+.settings-row-copy > p {
+  font-size: 11px;
+}
+
+.settings-tip {
+  font-size: 11px;
+}
+
+/* Motion: make page and overlay changes readable at normal viewing distance. */
+.page-transition {
+  animation: refresh-page-in-strong 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-page-in-strong {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-overlay {
+  animation: refresh-overlay-in-strong 0.22s ease-out;
+}
+
+@keyframes refresh-overlay-in-strong {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  animation: refresh-modal-in-strong 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-modal-in-strong {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.instance-more-menu,
+.head-more-menu {
+  animation: refresh-pop-in-strong 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes refresh-pop-in-strong {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.instance-card-title strong {
+  font-size: 15px;
+}
+
+.instance-card-title span {
+  font-size: 11px;
+}
+
+.instance-meta {
+  font-size: 10.5px;
+}
+
+.home-instance-copy strong {
+  font-size: 14px;
+}
+
+.home-instance-copy small {
+  font-size: 12px;
+}
+
+/* Custom backgrounds: the titlebar should read as frosted glass, not a white strip. */
+html[data-custom-background='true'] .titlebar {
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
+  border-bottom-color: transparent;
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 35%, transparent);
+}
+
+html[data-custom-background='true'] .titlebar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 58%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 30%, transparent) 72%,
+    transparent 100%
+  );
+  border-bottom-color: transparent;
+  box-shadow: none;
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+}
+
+/* Center the six main navigation items in the titlebar. */
+.titlebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 16px;
+}
+
+.titlebar-brand {
+  justify-self: start;
+}
+
+.titlebar-nav {
+  justify-self: center;
+}
+
+.titlebar-right {
+  margin-left: 0;
+  justify-self: end;
+}
+
+@media (max-width: 1180px) {
+  .titlebar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}
+
+/* Nudge titlebar content down without increasing the bar height. */
+.titlebar {
+  padding-top: 8px;
+}
+
+/* More page: compact brand/update row, three utility cards, full-width credit. */
+.page--more .more-grid {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.page--more .more-about {
+  grid-column: span 5;
+  justify-content: center;
+  gap: 18px;
+}
+
+.page--more .update-card {
+  grid-column: span 7;
+}
+
+.page--more .more-logs,
+.page--more .more-files,
+.page--more .more-runtime {
+  grid-column: span 4;
+}
+
+.page--more .more-credit {
+  grid-column: 1 / -1;
+}
+
+.page--more .more-credit .credit-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+}
+
+@media (max-width: 1280px) {
+  .page--more .more-about,
+  .page--more .update-card {
+    grid-column: span 6;
+  }
+
+  .page--more .more-logs,
+  .page--more .more-files,
+  .page--more .more-runtime {
+    grid-column: span 4;
+  }
+}
+
+@media (max-width: 980px) {
+  .page--more .more-about,
+  .page--more .update-card,
+  .page--more .more-logs,
+  .page--more .more-files,
+  .page--more .more-runtime {
+    grid-column: span 6;
+  }
+
+  .page--more .more-credit .credit-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .page--more .more-about,
+  .page--more .update-card,
+  .page--more .more-logs,
+  .page--more .more-files,
+  .page--more .more-runtime,
+  .page--more .more-credit {
+    grid-column: 1 / -1;
+  }
+}

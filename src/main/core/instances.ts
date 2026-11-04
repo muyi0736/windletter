@@ -162,12 +162,18 @@ function normalize(raw: unknown, folderId: string): StoredInstance | null {
       typeof value.memoryMb === 'number' && Number.isFinite(value.memoryMb)
         ? Math.max(512, Math.min(32768, Math.round(value.memoryMb)))
         : null,
+    memoryAuto:
+      typeof value.memoryAuto === 'boolean'
+        ? value.memoryAuto
+        : value.memoryMb == null,
     extraJvmArgs:
       typeof value.extraJvmArgs === 'string' ? value.extraJvmArgs.slice(0, 4000) : '',
     javaPath:
       typeof value.javaPath === 'string' && value.javaPath.trim()
         ? value.javaPath.trim()
         : null,
+    javaAuto:
+      typeof value.javaAuto === 'boolean' ? value.javaAuto : value.javaPath == null,
     category: cleanText(value.category, 20),
     favorite: Boolean(value.favorite),
     external
@@ -292,7 +298,7 @@ async function externalDeleteTarget(instance: InstanceSummary): Promise<string |
   }
   const configDir = resolve(getConfigDir()).toLowerCase()
   if (realGame.toLowerCase() === configDir || realGame.toLowerCase().startsWith(`${configDir}${sep}`)) {
-    throw new Error('外部整合包目录位于风信数据目录内，已拒绝删除')
+    throw new Error('外部整合包目录位于月月月启动器数据目录内，已拒绝删除')
   }
   return realGame
 }
@@ -351,6 +357,12 @@ export async function updateInstanceSettings(
         : patch.memoryMb === null
           ? null
           : Math.max(512, Math.min(32768, Math.round(patch.memoryMb))),
+    memoryAuto:
+      patch.memoryAuto !== undefined
+        ? patch.memoryAuto
+        : patch.memoryMb !== undefined
+          ? patch.memoryMb === null
+          : instance.memoryAuto ?? instance.memoryMb == null,
     extraJvmArgs:
       patch.extraJvmArgs === undefined
         ? instance.extraJvmArgs ?? ''
@@ -360,7 +372,13 @@ export async function updateInstanceSettings(
         ? instance.javaPath ?? null
         : typeof patch.javaPath === 'string' && patch.javaPath.trim()
           ? patch.javaPath.trim()
-          : null
+          : null,
+    javaAuto:
+      patch.javaAuto !== undefined
+        ? patch.javaAuto
+        : patch.javaPath !== undefined
+          ? patch.javaPath === null
+          : instance.javaAuto ?? instance.javaPath == null
   }
   await writeInstance(next)
   return next

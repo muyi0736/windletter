@@ -1,18 +1,22 @@
 import { promises as fs } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
 import type {
   InstanceSummary,
-  JavaAssignmentApply,
   JavaAssignmentView,
   JavaInfo
 } from '../../shared/types'
+import {
+  availablePhysicalMemoryMb,
+  computeAutoMemoryMb,
+  totalPhysicalMemoryMb
+} from './autoMemory'
 import { getSettings } from './config'
 import {
   chooseJava,
   detectJava,
   isJavaCompatible
 } from './java'
-import { listInstances, updateInstanceSettings } from './instances'
+import { getInstanceGameDir, listInstances } from './instances'
 
 interface VersionJavaMeta {
   inheritsFrom?: string
@@ -58,16 +62,56 @@ function javaCompatible(
   return isJavaCompatible(java.major, required)
 }
 
+async function countEnabledMods(gameDir: string): Promise<number | null> {
+  try {
+    const entries = await fs.readdir(join(gameDir, 'mods'))
+    return entries.filter((name) => name.toLowerCase().endsWith('.jar')).length
+  } catch {
+    return null
+  }
+}
+
 export async function buildJavaAssignments(): Promise<JavaAssignmentView[]> {
   const settings = getSettings()
   const javaList = await detectJava(settings.gameDir, settings.javaPath, true)
   const instances = await listInstances()
+  const availableMemoryMb = availablePhysicalMemoryMb()
+  const totalMemoryMb = totalPhysicalMemoryMb()
   return Promise.all(
     instances.map(async (instance) => {
       const baseDir = instance.external?.baseDir ?? instance.baseDir ?? settings.gameDir
+      const gameDir = await getInstanceGameDir(instance.id)
+      const modCount = (await countEnabledMods(gameDir)) ?? instance.modCount
+      const memoryAuto = instance.memoryAuto ?? instance.memoryMb == null
+      const recommendedMemoryMb = computeAutoMemoryMb({
+        modCount,
+        loader: instance.loader,
+        availableMb: availableMemoryMb,
+        totalMb: totalMemoryMb
+      })
+      const currentMemoryMb = memoryAuto
+        ? recommendedMemoryMb
+        : instance.memoryMb ?? settings.maxMemoryMb
+      const memoryMessage = memoryAuto
+        ? availableMemoryMb < recommendedMemoryMb
+          ? '按整合包规模分配；当前可用内存偏低，建议关闭其他程序'
+          : '启动时按整合包规模和总内存计算'
+        : currentMemoryMb < recommendedMemoryMb
+          ? `手动内存低于自动估算的 ${recommendedMemoryMb} MB`
+          : '保留实例手动内存'
+      const memory = {
+        currentMemoryMb,
+        recommendedMemoryMb,
+        availableMemoryMb,
+        totalMemoryMb,
+        memoryAuto,
+        memoryMessage
+      }
       const requiredMajor = await readRequiredJava(baseDir, instance.versionId)
       const strict = isStrictLoader(instance)
-      const manualPath = instance.javaPath?.trim() || null
+      const javaAuto = instance.javaAuto !== false
+      const currentJavaPath = instance.javaPath?.trim() || null
+      const manualPath = javaAuto ? null : currentJavaPath
       const manualJava = manualPath
         ? javaList.find((java) => java.path.toLowerCase() === manualPath.toLowerCase())
         : null
@@ -84,7 +128,9 @@ export async function buildJavaAssignments(): Promise<JavaAssignmentView[]> {
             javaVersion: null,
             javaMajor: null,
             status: 'incompatible',
-            message: '实例指定的 Java 不存在或无法运行'
+            message: '实例指定的 Java 不存在或无法运行',
+            javaAuto: false,
+            ...memory
           } satisfies JavaAssignmentView
         }
         const compatible = javaCompatible(manualJava, requiredMajor, strict)
@@ -100,7 +146,9 @@ export async function buildJavaAssignments(): Promise<JavaAssignmentView[]> {
           status: compatible ? 'manual' : 'incompatible',
           message: compatible
             ? '使用实例手动指定的 Java'
-            : `手动指定的 Java ${manualJava.major} 不满足 Java ${requiredMajor} 要求`
+            : `手动指定的 Java ${manualJava.major} 不满足 Java ${requiredMajor} 要求`,
+          javaAuto: false,
+          ...memory
         } satisfies JavaAssignmentView
       }
 
@@ -115,15 +163,24 @@ export async function buildJavaAssignments(): Promise<JavaAssignmentView[]> {
           javaVersion: null,
           javaMajor: null,
           status: 'missing',
-          message: '无法从版本配置确定所需 Java'
+          message: '无法从版本配置确定所需 Java',
+          javaAuto,
+          ...memory
         } satisfies JavaAssignmentView
       }
 
       let selected: JavaInfo | null = null
       try {
-        selected = chooseJava(javaList, requiredMajor, null, strict)
+        selected = chooseJava(javaList, requiredMajor, settings.javaPath, strict)
       } catch {
         selected = null
+      }
+      if (!selected && settings.autoJava) {
+        try {
+          selected = chooseJava(javaList, requiredMajor, null, strict)
+        } catch {
+          selected = null
+        }
       }
       if (!selected) {
         return {
@@ -136,7 +193,9 @@ export async function buildJavaAssignments(): Promise<JavaAssignmentView[]> {
           javaVersion: null,
           javaMajor: null,
           status: 'missing',
-          message: `未找到 Java ${requiredMajor}，启动时${settings.autoJava ? '会尝试自动下载' : '需要手动安装'}`
+          message: `未找到 Java ${requiredMajor}，启动时${settings.autoJava ? '会尝试自动下载' : '需要手动安装'}`,
+          javaAuto,
+          ...memory
         } satisfies JavaAssignmentView
       }
       return {
@@ -149,32 +208,11 @@ export async function buildJavaAssignments(): Promise<JavaAssignmentView[]> {
         javaVersion: selected.version,
         javaMajor: selected.major,
         status: 'ready',
-        message: null
+        message: null,
+        javaAuto,
+        ...memory
       } satisfies JavaAssignmentView
     })
   )
 }
 
-export async function applyJavaAssignments(
-  list: JavaAssignmentApply[]
-): Promise<InstanceSummary[]> {
-  const instances = await listInstances()
-  const ids = new Set(instances.map((instance) => instance.id))
-  for (const item of list.slice(0, 100)) {
-    if (!ids.has(item.instanceId)) continue
-    let path: string | null = null
-    if (item.javaPath !== null) {
-      if (
-        typeof item.javaPath !== 'string' ||
-        !item.javaPath.trim() ||
-        item.javaPath.length > 1024 ||
-        !isAbsolute(item.javaPath)
-      ) {
-        throw new Error('无效的 Java 路径')
-      }
-      path = item.javaPath.trim()
-    }
-    await updateInstanceSettings(item.instanceId, { javaPath: path })
-  }
-  return listInstances()
-}

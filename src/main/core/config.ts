@@ -62,7 +62,8 @@ export function defaultSettings(): LauncherSettings {
     theme: 'system',
     accent: 'cyan',
     homeLayout: 'simple',
-    backgroundImage: null,
+    backgroundImages: [],
+    backgroundIntervalSec: 30,
     backgroundDim: 35,
     backgroundBlur: 0,
     source: 'mirror',
@@ -74,6 +75,7 @@ export function defaultSettings(): LauncherSettings {
     javaPath: null,
     autoJava: true,
     maxMemoryMb: memory,
+    optimizeMemoryBeforeLaunch: false,
     extraJvmArgs: '',
     downloadProxy: '',
     downloadConcurrency: 32,
@@ -135,13 +137,27 @@ function sanitizeSettings(input: Partial<LauncherSettings>, base: LauncherSettin
     theme: THEMES.includes(merged.theme) ? merged.theme : base.theme,
     accent: ACCENTS.includes(merged.accent) ? merged.accent : base.accent,
     homeLayout: merged.homeLayout === 'classic' ? 'classic' : 'simple',
-    backgroundImage: (() => {
-      const value = merged.backgroundImage
-      return typeof value === 'string' &&
-        /^custom-[a-z0-9-]+\.(?:png|jpe?g|webp|gif|bmp|avif)$/i.test(value)
-        ? value
-        : null
+    backgroundImages: (() => {
+      const legacy = (input as Partial<LauncherSettings> & { backgroundImage?: unknown }).backgroundImage
+      const raw = Array.isArray(input.backgroundImages)
+        ? input.backgroundImages
+        : typeof legacy === 'string'
+          ? [legacy]
+          : base.backgroundImages
+      const names: string[] = []
+      for (const value of raw) {
+        if (
+          typeof value === 'string' &&
+          /^custom-[a-z0-9-]+\.(?:png|jpe?g|webp|gif|bmp|avif)$/i.test(value) &&
+          !names.includes(value)
+        ) {
+          names.push(value)
+        }
+        if (names.length >= 20) break
+      }
+      return names
     })(),
+    backgroundIntervalSec: clamp(merged.backgroundIntervalSec, 5, 300, base.backgroundIntervalSec),
     backgroundDim: clamp(merged.backgroundDim, 0, 80, base.backgroundDim),
     backgroundBlur: clamp(merged.backgroundBlur, 0, 24, base.backgroundBlur),
     source: SOURCES.includes(merged.source) ? merged.source : base.source,
@@ -169,6 +185,7 @@ function sanitizeSettings(input: Partial<LauncherSettings>, base: LauncherSettin
     javaPath: typeof merged.javaPath === 'string' && merged.javaPath.trim() ? merged.javaPath.trim() : null,
     autoJava: Boolean(merged.autoJava),
     maxMemoryMb: clamp(merged.maxMemoryMb, 512, 32768, base.maxMemoryMb),
+    optimizeMemoryBeforeLaunch: merged.optimizeMemoryBeforeLaunch === true,
     extraJvmArgs: typeof merged.extraJvmArgs === 'string' ? merged.extraJvmArgs.slice(0, 4000) : '',
     downloadProxy:
       typeof merged.downloadProxy === 'string'

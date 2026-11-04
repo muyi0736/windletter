@@ -11,7 +11,8 @@ export interface LauncherSettings {
   theme: ThemeMode
   accent: AccentName
   homeLayout: HomeLayout
-  backgroundImage: string | null
+  backgroundImages: string[]
+  backgroundIntervalSec: number
   backgroundDim: number
   backgroundBlur: number
   source: DownloadSource
@@ -24,6 +25,8 @@ export interface LauncherSettings {
   javaPath: string | null
   autoJava: boolean
   maxMemoryMb: number
+  /** 每次启动游戏前回收系统工作集；不等同于管理员深度清理。 */
+  optimizeMemoryBeforeLaunch: boolean
   extraJvmArgs: string
   downloadConcurrency: number
   downloadProxy: string
@@ -399,6 +402,136 @@ export interface WorkshopExportProgress {
 
 export interface WorkshopExportResult extends WorkshopExportProgress {
   path: string
+}
+
+export type TranslationFileKind =
+  | 'ftb-lang'
+  | 'ftb-chapter'
+  | 'lang'
+  | 'config'
+  | 'mod-lang'
+  | 'patchouli'
+  | 'shader-lang'
+export type TranslationFileAction = 'create' | 'merge' | 'in-place'
+export type TranslationScanScope = 'all' | 'text' | 'config' | 'mods' | 'shader'
+export type TranslationSegmentKind = 'json' | 'json5' | 'snbt' | 'lang' | 'comment'
+
+export interface TranslationGlossaryEntry {
+  source: string
+  target: string
+}
+
+export interface TranslationSegmentView {
+  id: string
+  fileId: string
+  source: string
+  line: number
+  field: string
+  kind: TranslationSegmentKind
+}
+
+export interface TranslationFileView {
+  id: string
+  path: string
+  /** jar 内文件在界面上的来源标签；普通文件为空。 */
+  sourceLabel?: string | null
+  targetPath: string | null
+  kind: TranslationFileKind
+  action: TranslationFileAction
+  size: number
+  modified: number
+  targetModified: number | null
+  segments: TranslationSegmentView[]
+  warnings: string[]
+}
+
+export interface TranslationScanResult {
+  instanceId: string
+  instanceName: string
+  gameVersion: string
+  loader: InstanceLoader
+  scope: TranslationScanScope
+  files: TranslationFileView[]
+  totals: {
+    files: number
+    segments: number
+    characters: number
+    skipped: number
+  }
+  glossary: TranslationGlossaryEntry[]
+  communityGlossaryCount: number
+  aiEnabled: boolean
+  aiModel: string | null
+  resourcePack: {
+    folder: string
+    path: string
+    exists: boolean
+    enabled: boolean
+  }
+  warnings: string[]
+}
+
+export interface TranslationBatchItem {
+  id: string
+  text: string
+  field?: string
+  kind?: TranslationSegmentKind
+}
+
+export interface TranslationBatchRequest {
+  instanceId: string
+  items: TranslationBatchItem[]
+  glossary: TranslationGlossaryEntry[]
+}
+
+export interface TranslationBatchResult {
+  items: { id: string; text: string }[]
+  warnings: string[]
+  model: string | null
+  sentBytes: number
+}
+
+export interface TranslationPreviewRequest {
+  instanceId: string
+  fileId: string
+  translations: Record<string, string>
+  bilingual?: boolean
+}
+
+export interface TranslationPreview {
+  fileId: string
+  path: string
+  targetPath: string | null
+  action: TranslationFileAction
+  before: string
+  after: string
+  changed: number
+  warnings: string[]
+}
+
+export interface TranslationApplyFile {
+  fileId: string
+  translations: Record<string, string>
+  expectedModified: number
+  expectedTargetModified: number | null
+}
+
+export interface TranslationApplyRequest {
+  instanceId: string
+  files: TranslationApplyFile[]
+  bilingual?: boolean
+}
+
+export interface TranslationEnablePackResult {
+  enabled: boolean
+  path: string
+  message: string
+}
+
+export interface TranslationApplyResult {
+  written: { path: string; backup: string | null; segments: number }[]
+  skipped: { path: string; reason: string }[]
+  warnings: string[]
 }
 
 export interface KubeJsSaveRequest {
@@ -842,11 +975,18 @@ export interface JavaAssignmentView {
   javaMajor: number | null
   status: JavaAssignmentStatus
   message: string | null
-}
-
-export interface JavaAssignmentApply {
-  instanceId: string
-  javaPath: string | null
+  /** 这个实例的 Java 是否由自动分配管理。 */
+  javaAuto: boolean
+  /** 实例当前实际会使用的内存（手动值优先，否则为启动时估算值）。 */
+  currentMemoryMb: number
+  recommendedMemoryMb: number
+  /** 启动时可用物理内存，供自动内存估算参考。 */
+  availableMemoryMb: number
+  /** 系统总物理内存，自动估算不会超过它的 80%。 */
+  totalMemoryMb: number
+  /** 实例没有手动内存时，启动时会实时计算。 */
+  memoryAuto: boolean
+  memoryMessage: string | null
 }
 
 export interface DownloadActiveFile {
@@ -938,8 +1078,12 @@ export interface InstanceSummary {
   category?: string
   favorite?: boolean
   memoryMb?: number | null
+  /** true 表示内存由自动分配管理；false 表示用户手动指定。 */
+  memoryAuto?: boolean
   extraJvmArgs?: string
   javaPath?: string | null
+  /** true 表示 Java 路径由自动分配管理；false 表示用户手动指定。 */
+  javaAuto?: boolean
   external?: {
     baseDir: string
     gameDir: string
@@ -948,8 +1092,10 @@ export interface InstanceSummary {
 
 export interface InstanceSettingsPatch {
   memoryMb?: number | null
+  memoryAuto?: boolean
   extraJvmArgs?: string
   javaPath?: string | null
+  javaAuto?: boolean
 }
 
 export interface InstanceTransferRequest {
@@ -1158,12 +1304,43 @@ export interface AiCause {
   fix: string
 }
 
+export type AiFixType = 'disable_mod' | 'set_memory'
+
+export interface AiFixAction {
+  type: AiFixType
+  title: string
+  detail: string
+  risk: 'low' | 'medium'
+  /** disable_mod：模组文件名；服务端会再次核对是否确实存在且被本地证据指向。 */
+  file?: string
+  /** set_memory：目标内存 MB。 */
+  memoryMb?: number
+  currentMemoryMb?: number
+  /** 服务端校验是否允许执行；false 时 blockedReason 说明原因。 */
+  applicable: boolean
+  blockedReason?: string
+}
+
+export interface AiFixApplyRequest {
+  instanceId: string
+  type: AiFixType
+  file?: string
+  memoryMb?: number
+}
+
+export interface AiFixApplyResult {
+  message: string
+  report: DiagnosticReport
+}
+
 export interface AiDiagnosisView {
   model: string
   summary: string
   confidence: 'low' | 'medium' | 'high' | null
   causes: AiCause[]
   checks: string[]
+  /** 已通过本地证据校验的结构化修复动作；未通过的动作会被标记 applicable=false。 */
+  actions: AiFixAction[]
   raw: string | null
   sentBytes: number
   sentAt: number
@@ -1806,7 +1983,7 @@ export interface LauncherApi {
   settings: {
     get: () => Promise<LauncherSettings>
     update: (patch: Partial<LauncherSettings>) => Promise<LauncherSettings>
-    chooseBackground: () => Promise<string | null>
+    chooseBackgrounds: () => Promise<string[]>
   }
   updater: {
     state: () => Promise<LauncherUpdateState>
@@ -1878,6 +2055,15 @@ export interface LauncherApi {
     verify: (request: ServerPackVerifyRequest) => Promise<ServerPackVerifyReport>
     cancelVerify: () => Promise<boolean>
     onVerifyProgress: (cb: (progress: ServerPackVerifyProgress) => void) => () => void
+  }
+  translation: {
+    scan: (instanceId: string, scope?: TranslationScanScope) => Promise<TranslationScanResult>
+    glossary: () => Promise<TranslationGlossaryEntry[]>
+    saveGlossary: (entries: TranslationGlossaryEntry[]) => Promise<TranslationGlossaryEntry[]>
+    translate: (request: TranslationBatchRequest) => Promise<TranslationBatchResult>
+    preview: (request: TranslationPreviewRequest) => Promise<TranslationPreview>
+    apply: (request: TranslationApplyRequest) => Promise<TranslationApplyResult>
+    enablePack: (instanceId: string) => Promise<TranslationEnablePackResult>
   }
   workshop: {
     report: (instanceId: string) => Promise<WorkshopReport>
@@ -1954,6 +2140,7 @@ export interface LauncherApi {
     getConfig: () => Promise<AiConfigView>
     updateConfig: (patch: AiConfigPatch) => Promise<AiConfigView>
     analyze: (instanceId: string) => Promise<AiDiagnosisView>
+    applyFix: (request: AiFixApplyRequest) => Promise<AiFixApplyResult>
   }
   servers: {
     list: () => Promise<ServerView[]>
@@ -2070,7 +2257,6 @@ export interface LauncherApi {
     detect: (refresh?: boolean) => Promise<JavaInfo[]>
     downloadForVersion: (versionId: string) => Promise<TaskState>
     assignments: () => Promise<JavaAssignmentView[]>
-    applyAssignments: (list: JavaAssignmentApply[]) => Promise<InstanceSummary[]>
   }
   launch: {
     start: (versionId: string) => Promise<void>

@@ -349,6 +349,7 @@ export async function downloadModpackArchive(
     {
       sha1: selection.file.sha1,
       size: selection.file.size,
+      multiSource: (selection.file.size ?? 0) >= 8 * 1024 * 1024,
       signal,
       onBytes
     }

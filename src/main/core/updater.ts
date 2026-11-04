@@ -279,7 +279,7 @@ function parseManifest(raw: unknown, manifestUrl: URL): ReleaseFile {
   if (!isRecord(raw)) throw new Error('更新源返回的清单格式不正确')
   if (raw.schema !== 1) throw new Error('更新清单版本不受支持（需要 schema: 1）')
   if (String(raw.app ?? '').toLowerCase() !== 'windletter') {
-    throw new Error('更新清单不属于风信启动器')
+    throw new Error('更新清单不属于月月月启动器')
   }
   const version =
     typeof raw.version === 'string' ? raw.version.trim().slice(0, 64) : ''

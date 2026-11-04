@@ -142,12 +142,7 @@ export function ServersPage() {
     <div className="page page--servers">
       <header className="page-head servers-head">
         <div className="page-head-copy">
-          <span className="page-eyebrow">
-            <Server size={14} />
-            服务器
-          </span>
-          <h1>常去的地方，点一下就走</h1>
-          <p>保存服务器地址并绑定实例，启动器会带着对应模组直接进入服务器。</p>
+          <h1>服务器</h1>
         </div>
         <div className="servers-head-actions">
           <button
@@ -177,7 +172,7 @@ export function ServersPage() {
             <EmptyState
               icon={<Server size={26} />}
               title="还没有保存服务器"
-              description="把常去的服务器地址放在这里。绑定实例后，点一次就能启动游戏并直接进服。"
+              description="绑定实例后，点一次即可启动并进服。"
               action={
                 <div className="picker-empty-actions">
                   <button type="button" className="button button--primary" onClick={openAdd}>
@@ -199,7 +194,7 @@ export function ServersPage() {
           <div className="server-desk">
             <aside className="server-index">
               <div className="server-index-head">
-                <span>Files / 服务器</span>
+                <span>服务器</span>
                 <span className="server-index-count">
                   <i className={serversChecking ? 'is-checking' : ''} />
                   {onlineCount} / {servers.length} 在线
@@ -227,15 +222,7 @@ export function ServersPage() {
                         size={28}
                       />
                       <span className="server-file-copy">
-                        <span className="server-file-code">
-                          FILE {fileLetter(index)}
-                          {category && (
-                            <>
-                              <em>·</em>
-                              <span>{category}</span>
-                            </>
-                          )}
-                        </span>
+                        {category && <span className="server-file-code">{category}</span>}
                         <strong title={server.name}>{server.name}</strong>
                         <span className="server-file-meta">
                           <i className={`server-file-dot server-file-dot--${status.state}`} />
@@ -276,13 +263,7 @@ export function ServersPage() {
                 <header className="dossier-head">
                   <span className="dossier-file">
                     <i className="dossier-file-mark" />
-                    FILE {fileLetter(selectedIndex)}
-                    {categoryOf(selected) && (
-                      <>
-                        <em>·</em>
-                        <span>{categoryOf(selected)}</span>
-                      </>
-                    )}
+                    {categoryOf(selected) || '服务器'}
                   </span>
                   <span className={`dossier-status dossier-status--${selectedStatus.state}`}>
                     {selectedStatus.state === 'online' ? (
@@ -303,18 +284,18 @@ export function ServersPage() {
                   <h2>{selected.name}</h2>
                   <p className="dossier-subtitle">
                     {selectedInstance
-                      ? `Minecraft ${selectedInstance.gameVersion} · ${
+                      ? `${selectedInstance.gameVersion} · ${
                           loaderLabel(selectedInstance.loader) ?? '原版'
                         } · ${selectedInstance.modCount} 模组`
                       : selectedStatus.version
-                        ? `Minecraft ${selectedStatus.version} · 尚未绑定实例`
-                        : '尚未绑定实例'}
+                        ? `${selectedStatus.version} · 未绑定实例`
+                        : '未绑定实例'}
                   </p>
                   {selectedStatus.state === 'online' ? (
                     <div className="dossier-players">
                       <strong>{selectedStatus.playersOnline ?? 0}</strong>
                       <span>/ {selectedStatus.playersMax ?? '—'}</span>
-                      <em>人在线</em>
+                      <em>在线</em>
                     </div>
                   ) : (
                     <p className="dossier-players-empty">
@@ -327,22 +308,8 @@ export function ServersPage() {
 
                 <div className="dossier-meta">
                   <div className="dossier-cell">
-                    <span>版本</span>
-                    <strong>
-                      {selectedStatus.version ?? selectedInstance?.gameVersion ?? '—'}
-                    </strong>
-                  </div>
-                  <div className="dossier-cell">
                     <span>协议</span>
                     <strong>{selectedStatus.protocol ?? '—'}</strong>
-                  </div>
-                  <div className="dossier-cell">
-                    <span>加载器</span>
-                    <strong>
-                      {selectedInstance
-                        ? loaderLabel(selectedInstance.loader) ?? '原版'
-                        : '—'}
-                    </strong>
                   </div>
                   <div className="dossier-cell">
                     <span>绑定实例</span>
@@ -393,23 +360,7 @@ export function ServersPage() {
                         : '还没有探测过这个服务器'}
                     </p>
                   )}
-                  <div className="dossier-screen-facts">
-                    <span>
-                      <Users size={10} />
-                      {selectedStatus.state === 'online'
-                        ? `${selectedStatus.playersOnline ?? 0} / ${
-                            selectedStatus.playersMax ?? '—'
-                          } 在线`
-                        : '— 在线'}
-                    </span>
-                    <span>
-                      <Activity size={10} />
-                      {selectedStatus.version ??
-                        selectedInstance?.gameVersion ??
-                        '未知版本'}
-                    </span>
-                    <span>协议 {selectedStatus.protocol ?? '—'}</span>
-                  </div>
+
                 </div>
 
                 <section className="dossier-roster">
@@ -568,7 +519,7 @@ export function ServersPage() {
         title="移除这个服务器？"
         message={
           pendingDelete
-            ? `只会从风信移除「${pendingDelete.name}」这个书签，不会改动实例、存档或服务器本身。`
+            ? `只会移除「${pendingDelete.name}」这个书签，不会改动实例、存档或服务器本身。`
             : ''
         }
         confirmLabel="移除"

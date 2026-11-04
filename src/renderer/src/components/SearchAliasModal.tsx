@@ -105,7 +105,7 @@ export function SearchAliasModal({
         <div className="search-alias-note">
           <Search size={14} />
           <span>
-            PCL 使用离线的 MC百科翻译快照。为避免抓取 MC百科搜索页，风信只读取你主动粘贴的
+            PCL 使用离线的 MC百科翻译快照。为避免抓取 MC百科搜索页，月月月启动器只读取你主动粘贴的
             <strong> class 模组页链接</strong>；读取后只保存中文名、英文查询词和项目链接。
             数据来自 MC百科（BY-NC-SA 3.0）。
           </span>

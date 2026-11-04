@@ -54,7 +54,7 @@ const api: LauncherApi = {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     update: (patch) => ipcRenderer.invoke('settings:update', patch),
-    chooseBackground: () => ipcRenderer.invoke('settings:choose-background')
+    chooseBackgrounds: () => ipcRenderer.invoke('settings:choose-backgrounds')
   },
   updater: {
     state: () => ipcRenderer.invoke('updater:state'),
@@ -124,6 +124,15 @@ const api: LauncherApi = {
     cancelVerify: () => ipcRenderer.invoke('serverpack:verify-cancel'),
     onVerifyProgress: (cb) =>
       subscribe<ServerPackVerifyProgress>('serverpack:verify-progress', cb)
+  },
+  translation: {
+    scan: (instanceId, scope) => ipcRenderer.invoke('translation:scan', instanceId, scope),
+    glossary: () => ipcRenderer.invoke('translation:glossary'),
+    saveGlossary: (entries) => ipcRenderer.invoke('translation:save-glossary', entries),
+    translate: (request) => ipcRenderer.invoke('translation:translate', request),
+    preview: (request) => ipcRenderer.invoke('translation:preview', request),
+    apply: (request) => ipcRenderer.invoke('translation:apply', request),
+    enablePack: (instanceId) => ipcRenderer.invoke('translation:enable-pack', instanceId)
   },
   workshop: {
     report: (instanceId) => ipcRenderer.invoke('workshop:report', instanceId),
@@ -215,7 +224,8 @@ const api: LauncherApi = {
   ai: {
     getConfig: () => ipcRenderer.invoke('ai:get-config'),
     updateConfig: (patch) => ipcRenderer.invoke('ai:update-config', patch),
-    analyze: (instanceId) => ipcRenderer.invoke('ai:analyze', instanceId)
+    analyze: (instanceId) => ipcRenderer.invoke('ai:analyze', instanceId),
+    applyFix: (request) => ipcRenderer.invoke('ai:apply-fix', request.instanceId, request)
   },
   servers: {
     list: () => ipcRenderer.invoke('servers:list'),
@@ -294,8 +304,7 @@ const api: LauncherApi = {
   java: {
     detect: (refresh) => ipcRenderer.invoke('java:detect', refresh),
     downloadForVersion: (versionId) => ipcRenderer.invoke('java:download-for-version', versionId),
-    assignments: () => ipcRenderer.invoke('java:assignments'),
-    applyAssignments: (list) => ipcRenderer.invoke('java:apply-assignments', list)
+    assignments: () => ipcRenderer.invoke('java:assignments')
   },
   launch: {
     start: (versionId) => ipcRenderer.invoke('launch:start', versionId),

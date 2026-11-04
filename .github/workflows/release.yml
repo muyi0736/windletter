@@ -31,15 +31,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build bundle
+      - name: Build and package NSIS
         env:
           # 只在本步骤注入；不会出现在源码、日志或普通 PR 中。
           WINDLETTER_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
           WINDLETTER_DEFAULT_UPDATE_FEED: https://github.com/${{ github.repository }}/releases/latest/download/latest.json
-        run: npm run build
-
-      - name: Package NSIS installer
-        run: npx electron-builder --win nsis --publish never
+        run: npm run dist
 
       - name: Generate update manifest
         shell: bash
@@ -69,5 +66,5 @@ jobs:
           INSTALLER="release/Windletter-Launcher-${VERSION}-setup.exe"
           gh release create "$GITHUB_REF_NAME" \
             "$INSTALLER" release/latest.json \
-            --title "风信启动器 ${VERSION}" \
+            --title "月月月启动器 ${VERSION}" \
             --notes-file build/update-notes.txt

@@ -27,11 +27,12 @@ import {
   Trash2,
   UserRound,
   WandSparkles,
-  Wrench
+  Wrench,
+  X
 } from 'lucide-react'
 import type { AccentName, HomeLayout, ThemeMode } from '@shared/types'
 import { useLauncher } from '../store'
-import { applyAccent, applyTheme, customBackgroundUrl } from '../lib/appearance'
+import { applyAccent, applyTheme, customBackgroundUrls } from '../lib/appearance'
 import { cleanError, formatBytes, formatMemory, javaRequirement, loaderLabel } from '../lib/format'
 import {
   Badge,
@@ -94,7 +95,6 @@ function SettingsSection({
   id,
   icon,
   title,
-  subtitle,
   children
 }: {
   id: SectionKey
@@ -109,7 +109,6 @@ function SettingsSection({
         <span className="settings-section-icon">{icon}</span>
         <div>
           <h2>{title}</h2>
-          <p>{subtitle}</p>
         </div>
       </header>
       <div className="settings-rows">{children}</div>
@@ -131,8 +130,18 @@ function SettingsRow({
   return (
     <div className={`settings-row ${wide ? 'settings-row--wide' : ''}`}>
       <div className="settings-row-copy">
-        <strong>{title}</strong>
-        {description && <p>{description}</p>}
+        <strong>
+          {title}
+          {description && (
+            <span
+              className="settings-help"
+              title={typeof description === 'string' ? description : undefined}
+              aria-label="说明"
+            >
+              ?
+            </span>
+          )}
+        </strong>
       </div>
       <div className="settings-row-control">{children}</div>
     </div>
@@ -232,21 +241,42 @@ export function SettingsPage() {
     void patchSettings({ accent: value })
   }
 
-  const backgroundUrl = customBackgroundUrl(settings.backgroundImage)
+  const backgroundUrls = customBackgroundUrls(settings.backgroundImages)
 
-  const chooseBackground = async () => {
+  const chooseBackgrounds = async () => {
     try {
-      const name = await window.ccl.settings.chooseBackground()
-      if (!name) return
-      const next = await patchSettings({ backgroundImage: name })
-      if (next) toast('success', '背景已更新', '图片已复制到本机数据目录')
+      const room = Math.max(0, 20 - settings.backgroundImages.length)
+      if (room === 0) {
+        toast('info', '最多添加 20 张背景', '请先移除一些图片')
+        return
+      }
+      const names = await window.ccl.settings.chooseBackgrounds()
+      if (names.length === 0) return
+      const accepted = names.slice(0, room)
+      const next = await patchSettings({
+        backgroundImages: [...settings.backgroundImages, ...accepted]
+      })
+      if (next) {
+        toast(
+          'success',
+          `已添加 ${accepted.length} 张背景`,
+          names.length > accepted.length ? '达到 20 张上限，其余图片未加入' : '图片已复制到本机数据目录'
+        )
+      }
     } catch (error) {
-      toast('error', '无法设置背景', cleanError(error))
+      toast('error', '无法添加背景', cleanError(error))
     }
   }
 
+  const removeBackground = async (name: string) => {
+    const next = await patchSettings({
+      backgroundImages: settings.backgroundImages.filter((item) => item !== name)
+    })
+    if (next) toast('success', '已移除这张背景')
+  }
+
   const clearBackground = async () => {
-    const next = await patchSettings({ backgroundImage: null })
+    const next = await patchSettings({ backgroundImages: [] })
     if (next) toast('success', '已恢复默认背景')
   }
 
@@ -389,12 +419,7 @@ export function SettingsPage() {
     <div className="page page--settings">
       <header className="page-head settings-head">
         <div className="page-head-copy">
-          <span className="page-eyebrow">
-            <Wrench size={14} />
-            设置
-          </span>
-          <h1>把风信调成你的样子</h1>
-          <p>调整启动参数、Java 环境、下载策略与界面外观，所有更改会立即保存在本机。</p>
+          <h1>设置</h1>
         </div>
         <div className="settings-head-badge">
           <MemoryStick size={14} />
@@ -419,7 +444,7 @@ export function SettingsPage() {
             )
           })}
           <div className="settings-nav-foot">
-            <span>风信启动器</span>
+            <span>月月月启动器</span>
             <small>v{appInfo?.version ?? '—'}</small>
           </div>
         </nav>
@@ -529,7 +554,6 @@ export function SettingsPage() {
                 onBlur={commitJvmArgs}
               />
               <div className="jvm-preset-actions">
-                <span>常用 G1GC / ZGC 参数可以直接套用</span>
                 <button
                   type="button"
                   className="button button--ghost button--sm"
@@ -539,6 +563,20 @@ export function SettingsPage() {
                   JVM 预设
                 </button>
               </div>
+            </SettingsRow>
+
+            <SettingsRow
+              wide
+              title="启动前优化内存"
+              description="每次启动游戏前回收系统内可访问进程的工作集；不申请管理员权限，可能让其他程序短暂变慢。深度清理仍需在「性能」里手动执行"
+            >
+              <Switch
+                checked={settings.optimizeMemoryBeforeLaunch}
+                label="启动前优化内存"
+                onChange={(checked) =>
+                  void patchSettings({ optimizeMemoryBeforeLaunch: checked })
+                }
+              />
             </SettingsRow>
 
             <div className="settings-tip">
@@ -569,8 +607,8 @@ export function SettingsPage() {
 
             <SettingsRow
               wide
-              title="自动分配实例 Java"
-              description="按每个实例需要的 Java 版本挑选现有运行时，并写入实例设置"
+              title="Java 与内存自动分配"
+              description="启动时按整合包规模与总内存计算，并自动选择 Java；手动设置优先"
             >
               <button
                 type="button"
@@ -578,7 +616,7 @@ export function SettingsPage() {
                 onClick={() => setJavaAssignOpen(true)}
               >
                 <WandSparkles size={13} />
-                自动分配
+                查看策略
               </button>
             </SettingsRow>
 
@@ -1034,7 +1072,7 @@ export function SettingsPage() {
           >
             <SettingsRow
               title="省内存模式"
-              description="关闭硬件加速并让后台窗口尽快回收内存，重启后生效；占用更低，滚动与透明效果可能略逊"
+              description="让后台窗口尽快回收内存，重启后生效；不再关闭硬件加速，避免切页和模糊动画变卡"
             >
               <div className="settings-inline">
                 <Switch
@@ -1093,7 +1131,7 @@ export function SettingsPage() {
                 <div className="appearance-preview-chrome">
                   <span className="appearance-preview-brand">
                     <span className="appearance-preview-logo" />
-                    风信
+                    月月月
                   </span>
                   <span className="appearance-preview-nav">
                     <i className="is-active">启动</i>
@@ -1130,8 +1168,7 @@ export function SettingsPage() {
                     <small>
                       {themeLabel} · {accentInfo.label}
                     </small>
-                    <strong>风有信 · 月无边</strong>
-                    <em>按钮、开关和强调色都会跟随当前主题色。</em>
+                    <strong>月无边</strong>
                     <span className="appearance-preview-actions">
                       <i className="appearance-preview-cta">启动游戏</i>
                       <i className="appearance-preview-toggle">
@@ -1241,42 +1278,75 @@ export function SettingsPage() {
             <SettingsRow
               wide
               title="自定义背景"
-              description="选一张本地图片作为启动器背景；图片会复制到本机数据目录，重启后继续使用"
+              description="添加多张图片，按顺序自动轮换；图片会复制到本机数据目录，重启后继续使用"
             >
-              <div className="custom-bg-settings">
-                <div
-                  className={`custom-bg-preview ${backgroundUrl ? 'has-image' : ''}`}
-                  style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
-                  aria-hidden="true"
-                >
-                  {!backgroundUrl && (
-                    <>
-                      <ImagePlus size={20} />
-                      <span>未选择背景</span>
-                    </>
+              <div className="custom-bg-settings custom-bg-settings--multi">
+                <div className="custom-bg-gallery">
+                  {backgroundUrls.map((url, index) => (
+                    <div
+                      key={settings.backgroundImages[index]}
+                      className="custom-bg-thumb"
+                      style={{ backgroundImage: `url("${url}")` }}
+                    >
+                      <span className="custom-bg-thumb-index">{index + 1}</span>
+                      <button
+                        type="button"
+                        className="custom-bg-thumb-remove"
+                        title="移除这张背景"
+                        aria-label="移除这张背景"
+                        onClick={() => void removeBackground(settings.backgroundImages[index])}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                  {settings.backgroundImages.length < 20 && (
+                    <button
+                      type="button"
+                      className="custom-bg-add"
+                      onClick={() => void chooseBackgrounds()}
+                    >
+                      <ImagePlus size={18} />
+                      <span>添加图片</span>
+                    </button>
                   )}
                 </div>
                 <div className="custom-bg-controls">
                   <div className="custom-bg-actions">
-                    <button
-                      type="button"
-                      className="button button--soft button--sm"
-                      onClick={() => void chooseBackground()}
-                    >
-                      <ImagePlus size={13} />
-                      {backgroundUrl ? '更换图片' : '选择图片'}
-                    </button>
-                    {backgroundUrl && (
+                    <span className="custom-bg-count">
+                      {backgroundUrls.length === 0
+                        ? '未选择背景'
+                        : `${backgroundUrls.length} 张${
+                            backgroundUrls.length > 1
+                              ? ` · 每 ${settings.backgroundIntervalSec} 秒淡入轮换`
+                              : ' · 单张不轮换'
+                          }`}
+                    </span>
+                    {backgroundUrls.length > 0 && (
                       <button
                         type="button"
                         className="button button--ghost button--sm"
                         onClick={() => void clearBackground()}
                       >
                         <Trash2 size={13} />
-                        移除背景
+                        清空背景
                       </button>
                     )}
                   </div>
+                  {backgroundUrls.length > 1 && (
+                    <label className="custom-bg-slider">
+                      <span>轮换间隔</span>
+                      <SettingSlider
+                        ariaLabel="背景轮换间隔"
+                        value={settings.backgroundIntervalSec}
+                        min={5}
+                        max={120}
+                        step={5}
+                        format={(value) => `${value} 秒`}
+                        onCommit={(value) => void patchSettings({ backgroundIntervalSec: value })}
+                      />
+                    </label>
+                  )}
                   <label className="custom-bg-slider">
                     <span>遮罩</span>
                     <SettingSlider
@@ -1302,7 +1372,7 @@ export function SettingsPage() {
                     />
                   </label>
                   <p className="custom-bg-hint">
-                    建议使用 16:9 横图；遮罩越高越容易阅读，模糊会稍微增加内存占用。
+                    按添加顺序轮换，切换时淡入淡出。建议使用 16:9 横图；单张不超过 40 MB，最多 20 张。
                   </p>
                 </div>
               </div>

@@ -76,11 +76,11 @@ export function InstanceSettingsModal({
 
   useEffect(() => {
     if (!open || !instance) return
-    const custom = instance.memoryMb != null
+    const custom = instance.memoryAuto === false && instance.memoryMb != null
     setCustomMemory(custom)
     setMemoryMb(instance.memoryMb ?? globalMemoryMb)
     setExtraJvmArgs(instance.extraJvmArgs ?? '')
-    setJavaPath(instance.javaPath ?? '')
+    setJavaPath(instance.javaAuto === false ? instance.javaPath ?? '' : '')
     setName(instance.name)
     setSummary(instance.summary)
     setCategory(instance.category ?? '')
@@ -146,10 +146,17 @@ export function InstanceSettingsModal({
       favorite,
       iconUrl
     })
+    const javaPathValue = javaPath.trim() || null
+    const preserveAutoJava =
+      instance.javaAuto !== false &&
+      javaPathValue !== null &&
+      javaPathValue === (instance.javaPath ?? null)
     const settings = await updateInstanceSettings(instance.id, {
       memoryMb: customMemory ? memoryMb : null,
+      memoryAuto: !customMemory,
       extraJvmArgs,
-      javaPath: javaPath.trim() || null
+      javaPath: javaPathValue,
+      javaAuto: javaPathValue === null || preserveAutoJava
     })
     setSaving(false)
     if (meta && settings) {
@@ -413,7 +420,7 @@ export function InstanceSettingsModal({
               <span>
                 {instance.external
                   ? `确定删除「${instance.name}」吗？`
-                  : `确定删除「${instance.name}」吗？只删除风信中的实例，不删除其他启动器的文件。`}
+                  : `确定删除「${instance.name}」吗？只删除月月月启动器中的实例，不删除其他启动器的文件。`}
               </span>
               {instance.external && (
                 <>
@@ -437,7 +444,7 @@ export function InstanceSettingsModal({
                         </span>
                       </>
                     ) : (
-                      <span>只从风信移除这条引用，原整合包目录与存档保持不变。</span>
+                      <span>只从月月月启动器移除这条引用，原整合包目录与存档保持不变。</span>
                     )}
                   </div>
                 </>
@@ -469,7 +476,15 @@ export function InstanceSettingsModal({
           <div className="instance-settings-row">
             <div>
               <strong>内存分配</strong>
-              <span>当前{buildMemoryHint(customMemory, memoryMb, globalMemoryMb)}</span>
+              <span>
+                当前
+                {buildMemoryHint(
+                  customMemory,
+                  instance.memoryAuto !== false,
+                  customMemory ? memoryMb : instance.memoryMb ?? globalMemoryMb,
+                  globalMemoryMb
+                )}
+              </span>
             </div>
             <Switch
               checked={customMemory}
@@ -536,7 +551,7 @@ export function InstanceSettingsModal({
           </label>
 
           <p className="instance-settings-tip">
-            外部实例与原来的 .minecraft 共享文件；这里只改变风信启动它时使用的内存、JVM 参数和 Java。
+            外部实例与原来的 .minecraft 共享文件；这里只改变月月月启动器启动它时使用的内存、JVM 参数和 Java。
           </p>
         </section>
       </div>
@@ -565,7 +580,13 @@ export function InstanceSettingsModal({
   )
 }
 
-function buildMemoryHint(custom: boolean, memoryMb: number, globalMb: number): string {
-  if (!custom) return `跟随全局：${globalMb / 1024} GB`
-  return `独立分配：${memoryMb / 1024} GB（全局 ${globalMb / 1024} GB）`
+function buildMemoryHint(
+  custom: boolean,
+  auto: boolean,
+  memoryMb: number,
+  globalMb: number
+): string {
+  if (custom) return `独立分配：${memoryMb / 1024} GB（全局 ${globalMb / 1024} GB）`
+  if (auto) return '启动时自动分配：按整合包规模和总内存计算（最多预留 20%）'
+  return `跟随全局：${globalMb / 1024} GB`
 }

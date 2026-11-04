@@ -3220,16 +3220,41 @@ html[data-custom-background="true"] body {
   isolation: isolate;
 }
 
-.custom-background {
+.custom-background-stack {
   position: fixed;
   inset: 0;
   z-index: -2;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+  overflow: hidden;
   transform: scale(1.035);
   pointer-events: none;
   transition: filter 0.2s ease;
+}
+
+.custom-background-layer {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.custom-background-layer.is-current {
+  animation: custom-background-fade 1.2s ease both;
+}
+
+@keyframes custom-background-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .custom-background-layer.is-current {
+    animation: none;
+  }
 }
 
 .custom-background-veil {
@@ -3327,6 +3352,111 @@ html[data-custom-background="true"] .titlebar {
   line-height: 1.6;
 }
 
+.custom-bg-settings--multi {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+}
+
+.custom-bg-settings--multi .custom-bg-gallery,
+.custom-bg-settings--multi .custom-bg-controls {
+  width: 100%;
+}
+
+.custom-bg-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.custom-bg-thumb {
+  position: relative;
+  height: 82px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--surface-2);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+.custom-bg-thumb-index {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.custom-bg-thumb-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  opacity: 0.82;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.custom-bg-thumb-remove:hover,
+.custom-bg-thumb-remove:focus-visible {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.custom-bg-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 82px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.custom-bg-add:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.custom-bg-count {
+  align-self: center;
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+
+.custom-bg-settings--multi .custom-bg-actions {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
 @media (max-width: 760px) {
   .custom-bg-settings {
     grid-template-columns: 1fr;
@@ -3334,5 +3464,14 @@ html[data-custom-background="true"] .titlebar {
 
   .custom-bg-preview {
     min-height: 140px;
+  }
+
+  .custom-bg-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  }
+
+  .custom-bg-thumb,
+  .custom-bg-add {
+    height: 72px;
   }
 }
