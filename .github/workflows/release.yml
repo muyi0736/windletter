@@ -46,9 +46,10 @@ jobs:
             echo "Tag ${GITHUB_REF_NAME} does not match package version v${VERSION}" >&2
             exit 1
           fi
-          INSTALLER="release/Windletter-Launcher-${VERSION}-setup.exe"
+          INSTALLER="release/月月月启动器-${VERSION}-setup.exe"
           test -f "$INSTALLER"
-          ASSET="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/Windletter-Launcher-${VERSION}-setup.exe"
+          ASSET_NAME=$(node -e "console.log(encodeURIComponent(require('path').basename(process.argv[1])))" "$INSTALLER")
+          ASSET="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${ASSET_NAME}"
           npm run update:manifest -- "$INSTALLER" \
             --version "$VERSION" \
             --notes-file build/update-notes.txt \
@@ -63,7 +64,7 @@ jobs:
         shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          INSTALLER="release/Windletter-Launcher-${VERSION}-setup.exe"
+          INSTALLER="release/月月月启动器-${VERSION}-setup.exe"
           gh release create "$GITHUB_REF_NAME" \
             "$INSTALLER" release/latest.json \
             --title "月月月启动器 ${VERSION}" \

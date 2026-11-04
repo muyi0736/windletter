@@ -1,6 +1,6 @@
 {
   "name": "windletter-launcher",
-  "version": "0.60.51",
+  "version": "0.60.52",
   "private": true,
   "description": "月月月启动器 - 月无边。一个受 PCL2 启发的 Minecraft 启动器",
   "main": "./out/main/index.js",
@@ -38,7 +38,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "Windletter-Launcher-${version}-setup.${ext}"
+      "artifactName": "月月月启动器-${version}-setup.${ext}"
     },
     "extraResources": [
       {

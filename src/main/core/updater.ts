@@ -423,8 +423,12 @@ async function fetchGitHubRelease(
   )
   const installer =
     exeAssets.find((asset) =>
+      /^月月月启动器-.*-setup\.exe$/i.test(String(asset.name))
+    ) ??
+    exeAssets.find((asset) =>
       /^Windletter-Launcher-.*-setup\.exe$/i.test(String(asset.name))
-    ) ?? exeAssets[0]
+    ) ??
+    exeAssets[0]
   if (!installer) throw new Error('GitHub Release 中没有 Windows 安装包')
 
   const size = Number(installer.size)
@@ -834,7 +838,7 @@ function safeVersionName(version: string): string {
 
 function installerPath(version: string): string {
   const dir = updateDir()
-  const target = resolve(dir, `Windletter-Launcher-${safeVersionName(version)}-setup.exe`)
+  const target = resolve(dir, `月月月启动器-${safeVersionName(version)}-setup.exe`)
   if (!target.startsWith(`${resolve(dir)}\\`) && !target.startsWith(`${resolve(dir)}/`)) {
     throw new Error('更新文件路径无效')
   }
