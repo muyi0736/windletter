@@ -46,10 +46,13 @@ jobs:
             echo "Tag ${GITHUB_REF_NAME} does not match package version v${VERSION}" >&2
             exit 1
           fi
-          INSTALLER="release/月月月启动器-${VERSION}-setup.exe"
-          test -f "$INSTALLER"
-          ASSET_NAME=$(node -e "console.log(encodeURIComponent(require('path').basename(process.argv[1])))" "$INSTALLER")
-          ASSET="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${ASSET_NAME}"
+          # GitHub 会把附件名里的非 ASCII 字符清掉，因此公开资产使用拼音名，
+          # 发布页再通过 gh 的 #label 语法显示中文品牌名。
+          LOCAL_INSTALLER="release/月月月启动器-${VERSION}-setup.exe"
+          test -f "$LOCAL_INSTALLER"
+          INSTALLER="release/Yueyueyue-Launcher-${VERSION}-setup.exe"
+          cp "$LOCAL_INSTALLER" "$INSTALLER"
+          ASSET="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/Yueyueyue-Launcher-${VERSION}-setup.exe"
           npm run update:manifest -- "$INSTALLER" \
             --version "$VERSION" \
             --notes-file build/update-notes.txt \
@@ -64,8 +67,8 @@ jobs:
         shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          INSTALLER="release/月月月启动器-${VERSION}-setup.exe"
+          INSTALLER="release/Yueyueyue-Launcher-${VERSION}-setup.exe"
           gh release create "$GITHUB_REF_NAME" \
-            "$INSTALLER" release/latest.json \
+            "${INSTALLER}#月月月启动器-${VERSION}-setup.exe" release/latest.json \
             --title "月月月启动器 ${VERSION}" \
             --notes-file build/update-notes.txt

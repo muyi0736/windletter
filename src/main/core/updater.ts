@@ -426,6 +426,9 @@ async function fetchGitHubRelease(
       /^月月月启动器-.*-setup\.exe$/i.test(String(asset.name))
     ) ??
     exeAssets.find((asset) =>
+      /^Yueyueyue-Launcher-.*-setup\.exe$/i.test(String(asset.name))
+    ) ??
+    exeAssets.find((asset) =>
       /^Windletter-Launcher-.*-setup\.exe$/i.test(String(asset.name))
     ) ??
     exeAssets[0]

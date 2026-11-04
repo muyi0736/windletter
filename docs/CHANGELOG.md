@@ -2,13 +2,13 @@
 
 [返回 README](../README.md)
 
-当前项目版本 0.60.52（本地构建；公开 Release 为 v0.60.51，2026-11-04）。最新公开安装包见 [GitHub Releases](https://github.com/muyi0736/windletter/releases/latest)。
+当前项目版本 0.60.53（本地构建；公开 Release 为 v0.60.51，2026-11-04）。最新公开安装包见 [GitHub Releases](https://github.com/muyi0736/windletter/releases/latest)。
 
 > 本文件保留各版本的功能说明与实测记录，方便回溯；README 只保留当前能力概览。记录按写入时的原文保存，顺序不完全按版本排列。
 
 ## 近期重点
 
-- **0.60.52** — 安装包改为中文品牌名 `月月月启动器-<版本>-setup.exe`，与窗口标题、可执行文件、快捷方式保持一致；更新器优先匹配新名，找不到时回退到旧的 `Windletter-Launcher-*` 名称，再回退到 Release 中任意 `.exe`，旧版本可直接升级；更新包本地缓存也改用新名，升级时清理旧文件。GitHub Actions 按新名构建、生成指向新资产的 `latest.json` 并上传。本地安装包 `D:\WindletterOut\月月月启动器-0.60.52-setup.exe`，123,609,368 B，SHA-256 `5fd2c61377297af6d245d5b4c62e094ebe4b729edfdcf7105a5d064bf56fc34e`，ProductVersion 0.60.52.0；构建后确认 bundle 内含 60 字符 CurseForge Key、默认更新源与新旧两套文件名匹配规则。
+- **0.60.53** — 安装包改为中文品牌名。本地构建产出 `月月月启动器-<版本>-setup.exe`，窗口标题、可执行文件与快捷方式保持一致；GitHub 会清除 Release 附件名中的非 ASCII 字符（0.60.52 实测被存成 `-0.60.52-setup.exe`），所以公开资产改用 ASCII 拼音名 `Yueyueyue-Launcher-<版本>-setup.exe`，发布页通过 `#label` 显示中文名，`latest.json` 指向 ASCII 资产。更新器依次识别中文名、拼音名、旧 `Windletter-Launcher-*`，最后回退任意 `.exe`，0.60.51 及更早版本仍可直接升级；更新包本地缓存使用中文名，并清理旧文件。本地安装包 `D:\WindletterOut\月月月启动器-0.60.53-setup.exe`，123,609,555 B，SHA-256 `6ec471725591c7e3602507d3104e3a1b3f3381bb9eaed7a3638408ffe53ead61`，ProductVersion 0.60.53.0；构建后确认 bundle 内含 60 字符 CurseForge Key、默认更新源与三套文件名匹配规则。本地 `latest.json` 2892 B，SHA-256 `a8bd492b79afc1effc04fcda19943e3fa286fd5ce994147da84940cbb9487725`（发布时间与 GitHub 摘要会在 CI 重新生成）。
 - **0.60.51** — 「更多」页重排：去掉页头和品牌卡里重复的版本徽章；品牌卡占 5/12、启动器更新占 7/12 并排；日志与诊断、文件位置、运行环境改成 3 列；致谢与声明通栏，声明列表在宽屏分两列。≤1280/980/720px 依次降为 6/6 列、两列和单列。`npm run dist` 现在会强制注入 CurseForge Key（环境变量或本机 `D:/WindletterOut/curseforge.key`）和默认更新源 `https://github.com/muyi0736/windletter/releases/latest/download/latest.json`，缺 Key 直接失败；GitHub Actions 也改用同一条命令。本地安装包 `D:\WindletterOut\Windletter-Launcher-0.60.51-setup.exe`，123,609,573 B，SHA-256 `ecef42f5f1a2a87acd6e4173b7b945f0667bc4dc6889c54c3ac172e911999ad2`。已发布 GitHub Release v0.60.51（Actions run `41872806480`，源码 `78be67d`）：公开安装包 123,610,156 B，SHA-256 `c280fb2a63bc69b5709fcbd10abe9ddae1804c2b0c42703931a2f426e3f83585`；`latest.json` 2533 B，SHA-256 `eeb873732a124ef43d3184aa22c0a28aa3828385fd1d4cd0fb22419da90bbc1b`。ProductVersion 0.60.51.0。
 - **0.60.50** — 标题栏内容下移：给标题栏加 8px 顶部内边距，品牌、导航、账户整体下移约 4–5px，底栏高度仍是 58px、选中下划线仍贴底。安装包 `D:\WindletterOut\Windletter-Launcher-0.60.50-setup.exe`，123,611,342 B，SHA-256 `01a14b95bb9fac0b66fb9223aa1fb0d865a446057df8c68aec05275bb6b04289`，ProductVersion 0.60.50.0。
 - **0.60.49** — 标题栏导航居中：标题栏改成 `1fr auto 1fr` 三列，品牌最左、六个主导航在窗口正中、账户与工具最右；导航中心 853px，窗口中心 846px（差 6px 来自滚动条），不再一边空一大片。窄窗口 ≤1180px 改为 `auto 1fr auto`，避免导航被挤压。安装包 `D:\WindletterOut\Windletter-Launcher-0.60.49-setup.exe`，123,611,292 B，SHA-256 `ee42eb769542d84fa51ae5ef45b8e6b838d0f87b4ecab29f411433cdb5d71738`，ProductVersion 0.60.49.0。

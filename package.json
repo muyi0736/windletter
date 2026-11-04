@@ -1,6 +1,6 @@
 {
   "name": "windletter-launcher",
-  "version": "0.60.52",
+  "version": "0.60.53",
   "private": true,
   "description": "月月月启动器 - 月无边。一个受 PCL2 启发的 Minecraft 启动器",
   "main": "./out/main/index.js",
