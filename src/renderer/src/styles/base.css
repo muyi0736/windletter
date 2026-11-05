@@ -121,16 +121,16 @@
   --accent-ink: #71e3be;
 }
 [data-accent="orange"] {
-  --accent: #df862d;
-  --accent-strong: #c16c18;
-  --accent-bright: #f5ac57;
-  --accent-ink: #a65c0d;
+  --accent: #ff6900;
+  --accent-strong: #d95800;
+  --accent-bright: #ff8b2e;
+  --accent-ink: #b94b00;
 }
 [data-theme="dark"][data-accent="orange"] {
-  --accent: #eb9c46;
-  --accent-strong: #cf7f2c;
-  --accent-bright: #ffc274;
-  --accent-ink: #ffbd6e;
+  --accent: #ff7a1a;
+  --accent-strong: #e86400;
+  --accent-bright: #ffab5e;
+  --accent-ink: #ffc08a;
 }
 [data-accent="pink"] {
   --accent: #c45a84;

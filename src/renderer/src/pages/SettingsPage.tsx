@@ -13,10 +13,12 @@ import {
   ImagePlus,
   Info,
   KeyRound,
+  LayoutTemplate,
   Link2,
   MemoryStick,
   Monitor,
   Moon,
+  Orbit,
   Palette,
   Play,
   RefreshCw,
@@ -73,7 +75,7 @@ const ACCENTS: { value: AccentName; label: string; light: string; dark: string }
   { value: 'cyan', label: '青碧', light: '#0f95a6', dark: '#5cc7d5' },
   { value: 'blue', label: '潮蓝', light: '#3b74d8', dark: '#8fb2f2' },
   { value: 'green', label: '森绿', light: '#2e8f6e', dark: '#7fc8a9' },
-  { value: 'orange', label: '暖橙', light: '#c47431', dark: '#e5a26d' },
+  { value: 'orange', label: '暖橙', light: '#ff6900', dark: '#ff8b2e' },
   { value: 'pink', label: '樱粉', light: '#c45a84', dark: '#efa3bf' },
   { value: 'violet', label: '藤紫', light: '#775bb4', dark: '#c0a8ef' },
   { value: 'red', label: '绛红', light: '#b54840', dark: '#ec9a91' },
@@ -226,6 +228,7 @@ export function SettingsPage() {
 
   if (!settings) return null
 
+  const uiPreset = settings.uiPreset ?? 'classic'
   const accentInfo = ACCENTS.find((accent) => accent.value === settings.accent) ?? ACCENTS[0]
   const themeLabel =
     THEME_OPTIONS.find((option) => option.value === settings.theme)?.label ?? '跟随系统'
@@ -1181,6 +1184,57 @@ export function SettingsPage() {
                     </span>
                   </span>
                 </div>
+              </div>
+            </SettingsRow>
+
+            <SettingsRow
+              wide
+              title="界面风格"
+              description="经典纸面保留原来的卡片布局；月相终端使用 01–06 索引与工业 HUD"
+            >
+              <div className="ui-preset-tiles" role="group" aria-label="界面风格">
+                <button
+                  type="button"
+                  className={`ui-preset-tile ${uiPreset === 'classic' ? 'is-active' : ''}`}
+                  aria-pressed={uiPreset === 'classic'}
+                  onClick={() => void patchSettings({ uiPreset: 'classic' })}
+                >
+                  <span className="ui-preset-shot ui-preset-shot--classic" aria-hidden="true">
+                    <i className="ui-preset-classic-card" />
+                    <i className="ui-preset-classic-side" />
+                    <i className="ui-preset-classic-btn" />
+                  </span>
+                  <span className="ui-preset-meta">
+                    <span>
+                      <LayoutTemplate size={13} />
+                      经典纸面
+                    </span>
+                    {uiPreset === 'classic' && <Check size={13} strokeWidth={3} />}
+                  </span>
+                  <span className="ui-preset-hint">卡片布局 · 圆角 · 默认</span>
+                </button>
+                <button
+                  type="button"
+                  className={`ui-preset-tile ${uiPreset === 'lunar' ? 'is-active' : ''}`}
+                  aria-pressed={uiPreset === 'lunar'}
+                  onClick={() => void patchSettings({ uiPreset: 'lunar' })}
+                >
+                  <span className="ui-preset-shot ui-preset-shot--lunar" aria-hidden="true">
+                    <i className="ui-preset-lunar-rail" />
+                    <i className="ui-preset-lunar-clock" />
+                    <i className="ui-preset-lunar-hero" />
+                    <i className="ui-preset-lunar-orbit" />
+                    <i className="ui-preset-lunar-dossier" />
+                  </span>
+                  <span className="ui-preset-meta">
+                    <span>
+                      <Orbit size={13} />
+                      月相终端
+                    </span>
+                    {uiPreset === 'lunar' && <Check size={13} strokeWidth={3} />}
+                  </span>
+                  <span className="ui-preset-hint">01–06 索引 · HUD · LUNAR</span>
+                </button>
               </div>
             </SettingsRow>
 

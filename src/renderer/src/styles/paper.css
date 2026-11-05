@@ -128,16 +128,16 @@
   --accent-ink: #9ed7bc;
 }
 [data-accent="orange"] {
-  --accent: #c47431;
-  --accent-strong: #a55d22;
-  --accent-bright: #df9a58;
-  --accent-ink: #9d571f;
+  --accent: #ff6900;
+  --accent-strong: #d95800;
+  --accent-bright: #ff8b2e;
+  --accent-ink: #b94b00;
 }
 [data-theme="dark"][data-accent="orange"] {
-  --accent: #e5a26d;
-  --accent-strong: #f0c39b;
-  --accent-bright: #f8d9b9;
-  --accent-ink: #eab98f;
+  --accent: #ff7a1a;
+  --accent-strong: #e86400;
+  --accent-bright: #ffab5e;
+  --accent-ink: #ffc08a;
 }
 [data-accent="pink"] {
   --accent: #c45a84;
@@ -2590,6 +2590,272 @@ input[type="password"] {
   color: var(--text-3);
 }
 
+/* UI presets: classic paper vs lunar terminal */
+.ui-preset-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ui-preset-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.ui-preset-tile:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.ui-preset-tile.is-active {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.ui-preset-shot {
+  position: relative;
+  display: block;
+  height: 92px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 16, 16, 0.16);
+  border-radius: 5px;
+  background: #e8e5dd;
+}
+
+.ui-preset-shot--classic::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 14px;
+  border-bottom: 1px solid rgba(16, 16, 16, 0.14);
+  background: #f7f4ec;
+}
+
+.ui-preset-shot--classic::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 5px;
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: #171717;
+  opacity: 0.85;
+}
+
+.ui-preset-classic-card {
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  width: 61%;
+  height: 55px;
+  border: 1px solid rgba(16, 16, 16, 0.14);
+  border-radius: 6px;
+  background: #fbf9f4;
+  box-shadow: 0 4px 12px rgba(16, 16, 16, 0.07);
+}
+
+.ui-preset-classic-card::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 44%;
+  height: 5px;
+  border-radius: 2px;
+  background: #171717;
+  opacity: 0.82;
+}
+
+.ui-preset-classic-card::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 19px;
+  width: 68%;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(16, 16, 16, 0.18);
+}
+
+.ui-preset-classic-btn {
+  position: absolute;
+  left: 19px;
+  top: 61px;
+  width: 24%;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--accent, #0f95a6);
+}
+
+.ui-preset-classic-side {
+  position: absolute;
+  right: 10px;
+  top: 24px;
+  width: 21%;
+  height: 55px;
+  border: 1px solid rgba(16, 16, 16, 0.1);
+  border-radius: 6px;
+  background: #f4f1e9;
+}
+
+.ui-preset-shot--lunar {
+  background: #e6e3dc;
+}
+
+.ui-preset-shot--lunar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(16, 16, 16, 0.06) 1px, transparent 1px) 0 0 / 18px 100%,
+    linear-gradient(0deg, rgba(16, 16, 16, 0.05) 1px, transparent 1px) 0 0 / 100% 18px;
+}
+
+.ui-preset-lunar-rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  background: #101010;
+}
+
+.ui-preset-lunar-rail::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 19px;
+  height: 12px;
+  background: #f2efe7;
+}
+
+.ui-preset-lunar-rail::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 6px;
+  top: 42px;
+  bottom: 10px;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(247, 245, 239, 0.28) 0 1px,
+    transparent 1px 11px
+  );
+}
+
+.ui-preset-lunar-clock {
+  position: absolute;
+  right: 9px;
+  top: 8px;
+  width: 36px;
+  height: 9px;
+  background: repeating-linear-gradient(90deg, #111 0 5px, transparent 5px 8px);
+  opacity: 0.75;
+}
+
+.ui-preset-lunar-hero {
+  position: absolute;
+  left: 34px;
+  top: 32px;
+  width: 82px;
+  height: 42px;
+  background: #111;
+}
+
+.ui-preset-lunar-hero::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  width: 38px;
+  height: 4px;
+  background: #f2efe7;
+}
+
+.ui-preset-lunar-hero::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  width: 30px;
+  height: 9px;
+  background: var(--accent, #ff6900);
+}
+
+.ui-preset-lunar-orbit {
+  position: absolute;
+  right: 8px;
+  top: 31px;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(16, 16, 16, 0.32);
+  border-radius: 50%;
+  transform: rotate(-18deg) scaleY(0.62);
+}
+
+.ui-preset-lunar-dossier {
+  position: absolute;
+  right: 7px;
+  top: 58px;
+  width: 58px;
+  height: 26px;
+  border: 1px solid rgba(16, 16, 16, 0.55);
+  background: #e9e7e2;
+}
+
+.ui-preset-lunar-dossier::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent, #ff6900);
+}
+
+.ui-preset-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.ui-preset-meta > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ui-preset-meta svg {
+  color: var(--text-3);
+}
+
+.ui-preset-tile.is-active .ui-preset-meta > svg {
+  color: var(--accent-ink);
+}
+
+.ui-preset-hint {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  color: var(--text-3);
+}
+
 .accent-swatches {
   gap: 8px;
 }
@@ -2642,7 +2908,8 @@ input[type="password"] {
 }
 
 @media (max-width: 760px) {
-  .theme-tiles {
+  .theme-tiles,
+  .ui-preset-tiles {
     grid-template-columns: 1fr;
   }
 

@@ -61,6 +61,7 @@ export function defaultSettings(): LauncherSettings {
   return {
     theme: 'system',
     accent: 'cyan',
+    uiPreset: 'classic',
     homeLayout: 'simple',
     backgroundImages: [],
     backgroundIntervalSec: 30,
@@ -136,6 +137,7 @@ function sanitizeSettings(input: Partial<LauncherSettings>, base: LauncherSettin
   return {
     theme: THEMES.includes(merged.theme) ? merged.theme : base.theme,
     accent: ACCENTS.includes(merged.accent) ? merged.accent : base.accent,
+    uiPreset: merged.uiPreset === 'lunar' ? 'lunar' : 'classic',
     homeLayout: merged.homeLayout === 'classic' ? 'classic' : 'simple',
     backgroundImages: (() => {
       const legacy = (input as Partial<LauncherSettings> & { backgroundImage?: unknown }).backgroundImage

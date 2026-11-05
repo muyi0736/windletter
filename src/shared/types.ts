@@ -6,10 +6,13 @@ export type InstanceLoader = 'fabric' | 'quilt' | 'forge' | 'neoforge' | 'optifi
 export type InstanceSource = 'local' | 'modrinth' | 'curseforge' | 'external'
 
 export type HomeLayout = 'simple' | 'classic'
+export type UiPreset = 'classic' | 'lunar'
 
 export interface LauncherSettings {
   theme: ThemeMode
   accent: AccentName
+  /** 界面预设：经典纸面（默认）或月相终端外壳。 */
+  uiPreset: UiPreset
   homeLayout: HomeLayout
   backgroundImages: string[]
   backgroundIntervalSec: number

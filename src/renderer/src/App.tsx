@@ -3,6 +3,7 @@ import { PackagePlus, RefreshCw } from 'lucide-react'
 import { useLauncher } from './store'
 import { applyAccent, applyTheme } from './lib/appearance'
 import { TitleBar } from './components/TitleBar'
+import { RhineTitleBar } from './components/RhineTitleBar'
 import { CustomBackground } from './components/CustomBackground'
 import { CommandPalette } from './components/CommandPalette'
 import { ToastStack } from './components/ToastStack'
@@ -20,6 +21,7 @@ import { SplashScreen } from './components/SplashScreen'
 import { Logo } from './components/visuals'
 import { HomePage } from './pages/HomePage'
 import { HomePageClassic } from './pages/HomePageClassic'
+import { RhineHomePage } from './pages/RhineHomePage'
 import { InstancesPage } from './pages/InstancesPage'
 import { ServersPage } from './pages/ServersPage'
 import { DownloadsPage } from './pages/DownloadsPage'
@@ -30,6 +32,7 @@ const EMPTY_BACKGROUNDS: string[] = []
 
 function CurrentPage() {
   const page = useLauncher((state) => state.page)
+  const uiPreset = useLauncher((state) => state.settings?.uiPreset ?? 'classic')
   const homeLayout = useLauncher((state) => state.settings?.homeLayout ?? 'simple')
   switch (page) {
     case 'instances':
@@ -43,6 +46,7 @@ function CurrentPage() {
     case 'more':
       return <MorePage />
     default:
+      if (uiPreset === 'lunar') return <RhineHomePage />
       return homeLayout === 'classic' ? <HomePageClassic /> : <HomePage />
   }
 }
@@ -54,6 +58,7 @@ export default function App() {
   const page = useLauncher((state) => state.page)
   const theme = useLauncher((state) => state.settings?.theme)
   const accent = useLauncher((state) => state.settings?.accent)
+  const uiPreset = useLauncher((state) => state.settings?.uiPreset ?? 'classic')
   const backgroundImages = useLauncher(
     (state) => state.settings?.backgroundImages ?? EMPTY_BACKGROUNDS
   )
@@ -197,13 +202,39 @@ export default function App() {
     }
   }, [importLocalArchives, toast])
 
+  const lunar = uiPreset === 'lunar'
+  const bootContent = bootError ? (
+    <main className="boot-screen boot-screen--error">
+      <div className="boot-error-card">
+        <Logo size={46} />
+        <h2>启动器初始化失败</h2>
+        <p>{bootError}</p>
+        <button
+          type="button"
+          className="button button--primary"
+          onClick={() => window.location.reload()}
+        >
+          <RefreshCw size={15} />
+          重新加载
+        </button>
+      </div>
+    </main>
+  ) : (
+    <main className="app-main">
+      <div className="page-transition" key={page}>
+        <CurrentPage />
+      </div>
+    </main>
+  )
+
   return (
     <div
-      className={`app-shell ${consoleOpen ? 'console-open' : ''} ${
+      className={`app-shell ${lunar ? 'rhine-app' : ''} ${consoleOpen ? 'console-open' : ''} ${
         hasCustomBackground ? 'has-custom-background' : ''
       }`}
+      data-page={lunar ? page : undefined}
     >
-      {hasCustomBackground && (
+      {hasCustomBackground && (lunar ? page === 'home' : true) && (
         <CustomBackground
           key={backgroundImages.join('\n')}
           images={backgroundImages}
@@ -227,34 +258,20 @@ export default function App() {
         <SplashScreen leaving={splashLeaving} ready={splashReady} />
       ) : (
         <>
-          <TitleBar />
-          <CommandPalette />
-          <RunningGameNotice />
-
-          {bootError ? (
-            <main className="boot-screen boot-screen--error">
-              <div className="boot-error-card">
-                <Logo size={46} />
-                <h2>启动器初始化失败</h2>
-                <p>{bootError}</p>
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={() => window.location.reload()}
-                >
-                  <RefreshCw size={15} />
-                  重新加载
-                </button>
-              </div>
-            </main>
+          {lunar ? (
+            <div className="rhine-frame">
+              <RhineTitleBar />
+              {bootContent}
+            </div>
           ) : (
-            <main className="app-main">
-              <div className="page-transition" key={page}>
-                <CurrentPage />
-              </div>
-            </main>
+            <>
+              <TitleBar />
+              {bootContent}
+            </>
           )}
 
+          <CommandPalette />
+          <RunningGameNotice />
           <TaskDock />
           <ConsoleDrawer />
           <ManualPackModal />

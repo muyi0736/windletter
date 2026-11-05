@@ -64,6 +64,7 @@ import { PackWorkshopModal } from '../components/PackWorkshopModal'
 import { TranslationModal } from '../components/TranslationModal'
 import { VanillaInstanceModal } from '../components/VanillaInstanceModal'
 import { BackupManagerModal } from '../components/BackupManagerModal'
+import { RhineInstanceDossier } from '../components/RhineInstanceDossier'
 
 type Tab = 'mine' | 'discover'
 
@@ -141,6 +142,16 @@ export function InstancesPage() {
     void refreshInstances()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const openSettings = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail
+      const target = instances.find((instance) => instance.id === id)
+      if (target) setSettingsInstance(target)
+    }
+    window.addEventListener('windletter:instance-settings', openSettings)
+    return () => window.removeEventListener('windletter:instance-settings', openSettings)
+  }, [instances])
 
   const runSearch = useCallback(
     async (keyword: string, nextOffset: number, append: boolean) => {
@@ -748,6 +759,8 @@ export function InstancesPage() {
           )}
         </div>
       )}
+
+      {settings?.uiPreset === 'lunar' && <RhineInstanceDossier />}
 
       <Modal
         open={preview !== null}
