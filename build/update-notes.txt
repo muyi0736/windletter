@@ -1,4 +1,4 @@
-本次更新合集（0.60.21–0.60.53）：
+本次更新合集（0.60.21–0.60.54）：
 
 汉化
 - 参照柠娜思路的完整汉化：FTB Quests 任务书 lang/SNBT、通用 lang、模组配置说明、模组 JAR 内 en_us、Patchouli 手册、光影 shaders/lang；输出补充资源包或原子替换光影 zip，应用前备份，支持 diff、逐条校对、中英对照和后台翻译。
@@ -8,6 +8,7 @@
 - 修复大文件 If-Range 导致退回单连接、最后 2 MB 卡住；原版客户端 38 MB 从 76–134 秒降到 7–15 秒。
 - 整合包/Mod ≥8 MB 启用镜像/官方双线路、尾段细分、慢分片重连和源站测速；跨实例同 SHA1 文件硬链接/复制复用。
 - CurseForge 清单解析并发 24 路并缓存；Forge/NeoForge 安装器预下载运行库并走镜像，1.20.1 Forge 安装约 45 秒。
+- CurseForge 文件新增 MCI 国内镜像：整合包、模组、资源包和服务端包优先尝试 `mod.mcimirror.top`，并与 `mediafilez` 官方 CDN 双线分片、失败自动回退；关闭「文件镜像加速」后只走官方线路。
 - CurseForge 客户端版本过滤 ServerFiles/ServerPack，并支持下载全部服务端包；Quick Play 一键进服。
 
 功能与界面

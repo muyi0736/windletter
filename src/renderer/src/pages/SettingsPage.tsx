@@ -780,12 +780,12 @@ export function SettingsPage() {
             </SettingsRow>
 
             <SettingsRow
-              title="Modrinth 镜像加速"
-              description="通过第三方 MCI 镜像下载 Modrinth 文件；失败会自动回退官方 CDN"
+              title="文件镜像加速"
+              description="通过第三方 MCI 镜像下载 Modrinth 与 CurseForge 文件；失败会自动回退官方 CDN"
             >
               <Switch
                 checked={settings.modrinthMirror}
-                label="Modrinth 镜像加速"
+                label="文件镜像加速"
                 onChange={(value) => void patchSettings({ modrinthMirror: value })}
               />
             </SettingsRow>

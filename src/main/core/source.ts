@@ -72,12 +72,25 @@ export function modrinthFileCandidates(rawUrl: string, mirror: boolean): string[
   try {
     const url = new URL(rawUrl)
     const host = url.hostname.toLowerCase()
-    // edge.forgecdn.net 在国内可能解析到失效节点并直接返回 404，
-    // mediafilez.forgecdn.net 是同一套官方文件 CDN，优先尝试它。
-    if (host === 'edge.forgecdn.net') {
-      const alt = new URL(rawUrl)
-      alt.hostname = CURSEFORGE_ALT_HOST
-      return [...new Set([alt.toString(), rawUrl])]
+    if (host.endsWith('forgecdn.net')) {
+      // MCIM 在国内通常比 forgecdn 直连稳定，路径结构与官方 CDN 一致。
+      const candidates: string[] = []
+      if (mirror && url.pathname.startsWith('/files/')) {
+        const proxied = new URL(rawUrl)
+        proxied.protocol = 'https:'
+        proxied.hostname = 'mod.mcimirror.top'
+        proxied.port = ''
+        candidates.push(proxied.toString())
+      }
+      // edge.forgecdn.net 在国内可能解析到失效节点并直接返回 404，
+      // mediafilez.forgecdn.net 是同一套官方文件 CDN，优先尝试它。
+      if (host !== CURSEFORGE_ALT_HOST) {
+        const alt = new URL(rawUrl)
+        alt.hostname = CURSEFORGE_ALT_HOST
+        candidates.push(alt.toString())
+      }
+      candidates.push(rawUrl)
+      return [...new Set(candidates)]
     }
     if (!mirror) return [rawUrl]
     if (!host.endsWith('modrinth.com') || !url.pathname.startsWith('/data/')) {
