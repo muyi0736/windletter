@@ -3,6 +3,7 @@ import {
   BookOpen,
   Boxes,
   Cpu,
+  Download,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -19,6 +20,7 @@ import { useLauncher } from '../store'
 import { cleanError } from '../lib/format'
 import { IconButton } from '../components/ui'
 import { LauncherUpdateCard } from '../components/LauncherUpdateCard'
+import { DownloadLogsModal } from '../components/DownloadLogsModal'
 import { Logo } from '../components/visuals'
 
 function openExternal(url: string) {
@@ -31,6 +33,7 @@ export function MorePage() {
   const openConsole = useLauncher((state) => state.openConsole)
   const toast = useLauncher((state) => state.toast)
   const [latestPath, setLatestPath] = useState<string | null>(null)
+  const [downloadLogsOpen, setDownloadLogsOpen] = useState(false)
 
   useEffect(() => {
     void window.ccl.logs
@@ -123,6 +126,14 @@ export function MorePage() {
               <button type="button" className="button button--soft button--sm" onClick={openLogFolder}>
                 <FolderOpen size={14} />
                 日志文件夹
+              </button>
+              <button
+                type="button"
+                className="button button--soft button--sm"
+                onClick={() => setDownloadLogsOpen(true)}
+              >
+                <Download size={14} />
+                下载日志
               </button>
             </div>
           </section>
@@ -245,6 +256,7 @@ export function MorePage() {
           </section>
         </div>
       </div>
+      <DownloadLogsModal open={downloadLogsOpen} onClose={() => setDownloadLogsOpen(false)} />
     </div>
   )
 }

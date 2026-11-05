@@ -330,6 +330,13 @@ const api: LauncherApi = {
     openFolder: () => ipcRenderer.invoke('logs:open-folder'),
     latestPath: () => ipcRenderer.invoke('logs:latest-path'),
     readLatest: () => ipcRenderer.invoke('logs:read-latest')
+  },
+  downloadLogs: {
+    list: () => ipcRenderer.invoke('download-logs:list'),
+    read: (name) => ipcRenderer.invoke('download-logs:read', name),
+    openFolder: () => ipcRenderer.invoke('download-logs:open-folder'),
+    exportLog: (name) => ipcRenderer.invoke('download-logs:export', name),
+    networkCheck: () => ipcRenderer.invoke('download-logs:network-check')
   }
 }
 

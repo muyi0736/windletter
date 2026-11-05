@@ -372,11 +372,21 @@ export function sha1OfText(text: string): string {
 }
 
 /* ---------- 文件下载 ---------- */
+export type DownloadTraceEvent = {
+  type: 'retry' | 'slow-switch' | 'stall' | 'http-error' | 'fallback'
+  host: string
+  message: string
+}
+
 export interface DownloadOptions {
   sha1?: string | null
   size?: number | null
   signal?: AbortSignal
   onBytes?: (bytes: number) => void
+  /** 成功时回报实际完成的来源；cache/resume/multi 表示未走完整网络或跨线路。 */
+  onSource?: (source: 'cache' | 'resume' | 'multi' | string) => void
+  /** 下载线路诊断事件，写日志失败不应影响下载。 */
+  trace?: (event: DownloadTraceEvent) => void
   /** 低于这个大小走单连接；模组等小文件可传 1 MB 以启用 4 路分片。 */
   segmentMinBytes?: number
   /** 有多个候选地址时，先测首个字节延迟再决定顺序。 */
@@ -1247,9 +1257,13 @@ async function downloadFileMultiSource(
               if (tooSlow && other >= Math.max(200 * 1024, speed * 2)) {
                 slowAborted = true
                 slowAbort.abort()
-                console.warn(
-                  `[net] ${hostOf(source.url) ?? '未知线路'} 分片仅 ${Math.max(1, Math.round(speed / 1024))}KB/s，切换到更快线路`
-                )
+                const message = `${hostOf(source.url) ?? '未知线路'} 分片仅 ${Math.max(1, Math.round(speed / 1024))}KB/s，切换到更快线路`
+                console.warn(`[net] ${message}`)
+                options.trace?.({
+                  type: 'slow-switch',
+                  host: hostOf(source.url) ?? '未知线路',
+                  message
+                })
                 callback(
                   new NetworkError(
                     `分片速度过慢（${Math.max(1, Math.round(speed / 1024))} KB/s），切换线路`,
@@ -1293,11 +1307,11 @@ async function downloadFileMultiSource(
         const measured = attemptBytes / elapsed
         const stalled = stall.signal.aborted
         if (stalled) {
-          console.warn(
-            `[net] ${hostOf(source.url) ?? '未知线路'} 分片停滞超过 ${Math.round(
-              (slowBps > 0 ? Math.max(2_500, slowWindowMs + 1_000) : STALL_TIMEOUT) / 1000
-            )}s，切换线路`
-          )
+          const message = `${hostOf(source.url) ?? '未知线路'} 分片停滞超过 ${Math.round(
+            (slowBps > 0 ? Math.max(2_500, slowWindowMs + 1_000) : STALL_TIMEOUT) / 1000
+          )}s，切换线路`
+          console.warn(`[net] ${message}`)
+          options.trace?.({ type: 'stall', host: hostOf(source.url) ?? '未知线路', message })
         }
         if (slowAborted || stalled) {
           // 慢速/卡死线路降权，并把剩余区间交给当前更快的存活线路。
@@ -1398,7 +1412,10 @@ export async function downloadFile(
   const expectedSha1 = options.sha1?.toLowerCase() ?? null
   if (expectedSha1) {
     const hit = await linkFromCache(expectedSha1, destination, options.size ?? null)
-    if (hit) return
+    if (hit) {
+      options.onSource?.('cache')
+      return
+    }
   }
 
   await fs.mkdir(dirname(destination), { recursive: true })
@@ -1419,10 +1436,23 @@ export async function downloadFile(
         options,
         expectedSha1
       )
-      if (completed) return
+      if (completed) {
+        options.onSource?.('multi')
+        return
+      }
+      options.trace?.({
+        type: 'fallback',
+        host: hostOf(urls[0]) ?? '未知线路',
+        message: '多线路分片未完成，改用单线路重试'
+      })
     } catch (error) {
       if (options.signal?.aborted) throw new CancellationError()
       lastError = friendlyError(error, urls[0])
+      options.trace?.({
+        type: 'fallback',
+        host: hostOf(urls[0]) ?? '未知线路',
+        message: `多线路分片失败，改用单线路：${lastError}`
+      })
     }
   }
   let candidates: string[]
@@ -1493,6 +1523,7 @@ export async function downloadFile(
             await fs.rename(part, destination)
             await fs.rm(metaPath, { force: true }).catch(() => undefined)
             if (expectedSha1) await storeInCache(expectedSha1, destination, options.size)
+            options.onSource?.('resume')
             return
           }
           await removePart(part, metaPath)
@@ -1513,7 +1544,10 @@ export async function downloadFile(
               options,
               expectedSha1
             )
-            if (completed) return
+            if (completed) {
+              options.onSource?.(url)
+              return
+            }
           } catch (error) {
             if (options.signal?.aborted) throw new CancellationError()
             lastError = friendlyError(error, url)
@@ -1613,14 +1647,25 @@ export async function downloadFile(
         if (expectedSha1) {
           await storeInCache(expectedSha1, destination, options.size ?? received)
         }
+        options.onSource?.(url)
         return
       } catch (err) {
         if (options.signal?.aborted) throw new CancellationError()
         if (stall?.signal.aborted) {
           lastError = new NetworkError('下载停滞，正在切换线路', url)
+          options.trace?.({
+            type: 'stall',
+            host: hostOf(url) ?? '未知线路',
+            message: `下载停滞，切换线路：${url}`
+          })
           break
         }
         lastError = friendlyError(err, url)
+        options.trace?.({
+          type: 'retry',
+          host: hostOf(url) ?? '未知线路',
+          message: lastError.message
+        })
         attempt += 1
         if (attempt < 2) await sleep(500)
       } finally {

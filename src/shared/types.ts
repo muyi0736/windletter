@@ -1941,6 +1941,21 @@ export interface FileFilter {
   extensions: string[]
 }
 
+export type DownloadLogStatus = 'running' | 'success' | 'failed'
+
+export interface DownloadLogSummary {
+  name: string
+  task: string
+  pack: string
+  startedAt: number
+  finishedAt: number | null
+  status: DownloadLogStatus
+  bytes: number
+  size: number
+  avgBps: number
+  logBytes: number
+}
+
 export interface LauncherApi {
   window: {
     minimize: () => Promise<void>
@@ -2282,5 +2297,12 @@ export interface LauncherApi {
     openFolder: () => Promise<void>
     latestPath: () => Promise<string | null>
     readLatest: () => Promise<string>
+  }
+  downloadLogs: {
+    list: () => Promise<DownloadLogSummary[]>
+    read: (name: string) => Promise<string>
+    openFolder: () => Promise<void>
+    exportLog: (name: string) => Promise<string | null>
+    networkCheck: () => Promise<DownloadLogSummary>
   }
 }

@@ -13,6 +13,8 @@ import {
 import { CancellationError, downloadFile } from './net'
 import { modrinthFileCandidates } from './source'
 import { importModpack, type ImportModpackResult } from './modpacks'
+import { DownloadLogSession } from './downloadLog'
+import { hostOfDownloadUrl } from './downloadLogFormat'
 import { emptyDetail, type TaskProgress } from './progress'
 
 const MAX_ENTRY_BYTES = 512 * 1024 * 1024
@@ -48,6 +50,7 @@ export interface InstallCurseForgeOptions {
   settings: LauncherSettings
   signal: AbortSignal
   onProgress: TaskProgress
+  downloadLog?: DownloadLogSession | null
 }
 
 export interface PrepareCurseForgeOptions {
@@ -61,6 +64,7 @@ export interface PrepareCurseForgeOptions {
   settings: LauncherSettings
   signal: AbortSignal
   onProgress: TaskProgress
+  downloadLog?: DownloadLogSession | null
 }
 
 export interface PreparedCurseForgePack {
@@ -109,7 +113,7 @@ function loaderFromManifest(raw: string): {
 export async function prepareCurseForgePackArchive(
   options: PrepareCurseForgeOptions
 ): Promise<PreparedCurseForgePack> {
-  const { signal, onProgress, settings } = options
+  const { signal, onProgress, settings, downloadLog } = options
   const report = (stage: string, percent: number, detail = emptyDetail()) =>
     onProgress({ stage, percent: Math.max(0, Math.min(100, percent)), detail })
 
@@ -126,14 +130,23 @@ export async function prepareCurseForgePackArchive(
   }
 
   try {
+    const infoStartedAt = Date.now()
     report('读取 CurseForge 文件信息', 1)
     const archive = await getCurseForgeFileInfo(options.projectId, options.fileId, settings)
+    downloadLog?.stage('读取 CurseForge 文件信息', Date.now() - infoStartedAt, archive.filename)
     if (!archive.url) {
       throw new Error(
         `CurseForge 未提供自动下载地址（作者限制了第三方分发）。请打开 ${archive.manualUrl} 手动下载后导入，月月月启动器不会绕过下载限制。`
       )
     }
     report(`下载整合包 ${archive.filename}`, 3)
+    const archiveStartedAt = Date.now()
+    let archiveSource = ''
+    downloadLog?.event(
+      'archive',
+      `${archive.filename} · ${archive.size ?? 0} B · ${archive.sha1 ? 'SHA1 已提供' : '无 SHA1'}`
+    )
+    downloadLog?.url(archive.url)
     await downloadFile(
       modrinthFileCandidates(archive.url, settings.modrinthMirror),
       archivePath,
@@ -142,6 +155,10 @@ export async function prepareCurseForgePackArchive(
         size: archive.size,
         multiSource: (archive.size ?? 0) >= 8 * 1024 * 1024,
         signal,
+        onSource: (source) => {
+          archiveSource = source
+        },
+        trace: (event) => downloadLog?.event('trace', `${event.type} · ${event.message}`),
         onBytes: (() => {
           let done = 0
           let speed = 0
@@ -177,7 +194,28 @@ export async function prepareCurseForgePackArchive(
       }
     )
 
+    const archiveMs = Date.now() - archiveStartedAt
+    const archiveHost =
+      archiveSource === 'cache'
+        ? '本地缓存'
+        : archiveSource === 'resume'
+          ? '断点续传'
+          : archiveSource === 'multi'
+            ? '多线路'
+            : archiveSource
+              ? hostOfDownloadUrl(archiveSource)
+              : hostOfDownloadUrl(archive.url)
+    downloadLog?.recordFile({
+      label: archive.filename,
+      host: archiveHost,
+      bytes: archive.size ?? 0,
+      ms: archiveMs,
+      attempts: archiveSource === 'multi' ? 2 : 1
+    })
+    downloadLog?.stage('下载主压缩包', archiveMs, archiveHost)
+
     if (signal.aborted) throw new CancellationError()
+    const parseStartedAt = Date.now()
     report('解析 CurseForge 清单', 42)
     const zip = new AdmZip(archivePath)
     const manifestEntry = zip.getEntry('manifest.json')
@@ -202,6 +240,7 @@ export async function prepareCurseForgePackArchive(
     const manifestFiles = manifest.files ?? []
     if (manifestFiles.length > 5000) throw new Error('CurseForge 清单文件数量过多')
     report(`解析 CurseForge 文件（${manifestFiles.length} 个）`, 45)
+    downloadLog?.stage('解析整合包清单', Date.now() - parseStartedAt, `${manifestFiles.length} 个文件`)
     const manualBySha1 = new Map<string, Buffer>()
     for (const path of (options.manualFiles ?? []).slice(0, 200)) {
       try {
@@ -234,6 +273,7 @@ export async function prepareCurseForgePackArchive(
         )
       }
     }
+    const resolveStartedAt = Date.now()
     await Promise.all(
       Array.from({ length: Math.min(CF_RESOLVE_CONCURRENCY, manifestFiles.length) }, async () => {
         while (true) {
@@ -311,6 +351,11 @@ export async function prepareCurseForgePackArchive(
           reportResolved()
         }
       })
+    )
+    downloadLog?.stage(
+      '解析 CurseForge 文件列表',
+      Date.now() - resolveStartedAt,
+      `${resolved.filter(Boolean).length}/${manifestFiles.length} 个已解析`
     )
     if (missing.length > 0) {
       const names = missing
@@ -428,29 +473,41 @@ export async function installCurseForgeModpack(
   options: InstallCurseForgeOptions
 ): Promise<ImportModpackResult> {
   const { signal, onProgress, settings } = options
-  const prepared = await prepareCurseForgePackArchive({
-    projectId: options.projectId,
-    fileId: options.fileId,
-    title: options.title,
-    summary: options.summary,
-    manualFiles: options.manualFiles,
-    settings,
-    signal,
-    onProgress: (info) =>
-      onProgress({
-        ...info,
-        percent: info.percent * 0.18
-      })
-  })
+  const downloadLog =
+    options.downloadLog ??
+    (await DownloadLogSession.start({
+      task: '安装 CurseForge 整合包',
+      pack: options.title,
+      source: 'curseforge',
+      mirror: settings.modrinthMirror,
+      proxy: Boolean(settings.downloadProxy),
+      concurrency: settings.downloadConcurrency
+    }))
+  let prepared: Awaited<ReturnType<typeof prepareCurseForgePackArchive>> | null = null
 
   try {
+    prepared = await prepareCurseForgePackArchive({
+      projectId: options.projectId,
+      fileId: options.fileId,
+      title: options.title,
+      summary: options.summary,
+      manualFiles: options.manualFiles,
+      settings,
+      signal,
+      downloadLog,
+      onProgress: (info) =>
+        onProgress({
+          ...info,
+          percent: info.percent * 0.18
+        })
+    })
     if (signal.aborted) throw new CancellationError()
     onProgress({
       stage: '开始安装 CurseForge 整合包',
       percent: 18,
       detail: emptyDetail()
     })
-    return await importModpack({
+    const result = await importModpack({
       archivePath: prepared.convertedPath,
       displayName: options.title,
       summary: options.summary,
@@ -462,6 +519,7 @@ export async function installCurseForgeModpack(
       downloadSource: settings.source,
       concurrency: settings.downloadConcurrency,
       signal,
+      downloadLog,
       onProgress: (info) =>
         onProgress({
           stage: `安装 · ${info.stage}`,
@@ -470,8 +528,13 @@ export async function installCurseForgeModpack(
           parallel: info.parallel
         })
     })
+    await downloadLog?.finish('success')
+    return result
+  } catch (error) {
+    await downloadLog?.finish('failed', error instanceof Error ? error.message : String(error))
+    throw error
   } finally {
-    await prepared.cleanup()
+    await prepared?.cleanup()
   }
 }
 

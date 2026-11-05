@@ -78,6 +78,12 @@ import {
   updateInstanceSettings
 } from './core/instances'
 import { clearJavaCache, chooseJava, detectJava, ensureJavaForVersion } from './core/java'
+import {
+  downloadLogDir,
+  listDownloadLogs,
+  readDownloadLog,
+  runDownloadNetworkCheck
+} from './core/downloadLog'
 import { buildJavaAssignments } from './core/javaAssignments'
 import { releaseMemory } from './core/memoryOptimize'
 import { installVanillaVersion } from './core/installer'
@@ -3139,6 +3145,32 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     const error = await shell.openPath(getLogDir())
     if (error) throw new Error(error)
   })
+  ipcMain.handle('download-logs:list', () => listDownloadLogs())
+  ipcMain.handle('download-logs:read', (_event, name: unknown) => {
+    if (typeof name !== 'string') throw new Error('下载日志文件名无效')
+    return readDownloadLog(name)
+  })
+  ipcMain.handle('download-logs:open-folder', async () => {
+    const dir = await downloadLogDir()
+    await fs.mkdir(dir, { recursive: true })
+    const error = await shell.openPath(dir)
+    if (error) throw new Error(error)
+  })
+  ipcMain.handle('download-logs:export', async (_event, name: unknown) => {
+    if (typeof name !== 'string') throw new Error('下载日志文件名无效')
+    const text = await readDownloadLog(name)
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const result = await dialog.showSaveDialog({
+      title: '导出下载诊断',
+      defaultPath: join(app.getPath('downloads'), `月月月下载诊断-${stamp}.txt`),
+      filters: [{ name: '文本文件', extensions: ['txt'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    await fs.writeFile(result.filePath, text, 'utf8')
+    shell.showItemInFolder(result.filePath)
+    return result.filePath
+  })
+  ipcMain.handle('download-logs:network-check', () => runDownloadNetworkCheck())
   ipcMain.handle('logs:latest-path', async () => latestLogFile())
   ipcMain.handle('logs:read-latest', async () => {
     const path = await latestLogFile()

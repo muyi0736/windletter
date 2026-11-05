@@ -1,0 +1,183 @@
+.download-logs {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 420px;
+  max-height: 62vh;
+}
+
+.download-logs-list {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.download-log-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.download-log-item:hover {
+  background: var(--surface);
+}
+
+.download-log-item.is-active {
+  border-color: var(--accent-border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.download-log-item-head,
+.download-log-item-meta,
+.download-log-item-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.download-log-item-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-log-item-meta,
+.download-log-item-stats {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.download-log-item-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-logs-detail {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.download-logs-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.download-logs-detail-head > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.download-logs-detail-head strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-logs-detail-head span {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.download-log-text {
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  flex: 1;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.58;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.download-logs-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 160px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.download-logs-error {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-size: 12px;
+}
+
+.download-logs-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.download-logs-footer-left,
+.download-logs-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .download-logs {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: 66vh;
+  }
+
+  .download-logs-list {
+    max-height: 200px;
+  }
+
+  .download-logs-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .download-logs-footer-left,
+  .download-logs-footer-right {
+    justify-content: flex-end;
+  }
+}

@@ -27,6 +27,7 @@ import { cleanupFailedPackVersions, listVersionFolderNames } from './packCleanup
 import { collectPackReuseRoots, reuseLocalPackFiles } from './packReuse'
 import { invalidateVersionCache } from './versions'
 import { formatSourceProbe, probePackSources, sortUrlsBySourceSpeed } from './packSources'
+import { DownloadLogSession } from './downloadLog'
 import { emptyDetail, type TaskProgress } from './progress'
 import { modrinthFileCandidates } from './source'
 import { pathExists, safeJoin } from './version'
@@ -90,6 +91,8 @@ export interface ImportModpackOptions {
   concurrency: number
   signal: AbortSignal
   onProgress: TaskProgress
+  /** CurseForge 包的日志会从压缩包阶段持续到安装结束；单独导入时由本函数创建。 */
+  downloadLog?: DownloadLogSession | null
 }
 
 export interface ImportModpackResult {
@@ -321,6 +324,8 @@ async function extractOverrides(
 
 export async function importModpack(options: ImportModpackOptions): Promise<ImportModpackResult> {
   const { signal, onProgress } = options
+  let downloadLog: DownloadLogSession | null = options.downloadLog ?? null
+  const ownsDownloadLog = !options.downloadLog
   let main: {
     stage: string
     percent: number
@@ -433,9 +438,23 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
         : []
     )
 
+    if (!downloadLog) {
+      downloadLog = await DownloadLogSession.start({
+        task: options.source === 'curseforge' ? '安装 CurseForge 整合包' : '安装整合包',
+        pack: name,
+        source: options.source,
+        mirror: options.settings.modrinthMirror,
+        proxy: Boolean(options.settings.downloadProxy),
+        concurrency: options.concurrency,
+        files: jobs.length,
+        size: jobs.reduce((sum, job) => sum + (job.size ?? 0), 0)
+      })
+    }
+
     const runPack = async (): Promise<void> => {
       if (stageSignal.aborted) throw new CancellationError()
       reportPack('准备整合包文件', 0)
+      const packStartedAt = Date.now()
       let reusedFiles = 0
       if (reuseJobs.length) {
         try {
@@ -488,6 +507,9 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
           const probes = await probePackSources(jobs, { signal: stageSignal, probeBytes: 256 * 1024 })
           if (probes.length >= 2) {
             reportPack(`测速下载线路 · ${formatSourceProbe(probes)}`, 0)
+            for (const probe of probes) {
+              downloadLog?.probe(probe.host, 'ok', probe.bytesPerMs * 1000)
+            }
             for (const job of jobs) job.urls = sortUrlsBySourceSpeed(job.urls, probes)
           }
         } catch (error) {
@@ -503,10 +525,12 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
       let lastDetail: DownloadDetail = emptyDetail()
       let packProgressFloor = 0
       reportPack(downloadStage, 0, lastDetail)
+      const downloadStartedAt = Date.now()
       await runDownloadPool(jobs, {
         concurrency: options.concurrency,
         hostConcurrency: Math.min(64, Math.max(32, options.concurrency)),
         signal: stageSignal,
+        log: downloadLog,
         onProgress: (detail) => {
           lastDetail = detail
           const fileRatio = detail.total ? detail.current / detail.total : 1
@@ -521,6 +545,8 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
         }
       })
       if (stageSignal.aborted) throw new CancellationError()
+      downloadLog?.stage('整合包文件批量下载', Date.now() - downloadStartedAt, `${jobs.length} 个文件`)
+      downloadLog?.stage('整合包准备阶段', Date.now() - packStartedAt, `本地复用 ${reusedFiles}`)
       finishPack('整合包文件已就绪', lastDetail)
     }
 
@@ -654,8 +680,12 @@ export async function importModpack(options: ImportModpackOptions): Promise<Impo
     }
     await writeInstance(instance)
     report('整合包安装完成', 100)
+    if (ownsDownloadLog) await downloadLog?.finish('success')
     return { instance }
   } catch (err) {
+    if (ownsDownloadLog) {
+      await downloadLog?.finish('failed', err instanceof Error ? err.message : String(err))
+    }
     await fs.rm(instanceDir, { recursive: true, force: true }).catch(() => undefined)
     if (versionsBefore) {
       try {
