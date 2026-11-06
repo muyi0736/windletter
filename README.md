@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/muyi0736/windletter/releases/latest">
-    <img src="docs/assets/readme/banner.png" width="880" alt="风信启动器 Windletter — 风有信，月无边">
+    <img src="docs/assets/readme/banner.png" width="880" alt="月月月启动器 Windletter — 风有信，月无边">
   </a>
 </p>
 
@@ -10,27 +10,100 @@
   <a href="docs/CHANGELOG.md"><img src="docs/assets/readme/btn-changelog.png" width="260" alt="版本记录"></a>
 </p>
 
-**Windletter Launcher** —— 风有信，月无边。一个受 PCL2 易用体验启发的 Minecraft Java 版启动器，使用 Electron、React 与 TypeScript 构建，界面、插画与动效均为原创。
+**月月月启动器**（Windletter Launcher）—— 风有信，月无边。一个受 PCL2 易用体验启发的 Minecraft Java 版启动器，使用 Electron、React 与 TypeScript 构建，界面、插画与动效均为原创。
 
 [下载最新版](https://github.com/muyi0736/windletter/releases/latest) · [交接文档](docs/HANDOFF.md) · [版本与验证记录](docs/CHANGELOG.md) · [安全说明](SECURITY.md)
 
-## 功能概览
+<p align="center"><sub><b>v0.60.58</b> · Windows 10/11 x64 · MIT · Electron + React + TypeScript</sub></p>
+
+**目录**：[预览](#预览) · [功能](#功能) · [下载与安装](#下载与安装) · [本地开发](#本地开发) · [更新与验证](#更新与验证) · [文档](#文档) · [安全与许可](#安全与许可)
+
+## 预览
+
+<p align="center">
+  <img src="docs/assets/readme/shot-download.webp" width="880" alt="下载中心：整合包搜索、安装与来源筛选">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/shot-home.webp" width="880" alt="启动页：选择世界、账户与实例状态">
+</p>
+
+## 功能
+
+### 游戏与实例
+
+原版、快照与远古版本，Fabric / Quilt / Forge / NeoForge / OptiFine；整合包导入、多版本文件夹、实例迁移与克隆，自动 Java 与启动前体检。
+
+<details>
+<summary>展开细节</summary>
 
 **游戏与实例**：原版、快照与远古版本；Fabric / Quilt / Forge / NeoForge / OptiFine。支持整合包搜索、`.mrpack` / ZIP 导入、原版实例、多版本文件夹、同一加载器多实例、实例迁移与克隆。自动准备 Java，提供启动前体检、崩溃分析和五步登录自检。
 
+</details>
+
+### 下载与搜索
+
+Modrinth + CurseForge 双源，中文名、简称、全拼与拼音首字母搜索，总数与分页；分片、续传、线路测速与镜像回退。
+
+<details>
+<summary>展开细节</summary>
+
 **下载与搜索**：PCL2 式下载中心，Modrinth 与 CurseForge 双源合并；中文名、常用简称、全拼和拼音首字母搜索，带总数与分页。4 MB 以上文件自动分片，断点续传、候选线路测速、镜像回退，并提供下载代理和缓存管理。整合包安装会同时下载包内文件与安装原版/加载器，下载前实测镜像/官方源站速度后选源，提高单主机并发，并复用本机已有文件。CurseForge 整合包还可以单独下载 ServerFiles / ServerPack 服务端包，保存到下载目录。
+
+</details>
+
+### 内容与备份
+
+模组、资源包、光影与数据包，SHA1 / CurseForge 指纹识别；跨实例复用；备份、快照、回滚、存档仓库与统一备份管理。
+
+<details>
+<summary>展开细节</summary>
 
 **内容与备份**：在实例内搜索安装模组、资源包、光影与数据包；内容账本通过 SHA1 / CurseForge 指纹识别文件。安装整合包时会扫描本机其他实例和外部 PCL2 / HMCL 版本目录，同名同大小且 SHA1 一致的文件直接复用。更新前自动备份和快照，失败自动回滚；另有预设模组、存档仓库、加载器更新与回滚、统一备份管理和只读资源预览。
 
+</details>
+
+### KubeJS 工作台
+
+全屏编辑、目录树、多标签与历史 diff；配方 / 标签 / 机器 / 祭坛生成与已有配方导入；AST 预检、一键修复、日志定位与临时服务端验证。
+
+<details>
+<summary>展开细节</summary>
+
 **KubeJS 工作台**：全屏编辑器、真实目录树、多标签与历史 diff；实例物品 / 配方 / 标签索引和图标；配方、标签、机器 / 祭坛可视化生成与已有配方导入；AST 语义预检、问题一键修复和日志定位；可生成临时服务端实际运行验证，检查脚本、配方和标签注册报错；AI 释意、选区改写与配方问答，均显式触发并支持本地降级。
+
+</details>
+
+### 服务器
+
+服务器档案、彩色 MOTD、延迟与在线玩家（Mojang / LittleSkin 皮肤）、实例绑定一键进服；服务端包制作、静态检查与真实启动验证。
+
+<details>
+<summary>展开细节</summary>
 
 **服务器**：服务器档案、彩色 MOTD、延迟与在线玩家（Mojang / LittleSkin 皮肤）、绑定实例一键进服；可制作整合包服务端包，并做静态检查和真实启动验证。
 
+</details>
+
+### 桌面体验
+
+纸墨双主题与八套主题色、自定义背景、1680px 工作台缩放、Ctrl+K、游戏时长周报、截图画廊、启动动画与省内存；日志控制台与重启残留检测。
+
+<details>
+<summary>展开细节</summary>
+
 **桌面体验**：纸墨极简双主题与八套主题色、自定义背景、1680px 工作台等比缩放、`Ctrl+K` 命令面板、游戏时长周报、截图画廊、启动动画与省内存模式。标题栏日志控制台会解析游戏的 log4j XML，按级别 / 来源 / 线程显示，支持警告与错误筛选、连续重复折叠和异常堆栈展开。启动器重启后会检测上次游戏是否仍在运行，并可选择保留或结束进程。
+
+</details>
 
 ## 下载与安装
 
 Windows 10/11 x64。安装包由 GitHub Actions 构建并发布到 [Releases](https://github.com/muyi0736/windletter/releases/latest)。
+
+[**下载最新版 →**](https://github.com/muyi0736/windletter/releases/latest)
+
+<details>
+<summary>数据目录、更新源与校验</summary>
 
 安装版把配置、账户和日志放在安装目录旁的 `WindletterData`，游戏目录默认是其中的 `minecraft`；可用 `WINDLETTER_DATA_DIR` 覆盖数据目录。源码开发模式使用 `%APPDATA%\Windletter`。
 
@@ -41,6 +114,8 @@ https://github.com/muyi0736/windletter/releases/latest/download/latest.json
 ```
 
 安装包必须通过大小与 SHA-256 校验，下载支持取消和断点续传；NSIS 静默升级后自动重启。安装包未做代码签名，Windows 可能显示 SmartScreen 提示。
+
+</details>
 
 ## 本地开发
 
@@ -60,6 +135,9 @@ npm run build
 npm run dist            # 生成 NSIS 安装包；内置 CF key 与默认 GitHub 更新源
 ```
 
+<details>
+<summary>国内网络构建镜像</summary>
+
 Electron 或 electron-builder 的二进制下载被网络阻断时，可以使用镜像后重试：
 
 ```bash
@@ -67,9 +145,14 @@ ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" node node_modules/elec
 ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/" npm run dist
 ```
 
-## 发布与更新
+</details>
+
+## 更新与验证
 
 推送 `v*` 标签会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)：类型检查、准备 Electron 二进制、注入构建密钥、打包 NSIS、生成绝对地址 `latest.json` 并创建 GitHub Release。工作流只在标签上运行，普通 PR 不读取 Secret。
+
+<details>
+<summary>更新源、线路测速与回退细节</summary>
 
 本地生成更新清单：
 
@@ -83,7 +166,9 @@ npm run update:manifest -- <安装包路径> \
 
 GitHub 更新源会自动改用官方 `api.github.com` Release API：版本、更新说明、安装包大小和 SHA-256 都来自官方元数据，安装包从 GitHub asset API 或测速选出的镜像线路下载，完整性仍按官方 SHA-256 校验。下载前会用 4 路 Range 实测候选线路的吞吐量和分段能力，避免选到延迟低但分段失败的镜像；下载时多个可用线路同时参与分段（16–24 段），某条线路限额或失败会自动切换。启动检查会复用 6 小时内的结果，API 请求使用 ETag 条件请求；遇到限额时会记录恢复时间，在恢复前不再请求，界面显示“限额退避”和恢复时间。API 不可用时先回退 `latest.json`，仍失败则使用上次成功缓存，并标注“清单回退”或“上次缓存”。GitHub 直连受限时也可以手动把更新源改为镜像清单，例如 `https://ghfast.top/https://github.com/muyi0736/windletter/releases/latest/download/latest.json`（或把前缀换成 `https://gh-proxy.com/`）。
 
-## 公开源码与密钥
+</details>
+
+### 公开源码与密钥
 
 共享 CurseForge key 不进入仓库，发布构建时由 Vite `define` 注入；GitHub Actions 从仓库 Secret `CURSEFORGE_API_KEY` 读取。注入后的 key 仍存在于主进程 bundle 和安装包中，可以被逆向提取；需要真正保密时应改用服务端代理。没有注入 key 的源码构建可在设置中填写自己的 key，或切换到 MCIM 镜像。更多边界见 [SECURITY.md](SECURITY.md)。
 
@@ -114,7 +199,7 @@ build/         应用图标与更新说明
 docs/          交接文档与版本记录
 ```
 
-## 安全与声明
+## 安全与许可
 
 - 账户访问令牌与刷新令牌保存在本机配置文件中，不会上传到第三方服务器；配置文件目前未加密，请注意保护。
 - 启动器不会下载或分发 Minecraft 游戏资源本体，所有资源均从官方源或公开镜像获取。
@@ -122,12 +207,10 @@ docs/          交接文档与版本记录
 - 本项目是非官方第三方软件，与 Mojang Studios、Microsoft、Modrinth 无关联，也未被其认可或赞助。
 - 在线游戏需要拥有正版 Minecraft Java 版。离线账户仅建议用于本地测试与个人存档。
 
-## 许可证
-
 本项目以 [MIT License](LICENSE) 开源。Minecraft、Mojang 与 Microsoft 的相关名称和资源归其各自权利人所有。
+
+有问题或建议欢迎开 [Issue](https://github.com/muyi0736/windletter/issues)；提交代码前请先看 [docs/HANDOFF.md](docs/HANDOFF.md) 与 [SECURITY.md](SECURITY.md)。
 
 ## 致谢
 
-- 界面与交互灵感来自 [PCL2](https://github.com/Hex-Dragon/PCL2) 与 [PCL2CE](https://github.com/PCL-Community/PCL2-CE)。
-- 版本元数据来自 Mojang Piston Meta，镜像加速由 [BMCLAPI](https://bmclapidoc.bangbang93.com/) 提供。
-- 使用 Electron、React、TypeScript、Vite、Zustand 与 Lucide 构建。
+界面与交互灵感来源于 [PCL2](https://github.com/Hex-Dragon/PCL2) 与 PCL2CE，感谢原作者与社区。版本元数据来自 Mojang Piston Meta；镜像加速由 BMCLAPI 提供。整合包与模组元数据来自 Modrinth 与 CurseForge。
