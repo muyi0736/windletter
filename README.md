@@ -1,4 +1,14 @@
-# 风信启动器
+<p align="center">
+  <a href="https://github.com/muyi0736/windletter/releases/latest">
+    <img src="docs/assets/readme/banner.png" width="880" alt="风信启动器 Windletter — 风有信，月无边">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/muyi0736/windletter/releases/latest"><img src="docs/assets/readme/btn-download.png" width="272" alt="下载最新版"></a>&nbsp;&nbsp;
+  <a href="docs/HANDOFF.md"><img src="docs/assets/readme/btn-handoff.png" width="272" alt="交接文档"></a>&nbsp;&nbsp;
+  <a href="docs/CHANGELOG.md"><img src="docs/assets/readme/btn-changelog.png" width="272" alt="版本记录"></a>
+</p>
 
 **Windletter Launcher** —— 风有信，月无边。一个受 PCL2 易用体验启发的 Minecraft Java 版启动器，使用 Electron、React 与 TypeScript 构建，界面、插画与动效均为原创。
 
