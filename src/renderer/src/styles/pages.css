@@ -3670,6 +3670,73 @@
   word-break: break-all;
 }
 
+.export-pack-format {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.export-pack-format button {
+  flex: 1;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.export-pack-format button.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.export-pack-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px 6px 26px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.export-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 150px;
+  overflow-y: auto;
+  margin: 2px 12px 8px 26px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.export-file-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 2px 2px;
+}
+
+.export-file-row input {
+  accent-color: var(--accent);
+}
+
+.export-file-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- 预设模组 ---------- */
 .preset-manager {
   display: flex;

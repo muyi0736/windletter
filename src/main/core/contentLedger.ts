@@ -40,9 +40,9 @@ import { fetchJson, USER_AGENT } from './net'
 const MODRINTH_BASE = 'https://api.modrinth.com/v2'
 const CHECK_TTL = 6 * 60 * 60 * 1000
 const IDENTIFY_RETRY_TTL = 7 * 24 * 60 * 60 * 1000
-const HASH_CONCURRENCY = 2
+const HASH_CONCURRENCY = 8
 const CHECK_CONCURRENCY = 3
-const MAX_MEMORY_HASH = 192 * 1024 * 1024
+const MAX_MEMORY_HASH = 8 * 1024 * 1024
 const MODRINTH_HASH_BATCH = 100
 const MODRINTH_PROJECTS_BATCH = 50
 const UPDATE_STATE_FILE = 'content-updates.json'
@@ -203,14 +203,47 @@ function murmur2(buffer: Buffer): number {
   return (final ^ (final >>> 15)) >>> 0
 }
 
-async function streamSha1(path: string): Promise<string> {
+function readChunks(path: string, onChunk: (chunk: Buffer) => void): Promise<void> {
   return new Promise((resolve, reject) => {
-    const hash = createHash('sha1')
     const stream = createReadStream(path)
-    stream.on('data', (chunk) => hash.update(chunk))
+    stream.on('data', onChunk)
     stream.on('error', reject)
-    stream.on('end', () => resolve(hash.digest('hex')))
+    stream.on('end', resolve)
   })
+}
+
+// 大文件流式计算 SHA1 与 CurseForge 指纹（两遍低内存读取），避免整包读入内存。
+async function streamHashes(path: string): Promise<HashResult> {
+  const sha = createHash('sha1')
+  let length = 0
+  await readChunks(path, (chunk) => {
+    sha.update(chunk)
+    for (let index = 0; index < chunk.length; index += 1) {
+      if (!WHITESPACE.has(chunk[index])) length += 1
+    }
+  })
+  const sha1 = sha.digest('hex')
+  const m = 1540483477
+  let hash = (1 ^ length) >>> 0
+  let block = 0
+  let bytesInBlock = 0
+  await readChunks(path, (chunk) => {
+    for (let index = 0; index < chunk.length; index += 1) {
+      const byte = chunk[index]
+      if (WHITESPACE.has(byte)) continue
+      block |= byte << (bytesInBlock * 8)
+      bytesInBlock += 1
+      if (bytesInBlock === 4) {
+        const mixed = Math.imul(block >>> 0, m) >>> 0
+        hash = (Math.imul(hash, m) ^ Math.imul(mixed ^ (mixed >>> 24), m)) >>> 0
+        block = 0
+        bytesInBlock = 0
+      }
+    }
+  })
+  if (bytesInBlock > 0) hash = Math.imul(hash ^ block, m) >>> 0
+  const final = Math.imul(hash ^ (hash >>> 13), m) >>> 0
+  return { sha1, fingerprint: (final ^ (final >>> 15)) >>> 0 }
 }
 
 async function hashContentFile(path: string): Promise<HashResult> {
@@ -222,7 +255,7 @@ async function hashContentFile(path: string): Promise<HashResult> {
       fingerprint: murmur2(buffer)
     }
   }
-  return { sha1: await streamSha1(path), fingerprint: null }
+  return streamHashes(path)
 }
 
 /* ---------- 本地内容扫描 ---------- */
@@ -503,6 +536,65 @@ async function identifyModrinthHashes(
         versionId: version.id,
         versionNumber: (version.version_number ?? version.name ?? '').slice(0, 160),
         fileName: version.files?.[0]?.filename ?? null
+      })
+    }
+  }
+  return result
+}
+
+export interface ModrinthFileMatch {
+  url: string
+  sha1: string
+  sha512: string | null
+  size: number
+  filename: string
+}
+
+/** CurseForge 指纹（murmur2），供导出时反查 CF 文件。 */
+export function fingerprintOfBuffer(buffer: Buffer): number {
+  return murmur2(buffer)
+}
+
+interface RawVersionFilesResponse {
+  files?: {
+    url?: string
+    filename?: string
+    size?: number
+    hashes?: { sha1?: string; sha512?: string }
+  }[]
+}
+
+/** 按 sha1 反查 Modrinth 公开下载信息，供“仅在线下载”导出模式生成 files[]。 */
+export async function lookupModrinthFilesByHash(
+  hashes: string[]
+): Promise<Map<string, ModrinthFileMatch>> {
+  const unique = [...new Set(hashes.filter(Boolean))]
+  const result = new Map<string, ModrinthFileMatch>()
+  for (let index = 0; index < unique.length; index += MODRINTH_HASH_BATCH) {
+    const batch = unique.slice(index, index + MODRINTH_HASH_BATCH)
+    let data: Record<string, RawVersionFilesResponse>
+    try {
+      data = await modrinthRequest<Record<string, RawVersionFilesResponse>>(
+        `${MODRINTH_BASE}/version_files`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hashes: batch, algorithm: 'sha1' })
+        }
+      )
+    } catch {
+      continue
+    }
+    for (const [hash, version] of Object.entries(data ?? {})) {
+      const file =
+        version?.files?.find((item) => item.hashes?.sha1 === hash) ?? version?.files?.[0]
+      if (!file?.url) continue
+      result.set(hash, {
+        url: file.url,
+        sha1: file.hashes?.sha1 ?? hash,
+        sha512: file.hashes?.sha512 ?? null,
+        size: file.size ?? 0,
+        filename: file.filename ?? ''
       })
     }
   }

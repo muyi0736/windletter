@@ -158,6 +158,31 @@ async function countJars(dir: string): Promise<number> {
   }
 }
 
+// 没有版本 JSON 时，从模组 jar 内的清单推断加载器（PCL 式宽松识别）。
+async function inferLoaderFromMods(root: string): Promise<InstanceLoader | null> {
+  let jars: string[] = []
+  try {
+    jars = (await fs.readdir(join(root, 'mods')))
+      .filter((entry) => entry.toLowerCase().endsWith('.jar'))
+      .slice(0, 12)
+  } catch {
+    return null
+  }
+  for (const name of jars) {
+    try {
+      const zip = new AdmZip(join(root, 'mods', name))
+      const names = zip.getEntries().map((entry) => entry.entryName)
+      if (names.includes('fabric.mod.json')) return 'fabric'
+      if (names.includes('quilt.mod.json')) return 'quilt'
+      if (names.includes('META-INF/neoforge.mods.toml')) return 'neoforge'
+      if (names.includes('META-INF/mods.toml')) return 'forge'
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
 async function pickGameDir(root: string): Promise<string> {
   for (const candidate of [root, join(root, 'minecraft'), join(root, '.minecraft')]) {
     if (await pathExists(join(candidate, 'mods'))) return candidate
@@ -479,6 +504,8 @@ function loaderFromVersionMeta(
 
 async function readVersionPack(root: string): Promise<InstalledPackDetails | null> {
   if (!(await pathExists(join(root, 'mods')))) return null
+  // 含 versions/ 的是游戏目录（如 D:\小喵），不是单个实例，交给上层扫描其 versions/。
+  if (await pathExists(join(root, 'versions'))) return null
   const folder = basename(root)
   let meta: VersionMeta | null = null
   try {
@@ -494,7 +521,11 @@ async function readVersionPack(root: string): Promise<InstalledPackDetails | nul
     minecraftVersionFrom(fmlArgument(meta, '--fml.mcVersion') ?? undefined) ||
     minecraftVersionFrom(meta?.id) ||
     minecraftVersionFrom(folder)
-  const { loader, loaderVersion } = loaderFromVersionMeta(meta, folder, gameVersion)
+  let { loader, loaderVersion } = loaderFromVersionMeta(meta, folder, gameVersion)
+  if (!meta && loader === 'vanilla') {
+    const inferred = await inferLoaderFromMods(root)
+    if (inferred) loader = inferred
+  }
   const modCount = await countJars(root)
   const parent = dirname(root)
   const candidateBase = basename(parent).toLowerCase() === 'versions' ? dirname(parent) : null
@@ -502,11 +533,13 @@ async function readVersionPack(root: string): Promise<InstalledPackDetails | nul
     Boolean(candidateBase) &&
     (await pathExists(join(candidateBase as string, 'libraries'))) &&
     (await pathExists(join(candidateBase as string, 'assets')))
-  const reason = !meta
-    ? '缺少版本 JSON，无法确定加载器'
-    : !gameVersion
-      ? '没有找到 Minecraft 版本'
-      : null
+  const reason = !gameVersion
+    ? '没有找到 Minecraft 版本'
+    : modCount === 0
+      ? 'mods 文件夹为空'
+      : !meta && loader === 'vanilla'
+        ? '无法确定加载器'
+        : null
   return {
     key: instanceKey(root),
     kind: 'instance',
@@ -658,9 +691,9 @@ async function scanInstalledRoot(
 }
 
 export async function scanLocalPacks(
-  extraPaths?: string[] | string | null
+  extraPaths?: string[] | string | null,
+  scope: 'all' | 'extra' = 'all'
 ): Promise<LocalPackScanResult> {
-  const roots: LocalPackRoot[] = [...baseRoots()]
   const extras = (
     Array.isArray(extraPaths)
       ? extraPaths
@@ -670,13 +703,24 @@ export async function scanLocalPacks(
   )
     .filter((path): path is string => typeof path === 'string' && path.trim().length > 0)
     .map((path) => resolve(path.trim()))
-  for (const path of [...new Set(extras)].slice(0, 20)) {
+  const uniqueExtras = [...new Set(extras)].slice(0, 20)
+  const roots: LocalPackRoot[] = scope === 'extra' ? [] : [...baseRoots()]
+  for (const path of uniqueExtras) {
     roots.push({ label: '已保存目录', path })
   }
   const packs: LocalPackView[] = []
   const seen = new Set<string>()
 
+  // 直接指定的单个整合包文件优先识别。
   const archiveFiles: string[] = []
+  for (const path of uniqueExtras) {
+    try {
+      const stat = await fs.stat(path)
+      if (stat.isFile() && /\.(?:mrpack|zip)$/i.test(path)) archiveFiles.push(path)
+    } catch {
+      continue
+    }
+  }
   for (const root of roots) {
     if (!(await pathExists(root.path))) continue
     await walkArchives(root.path, 0, archiveFiles)

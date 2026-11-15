@@ -1361,12 +1361,38 @@ export interface ServerPingResult {
   status: ServerStatus
 }
 
+export type ModpackExportFormat = 'mrpack' | 'curseforge' | 'zip'
+export type ModpackExportMode = 'bundled' | 'download'
+
 export interface ModpackExportOptions {
   mods: boolean
   config: boolean
   resourcepacks: boolean
   shaderpacks: boolean
   datapacks: boolean
+  /** 输出格式，默认 mrpack。 */
+  format?: ModpackExportFormat
+  /** bundled=资源随包内置；download=仅写 Modrinth 下载链接。默认 bundled。 */
+  mode?: ModpackExportMode
+  /** 游戏本体设置（options.txt / optionsshaders.txt），默认 true。 */
+  gameSettings?: boolean
+  /** 个人信息（JEI/帕秋莉/地图/命令历史等），默认 false。 */
+  personalInfo?: boolean
+  /** 单人存档，默认 false。 */
+  saves?: boolean
+  /** 多人服务器列表（servers.dat），默认 false。 */
+  serverList?: boolean
+  /** 已禁用的 Mod（*.disabled），默认 false。 */
+  disabledMods?: boolean
+  /** 选中的资源包文件名；不传=全部。 */
+  resourcepackFiles?: string[]
+  /** 选中的光影包文件名；不传=全部。 */
+  shaderpackFiles?: string[]
+}
+
+export interface ModpackExportPreview {
+  resourcepacks: string[]
+  shaderpacks: string[]
 }
 
 export interface ModpackExportProgress {
@@ -2059,6 +2085,7 @@ export interface LauncherApi {
       options: ModpackExportOptions,
       path: string
     ) => Promise<ModpackExportResult>
+    exportPreview: (id: string) => Promise<ModpackExportPreview>
     onExportProgress: (cb: (progress: ModpackExportProgress) => void) => () => void
     exportScript: (id: string) => Promise<string | null>
     repair: (id: string) => Promise<TaskState>
@@ -2267,7 +2294,10 @@ export interface LauncherApi {
     downloadServerPack: (request: CurseForgeServerPackDownloadRequest) => Promise<TaskState>
   }
   localPacks: {
-    scan: (extraPaths?: string[] | string | null) => Promise<LocalPackScanResult>
+    scan: (
+      extraPaths?: string[] | string | null,
+      scope?: 'all' | 'extra'
+    ) => Promise<LocalPackScanResult>
     import: (request: LocalPackImportRequest) => Promise<TaskState>
     importMany: (requests: LocalPackImportRequest[]) => Promise<TaskState>
   }

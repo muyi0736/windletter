@@ -98,6 +98,8 @@ import {
 } from './core/loaderInstances'
 import { listLoaderVersions } from './core/loaders'
 import {
+  curseForgeCdnUrl,
+  identifyCurseForgeFingerprints,
   listCurseForgeModpackVersions,
   searchCurseForgeModpacks,
   searchCurseForgeMods
@@ -156,7 +158,9 @@ import {
 } from './core/diagnostics'
 import {
   checkContentUpdates,
+  fingerprintOfBuffer,
   getContentChangelog,
+  lookupModrinthFilesByHash,
   rollbackContentUpdate,
   scanContentLedger,
   updateContent
@@ -1794,14 +1798,14 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     })
   })
 
-  ipcMain.handle('local-packs:scan', async (_event, rawExtra: unknown) => {
+  ipcMain.handle('local-packs:scan', async (_event, rawExtra: unknown, rawScope: unknown) => {
     const extras = (Array.isArray(rawExtra) ? rawExtra : [rawExtra])
       .filter(
         (path): path is string =>
           typeof path === 'string' && path.trim().length > 0 && isAbsolute(path.trim())
       )
       .map((path) => path.trim())
-    return scanLocalPacks(extras)
+    return scanLocalPacks(extras, rawScope === 'extra' ? 'extra' : 'all')
   })
 
   ipcMain.handle('local-packs:import', async (_event, rawRequest: unknown) => {
@@ -2734,15 +2738,36 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
         rawOptions && typeof rawOptions === 'object'
           ? (rawOptions as Record<string, unknown>)
           : {}
+      const strList = (input: unknown): string[] | undefined =>
+        Array.isArray(input)
+          ? input.filter((item): item is string => typeof item === 'string')
+          : undefined
       const options: ModpackExportOptions = {
         mods: value.mods !== false,
         config: value.config !== false,
         resourcepacks: value.resourcepacks !== false,
         shaderpacks: value.shaderpacks !== false,
-        datapacks: value.datapacks !== false
+        datapacks: value.datapacks !== false,
+        format:
+          value.format === 'curseforge' || value.format === 'zip' ? value.format : 'mrpack',
+        mode: value.mode === 'bundled' ? 'bundled' : 'download',
+        gameSettings: value.gameSettings !== false,
+        personalInfo: value.personalInfo === true,
+        saves: value.saves === true,
+        serverList: value.serverList === true,
+        disabledMods: value.disabledMods === true,
+        resourcepackFiles: strList(value.resourcepackFiles),
+        shaderpackFiles: strList(value.shaderpackFiles)
+      }
+      const wantExt = options.format === 'mrpack' ? /\.mrpack$/i : /\.zip$/i
+      if (typeof rawPath !== 'string' || !isAbsolute(rawPath) || !wantExt.test(rawPath)) {
+        throw new Error(
+          options.format === 'mrpack' ? '请选择 .mrpack 保存路径' : '请选择 .zip 保存路径'
+        )
       }
       const gameDir = await getInstanceGameDir(id)
       const dependencies: Record<string, string> = { minecraft: instance.gameVersion }
+      let loaderId = ''
       if (instance.loader !== 'vanilla' && instance.loaderVersion) {
         const key =
           instance.loader === 'fabric'
@@ -2751,55 +2776,256 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
               ? 'quilt-loader'
               : instance.loader
         dependencies[key] = instance.loaderVersion
+        loaderId = `${instance.loader}-${instance.loaderVersion}`
       }
-      const entries: StoreZipEntry[] = [
-        {
+
+      // 采用“排除法”打包：除个人/垃圾/启动器文件外全部携带，
+      // 避免漏掉 resources / fancymenu_data / ldlib2 等模组必需目录。
+      const alwaysSkipDirs = new Set([
+        'logs',
+        'screenshots',
+        'crash-reports',
+        'backups',
+        '.git',
+        'cache',
+        'versions',
+        'libraries',
+        'assets',
+        'natives',
+        'userdata',
+        'pcl',
+        'pcl2',
+        'node_modules',
+        '.idea',
+        '.vscode'
+      ])
+      // 嵌套目录只排除日志/缓存等；assets/versions 等仅在根目录排除，
+      // 以免误删 resources/assets 这类模组必需数据。
+      const nestedSkipDirs = new Set([
+        'logs',
+        'screenshots',
+        'crash-reports',
+        'backups',
+        '.git',
+        'cache',
+        'node_modules',
+        '.idea',
+        '.vscode'
+      ])
+      const personalConfigDirs = new Set([
+        'jei',
+        'patchouli',
+        'journeymap',
+        'xaerominimap',
+        'xaeroworldmap',
+        'voxelmap',
+        'mapwriter',
+        'ftbchunks'
+      ])
+      const skipRootFiles = new Set([
+        '.ds_store',
+        'desktop.ini',
+        'thumbs.db',
+        'launcher_profiles.json',
+        'usercache.json',
+        'usernamecache.json'
+      ])
+      const isJunkFile = (name: string): boolean => /\.(log|bak|tmp|old|lck)$/i.test(name)
+
+      interface ContentEntry {
+        folder: string
+        rel: string
+        full: string
+      }
+      const content: ContentEntry[] = []
+      const seen = new Set<string>()
+      const push = (folder: string, rel: string, full: string): void => {
+        const key = `${folder}/${rel}`
+        if (!rel || seen.has(key)) return
+        seen.add(key)
+        content.push({ folder, rel, full })
+      }
+      const walkDir = async (folder: string, dir: string, root: string): Promise<void> => {
+        const items = await fs.readdir(dir, { withFileTypes: true })
+        for (const item of items) {
+          const lower = item.name.toLowerCase()
+          if (item.isDirectory()) {
+            if (nestedSkipDirs.has(lower)) continue
+            if (folder === 'config' && !options.personalInfo && personalConfigDirs.has(lower))
+              continue
+            await walkDir(folder, join(dir, item.name), root)
+            continue
+          }
+          if (!item.isFile() || isJunkFile(item.name)) continue
+          if (folder === 'mods' && !options.disabledMods && /\.disabled$/i.test(item.name))
+            continue
+          if (
+            folder === 'resourcepacks' &&
+            options.resourcepackFiles &&
+            !options.resourcepackFiles.includes(item.name)
+          )
+            continue
+          if (
+            folder === 'shaderpacks' &&
+            options.shaderpackFiles &&
+            !options.shaderpackFiles.includes(item.name)
+          )
+            continue
+          push(folder, relative(root, join(dir, item.name)).replace(/\\/g, '/'), join(dir, item.name))
+        }
+      }
+      const rootItems = await fs.readdir(gameDir, { withFileTypes: true })
+      for (const item of rootItems) {
+        const lower = item.name.toLowerCase()
+        if (item.isDirectory()) {
+          if (alwaysSkipDirs.has(lower)) continue
+          if (lower === 'saves' && !options.saves) continue
+          if (lower === 'mods' && !options.mods) continue
+          if ((lower === 'config' || lower === 'defaultconfigs') && !options.config) continue
+          if (lower === 'resourcepacks' && !options.resourcepacks) continue
+          if (lower === 'shaderpacks' && !options.shaderpacks) continue
+          if (lower === 'datapacks' && !options.datapacks) continue
+          await walkDir(item.name, join(gameDir, item.name), join(gameDir, item.name))
+        } else if (item.isFile()) {
+          if (skipRootFiles.has(lower) || isJunkFile(item.name)) continue
+          if ((lower === 'options.txt' || lower === 'optionsshaders.txt') && !options.gameSettings)
+            continue
+          if (lower === 'servers.dat' && !options.serverList) continue
+          push('', item.name, join(gameDir, item.name))
+        }
+      }
+      if (content.length === 0) throw new Error('没有可导出的文件')
+
+      // PCL 式小体积：在线下载模式下模组等优先写下载链接（Modrinth）或 CF ID，
+      // 查不到的才内置；自包含模式则全部内置。
+      const mrpackFiles: {
+        path: string
+        hashes: { sha1: string; sha512?: string }
+        fileSize: number
+        downloads: string[]
+      }[] = []
+      const cfFiles: { projectID: number; fileID: number; required: boolean }[] = []
+      const bundled: ContentEntry[] = []
+      const linkMode = options.mode === 'download' && options.format !== 'zip'
+      if (linkMode) {
+        const targets = content.filter((entry) =>
+          ['mods', 'resourcepacks', 'shaderpacks', 'datapacks'].includes(entry.folder)
+        )
+        const meta = new Map<
+          string,
+          { sha1: string; sha512: string; size: number; fingerprint: number }
+        >()
+        for (const entry of targets) {
+          const buffer = await fs.readFile(entry.full)
+          meta.set(`${entry.folder}/${entry.rel}`, {
+            sha1: createHash('sha1').update(buffer).digest('hex'),
+            sha512: createHash('sha512').update(buffer).digest('hex'),
+            size: buffer.length,
+            fingerprint: fingerprintOfBuffer(buffer)
+          })
+        }
+        const [mrMatches, cfMatches] = await Promise.all([
+          lookupModrinthFilesByHash([...meta.values()].map((item) => item.sha1)),
+          identifyCurseForgeFingerprints(
+            [...meta.values()].map((item) => item.fingerprint),
+            getSettings()
+          ).catch(() => new Map<number, never>())
+        ])
+        for (const entry of content) {
+          const key = `${entry.folder}/${entry.rel}`
+          const info = meta.get(key)
+          if (!info) {
+            bundled.push(entry)
+            continue
+          }
+          const mr = mrMatches.get(info.sha1)
+          const cf = cfMatches.get(info.fingerprint)
+          if (options.format === 'curseforge') {
+            if (cf && Number(cf.projectId) > 0 && Number(cf.fileId) > 0) {
+              cfFiles.push({
+                projectID: Number(cf.projectId),
+                fileID: Number(cf.fileId),
+                required: true
+              })
+            } else {
+              bundled.push(entry)
+            }
+            continue
+          }
+          if (mr) {
+            mrpackFiles.push({
+              path: key,
+              hashes: { sha1: info.sha1, sha512: info.sha512 },
+              fileSize: info.size,
+              downloads: [mr.url]
+            })
+            continue
+          }
+          const cfUrl = cf ? curseForgeCdnUrl(cf.fileId, cf.fileName ?? '') : null
+          if (cfUrl) {
+            mrpackFiles.push({
+              path: key,
+              hashes: { sha1: info.sha1, sha512: info.sha512 },
+              fileSize: info.size,
+              downloads: [cfUrl]
+            })
+            continue
+          }
+          bundled.push(entry)
+        }
+      } else {
+        bundled.push(...content)
+      }
+
+      const prefix = options.format === 'zip' ? '' : 'overrides/'
+      const entries: StoreZipEntry[] = bundled.map((entry) => ({
+        name: `${prefix}${entry.folder ? `${entry.folder}/` : ''}${entry.rel}`,
+        source: entry.full
+      }))
+      if (options.format === 'mrpack') {
+        entries.unshift({
           name: 'modrinth.index.json',
           data: Buffer.from(
             JSON.stringify(
               {
                 formatVersion: 1,
                 game: 'minecraft',
+                versionId: '1.0.0',
                 name: instance.name.slice(0, 120),
                 summary: instance.summary.slice(0, 600),
-                files: [],
+                files: mrpackFiles,
                 dependencies
               },
               null,
               2
             )
           )
-        }
-      ]
-      const collect = async (folder: string): Promise<void> => {
-        const root = join(gameDir, folder)
-        if (!existsSync(root)) return
-        const walk = async (dir: string): Promise<void> => {
-          const items = await fs.readdir(dir, { withFileTypes: true })
-          for (const item of items) {
-            if (item.name === '.DS_Store' || item.name === 'desktop.ini') continue
-            const full = join(dir, item.name)
-            if (item.isDirectory()) {
-              await walk(full)
-              continue
-            }
-            if (!item.isFile()) continue
-            const rel = relative(root, full).replace(/\\/g, '/')
-            if (!rel) continue
-            entries.push({ name: `overrides/${folder}/${rel}`, source: full })
-          }
-        }
-        await walk(root)
+        })
+      } else if (options.format === 'curseforge') {
+        entries.unshift({
+          name: 'manifest.json',
+          data: Buffer.from(
+            JSON.stringify(
+              {
+                minecraft: {
+                  version: instance.gameVersion,
+                  modLoaders: loaderId ? [{ id: loaderId, primary: true }] : []
+                },
+                manifestType: 'minecraftModpack',
+                manifestVersion: 1,
+                name: instance.name.slice(0, 120),
+                version: '1.0.0',
+                author: '月月月启动器',
+                files: cfFiles,
+                overrides: 'overrides'
+              },
+              null,
+              2
+            )
+          )
+        })
       }
-      if (options.mods) await collect('mods')
-      if (options.config) {
-        await collect('config')
-        await collect('defaultconfigs')
-      }
-      if (options.resourcepacks) await collect('resourcepacks')
-      if (options.shaderpacks) await collect('shaderpacks')
-      if (options.datapacks) await collect('datapacks')
-      if (entries.length === 1) throw new Error('没有可导出的文件')
+      if (entries.length === 0) throw new Error('没有可导出的文件')
       const result = await writeStoreZip(rawPath, entries, {
         onProgress: (done, total, bytes) => {
           if (!event.sender.isDestroyed()) {
@@ -2815,6 +3041,26 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
       }
     }
   )
+
+  ipcMain.handle('instances:export-preview', async (_event, rawId: unknown) => {
+    const id = requireInstanceId(rawId)
+    const gameDir = await getInstanceGameDir(id)
+    const list = async (folder: string): Promise<string[]> => {
+      try {
+        const items = await fs.readdir(join(gameDir, folder), { withFileTypes: true })
+        return items
+          .filter((item) => item.isFile() && !/\.(log|bak|tmp|old|lck)$/i.test(item.name))
+          .map((item) => item.name)
+          .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+      } catch {
+        return []
+      }
+    }
+    return {
+      resourcepacks: await list('resourcepacks'),
+      shaderpacks: await list('shaderpacks')
+    }
+  })
 
   ipcMain.handle('instances:launch', async (_event, rawId: unknown) => {
     const id = requireInstanceId(rawId)

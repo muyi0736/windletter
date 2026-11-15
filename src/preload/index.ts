@@ -110,6 +110,7 @@ const api: LauncherApi = {
     repair: (id) => ipcRenderer.invoke('instances:repair', id),
     exportModpack: (id, options, path) =>
       ipcRenderer.invoke('instances:export-modpack', id, options, path),
+    exportPreview: (id) => ipcRenderer.invoke('instances:export-preview', id),
     onExportProgress: (cb) => subscribe<{ done: number; total: number; bytes: number }>('instances:export-progress', cb),
     launch: (id) => ipcRenderer.invoke('instances:launch', id),
     transfer: (request) => ipcRenderer.invoke('instances:transfer', request)
@@ -297,7 +298,7 @@ const api: LauncherApi = {
       ipcRenderer.invoke('curseforge:download-server-pack', request)
   },
   localPacks: {
-    scan: (extraPath) => ipcRenderer.invoke('local-packs:scan', extraPath),
+    scan: (extraPath, scope) => ipcRenderer.invoke('local-packs:scan', extraPath, scope),
     import: (request) => ipcRenderer.invoke('local-packs:import', request),
     importMany: (requests) => ipcRenderer.invoke('local-packs:import-many', requests)
   },
