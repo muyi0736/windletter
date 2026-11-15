@@ -325,10 +325,18 @@
 .rhine-app .instance-card.is-selected { background: var(--rhine-ink); color: var(--rhine-white); }
 .rhine-app .instance-card.is-selected .instance-actions { border-top-color: rgba(247,245,239,.18); }
 .rhine-app .instance-card.is-selected .instance-tag-muted, .rhine-app .instance-card.is-selected .instance-meta, .rhine-app .instance-card.is-selected .type-tag, .rhine-app .instance-card.is-selected .loader-tag { color: var(--rhine-white); border-color: rgba(247,245,239,.25); background: transparent; }
-.rhine-app .instance-card.is-selected .button { color: var(--rhine-white); border-color: rgba(247,245,239,.35); background: transparent; }
+.rhine-app .instance-card.is-selected .instance-actions > .button, .rhine-app .instance-card.is-selected .instance-actions > .instance-more > summary { color: var(--rhine-white); border-color: rgba(247,245,239,.35); background: transparent; }
 .rhine-app .instance-card.is-selected .button--primary { background: var(--rhine-orange); border-color: var(--rhine-orange); color: var(--rhine-on-accent); }
+/* The dropdown lives inside the inverted selected card; it must return to paper colors. */
+.rhine-app .instance-card .instance-more-menu { color: var(--rhine-ink); background: var(--rhine-paper); border-color: var(--rhine-line-strong); box-shadow: none; }
+.rhine-app .instance-card .instance-more-menu .button { color: var(--rhine-ink-70); border-color: transparent; background: transparent; }
+.rhine-app .instance-card .instance-more-menu .button:hover { color: var(--rhine-white); border-color: var(--rhine-ink); background: var(--rhine-ink); }
+.rhine-app .instance-card .instance-more-menu .button:disabled { opacity: .38; }
+.rhine-app .instance-card .instance-more-menu .instance-actions-tail { border-top-color: var(--rhine-line); }
+.rhine-app .instance-card .instance-more-menu .icon-button { color: var(--rhine-ink-70); border-color: var(--rhine-line); background: transparent; }
+.rhine-app .instance-card .instance-more-menu .icon-button:hover { color: var(--rhine-white); border-color: var(--rhine-ink); background: var(--rhine-ink); }
 .rhine-app .instance-card.is-selected .badge { color: var(--rhine-orange); border: 1px solid rgba(255,105,0,.5); background: transparent; }
-.rhine-inst-dossier { grid-column: 2; grid-row: 3; align-self: start; position: sticky; top: 12px; width: auto; min-height: 520px; }
+.rhine-inst-dossier { grid-column: 2; grid-row: 3; align-self: start; position: sticky; top: 12px; right: auto; bottom: auto; width: auto; min-height: 520px; }
 .rhine-inst-dossier .rhine-dos-body { padding-bottom: 14px; }
 .rhine-inst-dossier .rhine-avatar { width: 64px; height: 74px; }
 .rhine-inst-dossier .rhine-operator-name h3 { font-size: 22px; }
@@ -354,6 +362,7 @@
 .rhine-app .downloads-loading, .rhine-app .downloads-error { border-radius: 0; }
 
 /* settings / servers / more */
+.rhine-app .page--settings { height: 100%; min-height: 0; overflow: hidden; }
 .rhine-app .settings-layout { margin-top: 14px; }
 .rhine-app .settings-nav { border: 1px solid var(--rhine-line); border-radius: 0; background: transparent; }
 .rhine-app .settings-nav-item { border-radius: 0; font-family: var(--rhine-mono); font-size: 9px; }
@@ -667,7 +676,8 @@ html[data-theme="dark"] .rhine-app .rhine-hero { background: #0b0c0a; color: #f2
 html[data-theme="dark"] .rhine-app .rhine-auth-box { background: #0b0c0a; border-color: #0b0c0a; }
 html[data-theme="dark"] .rhine-app .task-dock { background: #0a0b09; border-color: #0a0b09; color: #f2efe6; }
 html[data-theme="dark"] .rhine-app .console-drawer { background: var(--rhine-paper); border-color: var(--rhine-line-strong); }
-html[data-theme="dark"] .rhine-app .instance-card.is-selected .button { border-color: rgba(16,17,16,.32); color: #101110; }
+html[data-theme="dark"] .rhine-app .instance-card.is-selected .instance-actions > .button,
+html[data-theme="dark"] .rhine-app .instance-card.is-selected .instance-actions > .instance-more > summary { border-color: rgba(16,17,16,.32); color: #101110; }
 html[data-theme="dark"] .rhine-app .instance-card.is-selected .instance-tag-muted,
 html[data-theme="dark"] .rhine-app .instance-card.is-selected .instance-meta,
 html[data-theme="dark"] .rhine-app .instance-card.is-selected .type-tag,
