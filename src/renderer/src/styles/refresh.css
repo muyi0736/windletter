@@ -380,13 +380,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-transition {
+  html:not([data-motion='full']) .page-transition {
     animation-duration: 0.01ms;
   }
 
-  .page-transition,
-  .nav-item,
-  .nav-item svg {
+  html:not([data-motion='full']) .page-transition,
+  html:not([data-motion='full']) .nav-item,
+  html:not([data-motion='full']) .nav-item svg {
     transition: none !important;
   }
 }

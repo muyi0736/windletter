@@ -1,8 +1,9 @@
 import { app } from 'electron'
 import { createHash } from 'node:crypto'
-import { createReadStream, promises as fs } from 'node:fs'
+import { createReadStream, existsSync, promises as fs, readFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { basename, dirname, join, resolve } from 'node:path'
+import AdmZip from 'adm-zip'
 import type {
   LauncherUpdateInfo,
   LauncherUpdateProgress,
@@ -24,6 +25,12 @@ const INSTALLER_MIN_BYTES = 1024 * 1024
 const INSTALLER_MAX_BYTES = 2 * 1024 * 1024 * 1024
 const UPDATE_DIR = 'updates'
 
+interface IncrementalPayload {
+  urls: string[]
+  size: number
+  sha256: string
+}
+
 interface ReleaseFile {
   info: LauncherUpdateInfo
   version: string
@@ -34,6 +41,10 @@ interface ReleaseFile {
   /** API 返回或缓存写入的时间，用于显示“上次缓存”。 */
   fetchedAt: number
   rateLimitedUntil: number | null
+  /** 增量包（asar 替换）；null 表示该发布只提供完整安装包。 */
+  incremental: IncrementalPayload | null
+  /** 检查更新时按本机能力选定：true 表示下载/安装增量包。 */
+  useIncremental: boolean
 }
 
 interface GitHubReleaseSource {
@@ -70,6 +81,7 @@ interface CachedRelease {
     sha256: string
     urls: string[]
     pageUrl: string | null
+    incremental?: { urls: string[]; size: number; sha256: string } | null
   }
 }
 
@@ -275,6 +287,67 @@ function parseNotes(raw: unknown): string[] {
   return notes
 }
 
+/** 解析清单/缓存里的增量包描述；任何字段不合法都视为没有增量包。 */
+function parseIncremental(raw: unknown, manifestUrl: URL | null): IncrementalPayload | null {
+  if (!isRecord(raw)) return null
+  const sha256 = typeof raw.sha256 === 'string' ? raw.sha256.trim().toLowerCase() : ''
+  if (!/^[0-9a-f]{64}$/.test(sha256)) return null
+  const size = Number(raw.size)
+  if (!Number.isInteger(size) || size < INSTALLER_MIN_BYTES || size > INSTALLER_MAX_BYTES) {
+    return null
+  }
+  if (typeof raw.url !== 'string' || !raw.url.trim()) return null
+  const rawUrls = [raw.url]
+  if (Array.isArray(raw.mirrors)) {
+    for (const mirror of raw.mirrors.slice(0, 5)) {
+      if (typeof mirror === 'string') rawUrls.push(mirror)
+    }
+  }
+  const urls: string[] = []
+  for (const candidate of rawUrls) {
+    try {
+      const url = manifestUrl
+        ? new URL(candidate.trim(), manifestUrl)
+        : new URL(candidate.trim())
+      const checked = assertRemoteUrl(url.toString(), '增量包地址')
+      if (!urls.includes(checked.toString())) urls.push(checked.toString())
+    } catch {
+      return null
+    }
+  }
+  return urls.length ? { urls, size, sha256 } : null
+}
+
+/** 本机是否支持 asar 替换式增量更新：需要构建时写入的能力标记与标准安装布局。 */
+function canAsarSwap(): boolean {
+  if (process.platform !== 'win32' || !app.isPackaged) return false
+  try {
+    const capability = JSON.parse(
+      readFileSync(join(process.resourcesPath, 'update-capability.json'), 'utf8')
+    ) as { asarSwap?: unknown }
+    return capability.asarSwap === true && existsSync(join(process.resourcesPath, 'app.asar'))
+  } catch {
+    return false
+  }
+}
+
+/** 检查更新后按本机能力选定载荷，并把展示大小切换为实际要下载的包。 */
+function applyPayloadSelection(release: ReleaseFile): void {
+  const use = Boolean(release.incremental) && canAsarSwap()
+  release.useIncremental = use
+  release.info = {
+    ...release.info,
+    size: use && release.incremental ? release.incremental.size : release.size,
+    incremental: use,
+    fullSize: use ? release.size : null
+  }
+}
+
+function payloadOf(release: ReleaseFile): IncrementalPayload {
+  if (release.useIncremental && release.incremental) return release.incremental
+  return { urls: release.urls, size: release.size, sha256: release.sha256 }
+}
+
 function parseManifest(raw: unknown, manifestUrl: URL): ReleaseFile {
   if (!isRecord(raw)) throw new Error('更新源返回的清单格式不正确')
   if (raw.schema !== 1) throw new Error('更新清单版本不受支持（需要 schema: 1）')
@@ -335,13 +408,17 @@ function parseManifest(raw: unknown, manifestUrl: URL): ReleaseFile {
     source: 'manifest',
     fetchedAt: Date.now(),
     rateLimitedUntil: null,
+    incremental: parseIncremental(raw.incremental, manifestUrl),
+    useIncremental: false,
     info: {
       version,
       notes,
       publishedAt,
       size,
       mandatory: raw.mandatory === true,
-      pageUrl
+      pageUrl,
+      incremental: false,
+      fullSize: null
     }
   }
 }
@@ -493,6 +570,52 @@ async function fetchGitHubRelease(
   }
   const publishedAtRaw =
     typeof raw.published_at === 'string' ? Date.parse(raw.published_at) : NaN
+  let incremental: IncrementalPayload | null = null
+  const incAsset = assets.find(
+    (asset) => typeof asset.name === 'string' && /^incremental-.*\.zip$/i.test(asset.name)
+  )
+  if (incAsset) {
+    const incSize = Number(incAsset.size)
+    const incDigest = /^sha256:([0-9a-f]{64})$/.exec(
+      typeof incAsset.digest === 'string' ? incAsset.digest.trim().toLowerCase() : ''
+    )
+    if (
+      Number.isInteger(incSize) &&
+      incSize >= INSTALLER_MIN_BYTES &&
+      incSize <= INSTALLER_MAX_BYTES &&
+      incDigest
+    ) {
+      const incUrls: string[] = []
+      if (typeof incAsset.url === 'string' && incAsset.url.trim()) {
+        try {
+          const apiUrl = assertRemoteUrl(incAsset.url.trim(), 'GitHub 增量包地址')
+          if (apiUrl.hostname.toLowerCase() === 'api.github.com') incUrls.push(apiUrl.toString())
+        } catch {
+          /* 忽略不合法地址 */
+        }
+      }
+      if (typeof incAsset.browser_download_url === 'string' && incAsset.browser_download_url.trim()) {
+        try {
+          const browser = assertRemoteUrl(
+            incAsset.browser_download_url.trim(),
+            'GitHub 增量包地址'
+          ).toString()
+          for (const prefix of ['https://ghfast.top/', 'https://gh-proxy.com/']) {
+            try {
+              const mirror = assertRemoteUrl(`${prefix}${browser}`, 'GitHub 增量包镜像')
+              if (!incUrls.includes(mirror.toString())) incUrls.push(mirror.toString())
+            } catch {
+              /* 忽略不可用的镜像地址 */
+            }
+          }
+          if (!incUrls.includes(browser)) incUrls.push(browser)
+        } catch {
+          /* 浏览地址只作为备用 */
+        }
+      }
+      if (incUrls.length) incremental = { urls: incUrls, size: incSize, sha256: incDigest[1] }
+    }
+  }
   const release: ReleaseFile = {
     version,
     urls,
@@ -501,13 +624,17 @@ async function fetchGitHubRelease(
     source: 'api',
     fetchedAt: Date.now(),
     rateLimitedUntil: null,
+    incremental,
+    useIncremental: false,
     info: {
       version,
       notes: parseNotes(raw.body),
       publishedAt: Number.isFinite(publishedAtRaw) ? publishedAtRaw : null,
       size,
       mandatory: false,
-      pageUrl
+      pageUrl,
+      incremental: false,
+      fullSize: null
     }
   }
   await clearRateLimit(source.apiUrl.toString())
@@ -605,13 +732,23 @@ function cachedToRelease(
     source,
     fetchedAt,
     rateLimitedUntil,
+    incremental: cache.release.incremental
+      ? {
+          urls: [...cache.release.incremental.urls],
+          size: cache.release.incremental.size,
+          sha256: cache.release.incremental.sha256
+        }
+      : null,
+    useIncremental: false,
     info: {
       version: cache.release.version,
       notes: [...cache.release.notes],
       publishedAt: cache.release.publishedAt,
       size: cache.release.size,
       mandatory: false,
-      pageUrl: cache.release.pageUrl
+      pageUrl: cache.release.pageUrl,
+      incremental: false,
+      fullSize: null
     }
   }
 }
@@ -667,6 +804,33 @@ async function readReleaseCache(apiUrl: string): Promise<CachedRelease | null> {
       typeof value.publishedAt === 'number' && Number.isFinite(value.publishedAt)
         ? value.publishedAt
         : null
+    let incremental: CachedRelease['release']['incremental'] = null
+    if (isRecord(value.incremental)) {
+      const inc = value.incremental
+      const incSha = typeof inc.sha256 === 'string' ? inc.sha256.trim().toLowerCase() : ''
+      const incSize = Number(inc.size)
+      const incUrls: string[] = []
+      if (Array.isArray(inc.urls)) {
+        for (const item of inc.urls.slice(0, 6)) {
+          if (typeof item !== 'string') continue
+          try {
+            const checked = assertRemoteUrl(item, '缓存增量包地址')
+            if (!incUrls.includes(checked.toString())) incUrls.push(checked.toString())
+          } catch {
+            /* ignore invalid cached URL */
+          }
+        }
+      }
+      if (
+        /^[0-9a-f]{64}$/.test(incSha) &&
+        Number.isInteger(incSize) &&
+        incSize >= INSTALLER_MIN_BYTES &&
+        incSize <= INSTALLER_MAX_BYTES &&
+        incUrls.length
+      ) {
+        incremental = { urls: incUrls, size: incSize, sha256: incSha }
+      }
+    }
     return {
       schema: 1,
       source: apiUrl,
@@ -679,7 +843,8 @@ async function readReleaseCache(apiUrl: string): Promise<CachedRelease | null> {
         size,
         sha256,
         urls,
-        pageUrl
+        pageUrl,
+        incremental
       }
     }
   } catch {
@@ -705,7 +870,14 @@ async function writeReleaseCache(
       size: release.size,
       sha256: release.sha256,
       urls: [...release.urls],
-      pageUrl: release.info.pageUrl
+      pageUrl: release.info.pageUrl,
+      incremental: release.incremental
+        ? {
+            urls: [...release.incremental.urls],
+            size: release.incremental.size,
+            sha256: release.incremental.sha256
+          }
+        : null
     }
   }
   try {
@@ -839,9 +1011,12 @@ function safeVersionName(version: string): string {
   return version.replace(/[^0-9A-Za-z._-]/g, '_').slice(0, 64) || 'latest'
 }
 
-function installerPath(version: string): string {
+function updatePayloadPath(release: ReleaseFile): string {
   const dir = updateDir()
-  const target = resolve(dir, `月月月启动器-${safeVersionName(version)}-setup.exe`)
+  const name = release.useIncremental
+    ? `incremental-${safeVersionName(release.version)}.zip`
+    : `月月月启动器-${safeVersionName(release.version)}-setup.exe`
+  const target = resolve(dir, name)
   if (!target.startsWith(`${resolve(dir)}\\`) && !target.startsWith(`${resolve(dir)}/`)) {
     throw new Error('更新文件路径无效')
   }
@@ -949,9 +1124,12 @@ export async function checkForLauncherUpdate(silent = false): Promise<LauncherUp
     const feed = resolveFeedUrl(getSettings().updateFeed)
     const release = await fetchManifest(feed, silent)
     if (sequence !== checkSequence) return snapshot()
+    applyPayloadSelection(release)
     const comparison = compareLauncherVersions(release.version, app.getVersion())
     if (comparison > 0) {
-      const sameRelease = availableRelease?.version === release.version
+      const sameRelease =
+        availableRelease?.version === release.version &&
+        availableRelease?.useIncremental === release.useIncremental
       availableRelease = release
       const keepReady = sameRelease && state.phase === 'ready'
       const keepCancelled = sameRelease && state.phase === 'cancelled'
@@ -1007,13 +1185,14 @@ export async function downloadLauncherUpdate(): Promise<LauncherUpdateState> {
   if (downloading || state.phase === 'verifying' || state.phase === 'installing') {
     return snapshot()
   }
-  const release = availableRelease
-  if (!release || !state.info) {
+  const selected = availableRelease
+  if (!selected || !state.info) {
     update({ phase: 'error', error: '没有可下载的更新，请先检查更新' })
     return snapshot()
   }
   if (state.phase === 'ready') return snapshot()
-  const target = installerPath(release.version)
+  const release: ReleaseFile = { ...selected, ...payloadOf(selected) }
+  const target = updatePayloadPath(release)
   await fs.mkdir(dirname(target), { recursive: true })
   await cleanupUpdateFiles(target)
   downloading = true
@@ -1166,8 +1345,8 @@ export async function installLauncherUpdate(): Promise<LauncherUpdateState> {
     return snapshot()
   }
   if (state.phase === 'installing' || state.phase === 'verifying') return snapshot()
-  const release = availableRelease
-  if (!release || !state.info) {
+  const selected = availableRelease
+  if (!selected || !state.info) {
     update({ phase: 'error', error: '没有可安装的更新，请先检查并下载更新' })
     return snapshot()
   }
@@ -1175,7 +1354,8 @@ export async function installLauncherUpdate(): Promise<LauncherUpdateState> {
     update({ phase: 'error', error: '安装包尚未下载完成，请先下载更新' })
     return snapshot()
   }
-  const target = installerPath(release.version)
+  const release: ReleaseFile = { ...selected, ...payloadOf(selected) }
+  const target = updatePayloadPath(release)
   update({
     phase: 'verifying',
     error: null,
@@ -1190,20 +1370,24 @@ export async function installLauncherUpdate(): Promise<LauncherUpdateState> {
       throw new Error('安装包校验失败，已删除损坏文件，请重新下载')
     }
     update({ phase: 'installing', error: null })
-    await new Promise<void>((resolveSpawn, rejectSpawn) => {
-      const child = spawn(target, ['--updated', '/S', '--force-run'], {
-        cwd: dirname(target),
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true
+    if (release.useIncremental) {
+      await installIncrementalUpdate(release, target)
+    } else {
+      await new Promise<void>((resolveSpawn, rejectSpawn) => {
+        const child = spawn(target, ['--updated', '/S', '--force-run'], {
+          cwd: dirname(target),
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true
+        })
+        child.once('error', (error) => rejectSpawn(error))
+        child.once('spawn', () => {
+          child.unref()
+          resolveSpawn()
+        })
       })
-      child.once('error', (error) => rejectSpawn(error))
-      child.once('spawn', () => {
-        child.unref()
-        resolveSpawn()
-      })
-    })
-    setTimeout(() => app.quit(), 700)
+      setTimeout(() => app.quit(), 700)
+    }
   } catch (error) {
     update({
       phase: 'error',
@@ -1212,4 +1396,86 @@ export async function installLauncherUpdate(): Promise<LauncherUpdateState> {
     })
   }
   return snapshot()
+}
+
+/**
+ * 增量安装：解压校验过的 zip，交给一个脱离进程的小脚本等启动器退出后
+ * 备份并替换 resources/app.asar，再拉起新版本。脚本内容纯 ASCII，
+ * 中文路径通过参数传入，避免批处理代码页问题。
+ */
+async function installIncrementalUpdate(release: ReleaseFile, zipPath: string): Promise<void> {
+  const stage = join(updateDir(), `stage-${safeVersionName(release.version)}`)
+  await fs.rm(stage, { recursive: true, force: true })
+  await fs.mkdir(stage, { recursive: true })
+  const zip = new AdmZip(zipPath)
+  // 不用 extractAllTo：Electron 的 asar 补丁会对 *.asar 路径的 chmod 抛 ENOENT。
+  // 逐条读出并落盘为 .payload 后缀，替换交给脱离进程的安装脚本完成。
+  const allowed = new Map([
+    ['app.asar', 'app.asar.payload'],
+    ['playtime-watch.exe', 'playtime-watch.exe']
+  ])
+  let stagedAsarName = ''
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue
+    const targetName = allowed.get(entry.entryName)
+    if (!targetName) throw new Error('增量包含未知文件，已拒绝安装')
+    const data = zip.readFile(entry)
+    if (!data) throw new Error('增量包解压失败，请重新下载')
+    await fs.writeFile(join(stage, targetName), data)
+    if (entry.entryName === 'app.asar') stagedAsarName = targetName
+  }
+  const stagedAsar = join(stage, stagedAsarName || 'app.asar.payload')
+  if ((await fileSize(stagedAsar)) < INSTALLER_MIN_BYTES) {
+    throw new Error('增量包内容不完整（缺少 app.asar），请改用完整安装包')
+  }
+  const script = join(updateDir(), `apply-${safeVersionName(release.version)}.cmd`)
+  const lines = [
+    '@echo off',
+    'setlocal EnableExtensions',
+    'set "RES=%~1"',
+    'set "STAGE=%~2"',
+    'set "EXE=%~3"',
+    'set "PID=%~4"',
+    'set /a WAITED=0',
+    ':wait',
+    'tasklist /FI "PID eq %PID%" /NH 2>nul | find "%PID%" >nul',
+    'if errorlevel 1 goto swap',
+    'set /a WAITED+=1',
+    'if %WAITED% GEQ 90 goto swap',
+    'timeout /t 1 /nobreak >nul',
+    'goto wait',
+    ':swap',
+    'copy /y "%RES%\\app.asar" "%RES%\\app.asar.bak" >nul',
+    'copy /y "%STAGE%\\app.asar.payload" "%RES%\\app.asar" >nul',
+    'if errorlevel 1 goto rollback',
+    'if exist "%STAGE%\\playtime-watch.exe" copy /y "%STAGE%\\playtime-watch.exe" "%RES%\\playtime-watch.exe" >nul',
+    'rmdir /s /q "%STAGE%" >nul 2>&1',
+    'start "" "%EXE%" --updated',
+    'exit /b 0',
+    ':rollback',
+    'copy /y "%RES%\\app.asar.bak" "%RES%\\app.asar" >nul',
+    'exit /b 1'
+  ]
+  await fs.writeFile(script, `${lines.join('\r\n')}\r\n`, 'utf8')
+  await new Promise<void>((resolveSpawn, rejectSpawn) => {
+    const child = spawn(
+      'cmd.exe',
+      ['/c', script, process.resourcesPath, stage, process.execPath, String(process.pid)],
+      { cwd: updateDir(), detached: true, stdio: 'ignore', windowsHide: true }
+    )
+    child.once('error', (error) => rejectSpawn(error))
+    child.once('spawn', () => {
+      child.unref()
+      resolveSpawn()
+    })
+  })
+  setTimeout(() => app.quit(), 700)
+}
+
+/** 启动成功后清掉增量替换留下的备份；能跑到这里说明新 asar 可用。 */
+export async function cleanupAfterIncrementalSwap(): Promise<void> {
+  if (process.platform !== 'win32' || !app.isPackaged) return
+  await fs
+    .rm(join(process.resourcesPath, 'app.asar.bak'), { force: true })
+    .catch(() => undefined)
 }

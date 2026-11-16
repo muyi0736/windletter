@@ -28,7 +28,7 @@ import {
   type CurseForgeFingerprintMatch
 } from './curseforge'
 import { markKnownGood } from './diagnostics'
-import { getInstance, getInstanceDir, getInstanceGameDir } from './instances'
+import { getInstance, getInstanceDir, getInstanceGameDir, listInstances } from './instances'
 import {
   installMod,
   latestModrinthVersionInfo,
@@ -122,6 +122,8 @@ interface StoredUpdateRecord {
   addedFiles: string[]
   changes: ContentUpdateChange[]
   diagnosticsSnapshot: string | null
+  /** 更新前 config 目录快照（backupDir 内相对路径）；null 表示未备份。 */
+  configBackup: string | null
   rolledBackAt: number | null
   error: string | null
 }
@@ -1046,6 +1048,61 @@ async function safeRefreshLedgerView(
   }
 }
 
+const CONFIG_BACKUP_MAX_BYTES = 150 * 1024 * 1024
+
+/** 更新前快照 config 目录；超过上限或不存在时返回 null（不阻塞更新）。 */
+async function snapshotConfigDir(gameDir: string, backupRoot: string): Promise<string | null> {
+  const source = join(gameDir, 'config')
+  try {
+    const stat = await fs.stat(source)
+    if (!stat.isDirectory()) return null
+    let total = 0
+    const walk = async (dir: string): Promise<boolean> => {
+      const entries = await fs.readdir(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        const path = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          if (!(await walk(path))) return false
+        } else if (entry.isFile()) {
+          total += (await fs.stat(path)).size
+          if (total > CONFIG_BACKUP_MAX_BYTES) return false
+        }
+      }
+      return true
+    }
+    if (!(await walk(source))) return null
+    await fs.cp(source, join(backupRoot, '_config'), { recursive: true })
+    return '_config'
+  } catch {
+    return null
+  }
+}
+
+function entryHasUpdate(entry: StoredLedgerEntry): boolean {
+  return Boolean(
+    entry.provider &&
+      entry.projectId &&
+      entry.latestVersionId &&
+      entry.versionId &&
+      entry.versionId !== entry.latestVersionId
+  )
+}
+
+/** 仅读本地账本的可更新数量，供实例卡徽章使用，不发起网络请求。 */
+export async function countLedgerUpdates(instanceId: string): Promise<number> {
+  const ledger = await loadLedger(instanceId)
+  return ledger.entries.filter(entryHasUpdate).length
+}
+
+export async function contentUpdateCounts(): Promise<Record<string, number>> {
+  const instances = await listInstances()
+  const result: Record<string, number> = {}
+  for (const instance of instances) {
+    result[instance.id] = await countLedgerUpdates(instance.id)
+  }
+  return result
+}
+
 async function restoreUpdateRecord(
   instanceId: string,
   record: StoredUpdateRecord,
@@ -1090,6 +1147,16 @@ async function restoreUpdateRecord(
       await fs.copyFile(backupPath, destination)
     } catch (error) {
       errors.push(`恢复 ${file.file} 失败：${errorText(error)}`)
+    }
+  }
+  if (record.configBackup) {
+    try {
+      const backupConfig = join(instanceDir, record.backupDir, record.configBackup)
+      const targetConfig = join(gameDir, 'config')
+      await fs.rm(targetConfig, { recursive: true, force: true })
+      await fs.cp(backupConfig, targetConfig, { recursive: true })
+    } catch (error) {
+      errors.push(`恢复 config 目录失败：${errorText(error)}`)
     }
   }
   if (record.diagnosticsSnapshot) {
@@ -1234,6 +1301,7 @@ export async function updateContent(
     addedFiles: [],
     changes: [],
     diagnosticsSnapshot: null,
+    configBackup: null,
     rolledBackAt: null,
     error: null
   }
@@ -1266,6 +1334,8 @@ export async function updateContent(
     record.diagnosticsSnapshot = await fs
       .readFile(join(getInstanceDir(instance.id), 'diagnostics.json'), 'utf8')
       .catch(() => null)
+    progress.stage('snapshot', '正在备份 config 目录…', 14)
+    record.configBackup = await snapshotConfigDir(gameDir, backupRoot)
   } catch (error) {
     await fs.rm(backupRoot, { recursive: true, force: true }).catch(() => undefined)
     const updateState = await loadUpdateState(instance.id)

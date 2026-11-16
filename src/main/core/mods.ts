@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { existsSync, promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import { basename, join } from 'node:path'
 import type {
@@ -1140,6 +1140,26 @@ export async function importModFiles(
     if (!file.toLowerCase().endsWith('.jar')) continue
     const name = safeFilename(basename(file), 'imported-mod.jar')
     await fs.copyFile(file, safeJoin(dir, name))
+  }
+  return listInstalledMods(instanceId)
+}
+
+/** 批量启用/禁用模组（按筛选结果），返回最新列表。 */
+export async function bulkToggleMods(
+  instanceId: string,
+  files: string[],
+  enabled: boolean
+): Promise<InstalledModView[]> {
+  const dir = await modsDir(instanceId)
+  for (const file of files.slice(0, 500)) {
+    const name = basename(file)
+    // 列表里的文件名可能已是 .disabled 形态，按磁盘实际名字切换
+    const actual = existsSync(join(dir, name))
+      ? name
+      : existsSync(join(dir, `${name}.disabled`))
+        ? `${name}.disabled`
+        : name
+    await toggleMod(instanceId, actual, enabled)
   }
   return listInstalledMods(instanceId)
 }

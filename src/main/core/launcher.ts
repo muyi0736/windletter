@@ -2,14 +2,20 @@ import AdmZip from 'adm-zip'
 import os from 'node:os'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { app } from 'electron'
-import { createWriteStream, existsSync, promises as fs, type WriteStream } from 'node:fs'
+import { createWriteStream, promises as fs, type WriteStream } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { LaunchLogLine, LaunchState } from '../../shared/types'
+import type { LaunchLogLine, LaunchState, RunningSessionView } from '../../shared/types'
 import { ensureFreshAccount } from './auth'
 import { computeAutoMemoryMb } from './autoMemory'
 import { releaseMemory } from './memoryOptimize'
 import { getActiveAccount, getLogDir, getSettings, markVersionPlayed } from './config'
-import { getInstance, getInstanceDir, getInstanceMinecraftDir, markInstancePlayed } from './instances'
+import {
+  getInstance,
+  getInstanceDir,
+  getInstanceMinecraftDir,
+  markInstancePlayed,
+  recordInstanceServer
+} from './instances'
 import { ensureJavaForVersion } from './java'
 import { CancellationError } from './net'
 import {
@@ -37,56 +43,99 @@ interface LauncherEvents {
   onLog: (line: LaunchLogLine) => void
   onGameStarted?: () => void
   onGameExited?: () => void
+  onCrashAssist?: (info: {
+    instanceId: string | null
+    versionId: string
+    kind: 'exit' | 'launch-error'
+    exitCode: number | null
+    message: string
+  }) => void
 }
 
-let events: LauncherEvents | null = null
-let currentState: LaunchState = {
-  status: 'idle',
-  message: '',
-  progress: null,
-  stage: null,
-  versionId: null,
-  instanceId: null,
-  pid: null,
-  startedAt: null,
-  exitCode: null,
-  error: null,
-  speed: null
+interface GameSession {
+  key: string
+  instanceId: string | null
+  versionId: string
+  child: ChildProcess | null
+  state: LaunchState
+  logs: LaunchLogLine[]
+  logStream: WriteStream | null
+  logPath: string | null
+  preparingAbort: AbortController | null
+  starting: boolean
+  intentionalStop: boolean
+  playSessionId: string | null
 }
-let logs: LaunchLogLine[] = []
-let logStream: WriteStream | null = null
-let latestLogPath: string | null = null
-let child: ChildProcess | null = null
-let preparingAbort: AbortController | null = null
-let starting = false
+
+/** 活跃会话（preparing/starting/running）；退出后移除，主状态保留最后一次会话。 */
+const sessions = new Map<string, GameSession>()
+let primary: GameSession | null = null
+let events: LauncherEvents | null = null
+
+function idleState(): LaunchState {
+  return {
+    status: 'idle',
+    message: '',
+    progress: null,
+    stage: null,
+    versionId: null,
+    instanceId: null,
+    pid: null,
+    startedAt: null,
+    exitCode: null,
+    error: null,
+    speed: null,
+    running: []
+  }
+}
 
 export function setLauncherEvents(handlers: LauncherEvents): void {
   events = handlers
 }
 
+function runningSessions(): RunningSessionView[] {
+  return [...sessions.values()]
+    .filter(
+      (session) =>
+        session.state.status === 'preparing' ||
+        session.state.status === 'starting' ||
+        session.state.status === 'running'
+    )
+    .map((session) => ({
+      key: session.key,
+      instanceId: session.instanceId,
+      versionId: session.versionId,
+      pid: session.child?.pid ?? null,
+      startedAt: session.state.startedAt,
+      status: session.state.status
+    }))
+}
+
 export function getLaunchState(): LaunchState {
-  return { ...currentState }
+  const base = primary ? primary.state : idleState()
+  return { ...base, running: runningSessions() }
 }
 
 export function getLaunchLogs(): LaunchLogLine[] {
-  return [...logs]
+  return primary ? [...primary.logs] : []
 }
 
 export function getLatestLogPath(): string | null {
-  return latestLogPath
+  return primary?.logPath ?? null
 }
 
 export function isGameActive(): boolean {
-  return (
-    starting ||
-    currentState.status === 'preparing' ||
-    currentState.status === 'starting' ||
-    currentState.status === 'running'
-  )
+  return runningSessions().length > 0
 }
 
-function setState(patch: Partial<LaunchState>): void {
-  currentState = { ...currentState, ...patch }
+export function getRunningPids(): number[] {
+  return [...sessions.values()]
+    .map((session) => session.child?.pid ?? null)
+    .filter((pid): pid is number => typeof pid === 'number' && pid > 0)
+}
+
+function setState(session: GameSession, patch: Partial<LaunchState>): void {
+  session.state = { ...session.state, ...patch }
   events?.onState(getLaunchState())
 }
 
@@ -101,34 +150,34 @@ function redactSecrets(text: string): string {
   return text.replace(/(--accessToken(?:\s*,\s*|\s+))[^\s,\]]+/gi, '$1[REDACTED]')
 }
 
-function writeLogFile(line: LaunchLogLine): void {
-  if (!logStream) return
+function writeLogFile(session: GameSession, line: LaunchLogLine): void {
+  if (!session.logStream) return
   const tag = line.level ? line.level.toUpperCase() : line.stream
   const source = line.logger
     ? ` [${line.logger}${line.thread ? ` / ${line.thread}` : ''}]`
     : ''
-  logStream.write(`[${clockOf(line.time)}] [${tag}]${source} ${line.text}\n`)
-  if (line.detail) logStream.write(`${line.detail}\n`)
+  session.logStream.write(`[${clockOf(line.time)}] [${tag}]${source} ${line.text}\n`)
+  if (line.detail) session.logStream.write(`${line.detail}\n`)
 }
 
-function appendLog(line: LaunchLogLine): void {
+function appendLog(session: GameSession, line: LaunchLogLine): void {
   const next: LaunchLogLine = {
     ...line,
     text: redactSecrets(line.text.replace(/\x1b\[[0-9;]*m/g, '')),
     detail: line.detail ? redactSecrets(line.detail) : undefined
   }
-  logs.push(next)
-  if (logs.length > MAX_LOG_LINES) logs.splice(0, logs.length - MAX_LOG_LINES)
-  writeLogFile(next)
+  session.logs.push(next)
+  if (session.logs.length > MAX_LOG_LINES) session.logs.splice(0, session.logs.length - MAX_LOG_LINES)
+  writeLogFile(session, next)
   events?.onLog(next)
 }
 
-function log(stream: LaunchLogLine['stream'], text: string): void {
-  appendLog({ time: Date.now(), stream, text })
+function log(session: GameSession, stream: LaunchLogLine['stream'], text: string): void {
+  appendLog(session, { time: Date.now(), stream, text })
 }
 
-function logGameEvent(stream: LaunchLogLine['stream'], event: GameLogEvent): void {
-  appendLog({
+function logGameEvent(session: GameSession, stream: LaunchLogLine['stream'], event: GameLogEvent): void {
+  appendLog(session, {
     time: event.time,
     stream,
     text: event.message,
@@ -139,51 +188,35 @@ function logGameEvent(stream: LaunchLogLine['stream'], event: GameLogEvent): voi
   })
 }
 
-async function openLogFile(): Promise<void> {
+async function openLogFile(session: GameSession): Promise<void> {
   try {
     await fs.mkdir(getLogDir(), { recursive: true })
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    latestLogPath = join(getLogDir(), `launch-${stamp}.log`)
-    logStream?.end()
-    logStream = createWriteStream(latestLogPath, { flags: 'a' })
+    session.logPath = join(getLogDir(), `launch-${stamp}.log`)
+    session.logStream?.end()
+    session.logStream = createWriteStream(session.logPath, { flags: 'a' })
   } catch {
-    logStream = null
+    session.logStream = null
   }
 }
 
-async function closeLogFile(): Promise<void> {
-  const stream = logStream
-  logStream = null
+async function closeLogFile(session: GameSession): Promise<void> {
+  const stream = session.logStream
+  session.logStream = null
   if (!stream) return
   await new Promise<void>((resolve) => stream.end(resolve))
 }
 
-function resetState(): void {
-  logs = []
-  currentState = {
-    status: 'idle',
-    message: '',
-    progress: null,
-    stage: null,
-    versionId: null,
-    instanceId: null,
-    pid: null,
-    startedAt: null,
-    exitCode: null,
-    error: null,
-    speed: null
-  }
-}
-
 function createLineBuffer(
+  session: GameSession,
   stream: 'stdout' | 'stderr'
 ): { push: (chunk: Buffer) => void; flush: () => void } {
   let buffer = ''
   const assembler = new GameLogAssembler()
   const emit = (feeds: GameLogFeed[]): void => {
     for (const feed of feeds) {
-      if (feed.type === 'event') logGameEvent(stream, feed.event)
-      else if (feed.text.length) log(stream, feed.text)
+      if (feed.type === 'event') logGameEvent(session, stream, feed.event)
+      else if (feed.text.length) log(session, stream, feed.text)
     }
   }
   return {
@@ -202,6 +235,7 @@ function createLineBuffer(
 }
 
 async function prepareNatives(
+  session: GameSession,
   baseDir: string,
   version: ResolvedVersion,
   customDir?: string
@@ -216,7 +250,7 @@ async function prepareNatives(
     if (!native) continue
     const jarPath = safeJoin(join(baseDir, 'libraries'), native.path)
     if (!(await pathExists(jarPath))) {
-      log('system', `缺少运行库文件：${native.path}`)
+      log(session, 'system', `缺少运行库文件：${native.path}`)
       continue
     }
     try {
@@ -233,7 +267,7 @@ async function prepareNatives(
         await fs.writeFile(target, entry.getData())
       }
     } catch {
-      log('system', `解压运行库失败：${native.path}`)
+      log(session, 'system', `解压运行库失败：${native.path}`)
     }
   }
   for (const sub of ['java', 'jna', 'lwjgl', 'netty']) {
@@ -263,15 +297,31 @@ export async function launchGame(
   instanceId?: string,
   options?: LaunchGameOptions
 ): Promise<void> {
-  if (isGameActive()) throw new Error('已有游戏正在启动或运行中')
-  starting = true
-  resetState()
-  preparingAbort = new AbortController()
-  const signal = preparingAbort.signal
+  const key = instanceId ?? `version:${versionId}`
+  if (sessions.has(key)) throw new Error('该实例已有游戏正在启动或运行中')
+  const session: GameSession = {
+    key,
+    instanceId: instanceId ?? null,
+    versionId,
+    child: null,
+    state: idleState(),
+    logs: [],
+    logStream: null,
+    logPath: null,
+    preparingAbort: new AbortController(),
+    starting: true,
+    intentionalStop: false,
+    playSessionId: null
+  }
+  sessions.set(key, session)
+  primary = session
+  const abort = new AbortController()
+  session.preparingAbort = abort
+  const signal = abort.signal
   const settings = getSettings()
   const server = options?.server ?? null
 
-  setState({
+  setState(session, {
     status: 'preparing',
     message: server ? `正在准备进入${server.name ? `「${server.name}」` : '服务器'}` : '正在检查启动环境',
     progress: 1,
@@ -279,12 +329,15 @@ export async function launchGame(
     versionId,
     instanceId: instanceId ?? null
   })
-  await openLogFile()
+  await openLogFile(session)
 
   try {
     const instance = instanceId ? await getInstance(instanceId) : null
     if (instance && instance.versionId !== versionId) {
       throw new Error('实例与游戏版本不匹配，请重新安装该整合包')
+    }
+    if (instance && server) {
+      void recordInstanceServer(instance.id, server).catch(() => undefined)
     }
     const baseDir = instance?.external?.baseDir ?? instance?.baseDir ?? settings.gameDir
     const gameDir = instance
@@ -317,15 +370,17 @@ export async function launchGame(
         }
       : settings
     log(
+      session,
       'system',
       instance
         ? `月月月启动器 ${APP_VERSION} 正在启动整合包「${instance.name}」（Minecraft ${instance.gameVersion}）`
         : `月月月启动器 ${APP_VERSION} 正在启动 Minecraft ${versionId}`
     )
-    if (instance) log('system', `加载器：${instance.loader === 'vanilla' ? '原版' : instance.loader}`)
-    if (instance?.external) log('system', `外部实例：直接使用 ${instance.external.gameDir}`)
+    if (instance) log(session, 'system', `加载器：${instance.loader === 'vanilla' ? '原版' : instance.loader}`)
+    if (instance?.external) log(session, 'system', `外部实例：直接使用 ${instance.external.gameDir}`)
     if (server) {
       log(
+        session,
         'system',
         `服务器目标：${server.name ? `${server.name} · ` : ''}${server.host}:${server.port}`
       )
@@ -349,25 +404,26 @@ export async function launchGame(
     // 和模组并不保证能读更高版本的 JDK class（例如 Java 25 的 major 69），
     // 因此启动时优先使用完全匹配的运行时，而不是全局里更新的 Java。
     const strictJava = true
-    log('system', `版本类型：${versionJson.type ?? 'release'}，所需 Java：${requiredMajor ?? '自动检测'}`)
+    log(session, 'system', `版本类型：${versionJson.type ?? 'release'}，所需 Java：${requiredMajor ?? '自动检测'}`)
 
     if (signal.aborted) throw new CancellationError()
 
     const account = getActiveAccount()
     if (!account) throw new Error('尚未登录账户，请先添加离线账户或登录微软账户')
-    setState({ stage: '验证账户', message: '正在验证账户信息', progress: 5 })
+    setState(session, { stage: '验证账户', message: '正在验证账户信息', progress: 5 })
     const freshAccount = await ensureFreshAccount(account)
-    log('system', `账户：${freshAccount.name}（${freshAccount.type === 'microsoft' ? '微软账户' : '离线账户'}）`)
+    log(session, 'system', `账户：${freshAccount.name}（${freshAccount.type === 'microsoft' ? '微软账户' : '离线账户'}）`)
 
     if (signal.aborted) throw new CancellationError()
 
     if (settings.optimizeMemoryBeforeLaunch) {
-      setState({ stage: '优化内存', message: '正在回收系统工作集', progress: 8, speed: null })
+      setState(session, { stage: '优化内存', message: '正在回收系统工作集', progress: 8, speed: null })
       const beforeFreeMb = Math.floor(os.freemem() / 1024 / 1024)
       try {
         const result = await releaseMemory('system', signal)
         const afterFreeMb = Math.floor(os.freemem() / 1024 / 1024)
         log(
+          session,
           'system',
           `启动前内存优化：系统工作集 ${Math.round(result.beforeKb / 1024)} → ${Math.round(
             result.afterKb / 1024
@@ -376,6 +432,7 @@ export async function launchGame(
       } catch (error) {
         if (signal.aborted) throw new CancellationError()
         log(
+          session,
           'system',
           `启动前内存优化失败，继续启动：${error instanceof Error ? error.message : String(error)}`
         )
@@ -383,10 +440,10 @@ export async function launchGame(
     }
     if (signal.aborted) throw new CancellationError()
 
-    setState({ stage: '准备 Java', message: '正在查找 Java 环境', progress: 12 })
+    setState(session, { stage: '准备 Java', message: '正在查找 Java 环境', progress: 12 })
     let lastJavaStage = ''
     if (instance && instance.javaAuto !== false) {
-      log('system', 'Java：启动时自动选择（忽略之前保存的自动路径）')
+      log(session, 'system', 'Java：启动时自动选择（忽略之前保存的自动路径）')
     }
     const java = await ensureJavaForVersion({
       gameDir: baseDir,
@@ -399,9 +456,9 @@ export async function launchGame(
       onProgress: (progress) => {
         if (progress.stage !== lastJavaStage) {
           lastJavaStage = progress.stage
-          log('system', progress.stage)
+          log(session, 'system', progress.stage)
         }
-        setState({
+        setState(session, {
           stage: progress.stage,
           message: progress.stage,
           progress: Math.round(8 + progress.percent * 0.55),
@@ -409,7 +466,7 @@ export async function launchGame(
         })
       }
     })
-    log('system', `使用 Java ${java.version}（${java.path}）`)
+    log(session, 'system', `使用 Java ${java.version}（${java.path}）`)
 
     const autoMemory = Boolean(instance && instance.memoryAuto !== false)
     const availableMemoryMb = Math.max(512, Math.floor(os.freemem() / 1024 / 1024))
@@ -426,6 +483,7 @@ export async function launchGame(
         : launchSettings.maxMemoryMb
     const finalSettings = { ...launchSettings, maxMemoryMb: launchMemoryMb }
     log(
+      session,
       'system',
       autoMemory && instance
         ? `内存分配：启动时自动计算 ${launchMemoryMb} MB（可用 ${availableMemoryMb} / 总 ${totalMemoryMb} MB，${launchModCount} 个模组）`
@@ -433,12 +491,13 @@ export async function launchGame(
     )
 
     if (signal.aborted) throw new CancellationError()
-    setState({ stage: '准备游戏文件', message: '正在整理运行库与资源', progress: 68, speed: null })
-    await prepareNatives(
-      baseDir,
-      version,
-      instance?.external ? join(getInstanceDir(instance.id), 'natives') : undefined
-    )
+    setState(session, { stage: '准备游戏文件', message: '正在整理运行库与资源', progress: 68, speed: null })
+    // 多开同一版本时共享 natives 目录会被另一个进程占用（Windows EPERM），
+    // 因此每个会话使用独立 natives 目录。
+    const sessionNativesDir = instance
+      ? join(getInstanceDir(instance.id), 'natives')
+      : join(os.tmpdir(), `windletter-natives-${session.key.replace(/[^A-Za-z0-9._-]/g, '_')}`)
+    await prepareNatives(session, baseDir, version, sessionNativesDir)
 
     const loggingPath = findLoggingPath(baseDir, version)
     const hasLogging = loggingPath ? await pathExists(loggingPath) : false
@@ -458,28 +517,17 @@ export async function launchGame(
       javaPath: java.path,
       launcherVersion: APP_VERSION,
       loggingPath: hasLogging ? loggingPath : null,
-      server: server ? { host: server.host, port: server.port } : null
+      server,
+      nativesDir: sessionNativesDir
     })
 
-    const missing = command.classpath
-      .split(';')
-      .filter(Boolean)
-      .find((path) => !existsSync(path))
-    if (missing) {
-      throw new Error(
-        instance
-          ? `整合包文件不完整（缺少 ${missing.split(/[\\/]/).pop()}），请重新安装该实例`
-          : `游戏文件不完整（缺少 ${missing.split(/[\\/]/).pop()}），请在下载页对当前版本执行“补全文件”`
-      )
-    }
-
     if (signal.aborted) throw new CancellationError()
-    setState({ status: 'starting', stage: '启动游戏', message: '正在创建游戏进程', progress: 82 })
+    setState(session, { status: 'starting', stage: '启动游戏', message: '正在创建游戏进程', progress: 82 })
     await fs.mkdir(gameDir, { recursive: true })
-    log('system', `游戏目录：${gameDir}`)
+    log(session, 'system', `游戏目录：${gameDir}`)
 
-    const stdoutBuffer = createLineBuffer('stdout')
-    const stderrBuffer = createLineBuffer('stderr')
+    const stdoutBuffer = createLineBuffer(session, 'stdout')
+    const stderrBuffer = createLineBuffer(session, 'stderr')
     const gameProcess = spawn(command.executable, command.args, {
       cwd: gameDir,
       windowsHide: true,
@@ -487,7 +535,7 @@ export async function launchGame(
       env: { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe']
     })
-    child = gameProcess
+    session.child = gameProcess
     let exited = false
     let started = false
 
@@ -499,12 +547,17 @@ export async function launchGame(
       exited = true
       stdoutBuffer.flush()
       stderrBuffer.flush()
-      child = null
-      starting = false
-      log('system', `游戏进程已退出，退出代码 ${code ?? '未知'}`)
+      session.child = null
+      session.starting = false
+      sessions.delete(session.key)
+      log(session, 'system', `游戏进程已退出，退出代码 ${code ?? '未知'}`)
       if (gameProcess.pid) void clearRunningGame(gameProcess.pid)
-      void finishPlaySession({ exitCode: code })
-      setState({
+      void finishPlaySession({
+        sessionId: session.playSessionId ?? undefined,
+        pid: gameProcess.pid ?? undefined,
+        exitCode: code
+      })
+      setState(session, {
         status: 'exited',
         message: code === 0 ? '游戏已正常退出' : `游戏异常退出（代码 ${code ?? '未知'}）`,
         progress: null,
@@ -512,22 +565,32 @@ export async function launchGame(
         exitCode: code,
         speed: null
       })
-      void closeLogFile()
+      void closeLogFile(session)
       events?.onGameExited?.()
+      if (code !== 0 && !session.intentionalStop) {
+        events?.onCrashAssist?.({
+          instanceId: session.instanceId,
+          versionId,
+          kind: 'exit',
+          exitCode: code,
+          message: `游戏异常退出（代码 ${code ?? '未知'}）`
+        })
+      }
     }
     gameProcess.on('exit', handleExit)
 
     gameProcess.on('error', (err) => {
-      log('system', `进程启动失败：${err.message}`)
+      log(session, 'system', `进程启动失败：${err.message}`)
       if (!started) {
-        setState({
+        setState(session, {
           status: 'error',
           message: '无法启动游戏进程',
           error: `无法启动 Java 进程：${err.message}`,
           progress: null
         })
-        starting = false
-        void closeLogFile()
+        session.starting = false
+        sessions.delete(session.key)
+        void closeLogFile(session)
       }
     })
 
@@ -558,19 +621,20 @@ export async function launchGame(
       if (exited) void clearRunningGame(gameProcess.pid)
     }
 
-    const session = await startPlaySession({
+    const playSession = await startPlaySession({
       instanceId: instance?.id ?? null,
       name: instance?.name ?? versionId,
       versionId,
       pid: gameProcess.pid ?? null
     }).catch(() => null)
-    if (session && gameProcess.pid) {
-      startPlaytimeWatcher(gameProcess.pid, session.donePath)
+    if (playSession) {
+      session.playSessionId = playSession.id
+      if (gameProcess.pid) startPlaytimeWatcher(gameProcess.pid, playSession.donePath)
     }
     if (exited) return
 
-    starting = false
-    setState({
+    session.starting = false
+    setState(session, {
       status: 'running',
       message: '游戏运行中',
       progress: 100,
@@ -581,14 +645,15 @@ export async function launchGame(
     })
     markVersionPlayed(versionId)
     if (instance) void markInstancePlayed(instance.id)
-    log('system', `Minecraft 已启动，进程 PID：${gameProcess.pid ?? '未知'}`)
+    log(session, 'system', `Minecraft 已启动，进程 PID：${gameProcess.pid ?? '未知'}`)
     events?.onGameStarted?.()
   } catch (err) {
-    starting = false
+    session.starting = false
+    sessions.delete(session.key)
     if (signal.aborted) {
-      child = null
-      log('system', '启动已取消')
-      setState({
+      session.child = null
+      log(session, 'system', '启动已取消')
+      setState(session, {
         status: 'idle',
         message: '已取消启动',
         progress: null,
@@ -597,8 +662,15 @@ export async function launchGame(
       })
     } else {
       const message = err instanceof Error ? err.message : String(err)
-      log('system', `启动失败：${message}`)
-      setState({
+      log(session, 'system', `启动失败：${message}`)
+      events?.onCrashAssist?.({
+        instanceId: instanceId ?? null,
+        versionId,
+        kind: 'launch-error',
+        exitCode: null,
+        message
+      })
+      setState(session, {
         status: 'error',
         message: '启动失败',
         error: message,
@@ -606,12 +678,12 @@ export async function launchGame(
         stage: null,
         speed: null
       })
-      await closeLogFile()
+      await closeLogFile(session)
       throw err
     }
-    await closeLogFile()
+    await closeLogFile(session)
   } finally {
-    preparingAbort = null
+    session.preparingAbort = null
   }
 }
 
@@ -624,34 +696,35 @@ async function terminateProcess(target: ChildProcess): Promise<void> {
         stdio: 'ignore'
       })
       killer.on('exit', () => resolve())
-      killer.on('error', () => {
-        try {
-          target.kill()
-        } catch {
-          /* ignore */
-        }
-        resolve()
-      })
+      killer.on('error', () => resolve())
     })
-  } else {
-    try {
-      target.kill()
-    } catch {
-      /* ignore */
-    }
+    return
+  }
+  try {
+    target.kill('SIGKILL')
+  } catch {
+    /* already gone */
   }
 }
 
-export async function cancelLaunch(): Promise<void> {
-  if (currentState.status === 'preparing' || currentState.status === 'starting') {
-    preparingAbort?.abort()
-    if (child) await terminateProcess(child)
-    return
-  }
+async function stopSession(session: GameSession | null): Promise<void> {
+  if (!session || session.state.status !== 'running' || !session.child) return
+  session.intentionalStop = true
+  log(session, 'system', '正在结束游戏进程…')
+  await terminateProcess(session.child)
 }
 
 export async function stopGame(): Promise<void> {
-  if (currentState.status !== 'running' || !child) return
-  log('system', '正在结束游戏进程…')
-  await terminateProcess(child)
+  await stopSession(primary)
+}
+
+export async function stopInstanceGame(instanceId: string): Promise<void> {
+  const session = [...sessions.values()].find((item) => item.instanceId === instanceId)
+  await stopSession(session ?? null)
+}
+
+export async function cancelLaunch(): Promise<void> {
+  if (primary && (primary.state.status === 'preparing' || primary.state.status === 'starting')) {
+    primary.preparingAbort?.abort()
+  }
 }

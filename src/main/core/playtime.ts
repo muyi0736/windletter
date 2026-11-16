@@ -42,7 +42,7 @@ interface ActivePlaytimeSession {
 
 interface PlaytimeData {
   sessions: StoredPlaytimeSession[]
-  active: ActivePlaytimeSession | null
+  actives: ActivePlaytimeSession[]
 }
 
 let data: PlaytimeData | null = null
@@ -143,7 +143,7 @@ function trimSessions(sessions: StoredPlaytimeSession[]): StoredPlaytimeSession[
 }
 
 function persist(): Promise<void> {
-  const snapshot = JSON.stringify(data ?? { sessions: [], active: null }, null, 2)
+  const snapshot = JSON.stringify(data ?? { sessions: [], actives: [] }, null, 2)
   const path = playtimePath()
   saveQueue = saveQueue.catch(() => undefined).then(async () => {
     await fs.mkdir(getConfigDir(), { recursive: true })
@@ -225,8 +225,9 @@ function stopTimers(): void {
 function startHeartbeat(): void {
   stopHeartbeat()
   heartbeat = setInterval(() => {
-    if (!data?.active) return
-    data.active.lastHeartbeat = Date.now()
+    if (!data?.actives.length) return
+    const now = Date.now()
+    for (const active of data.actives) active.lastHeartbeat = now
     void persist()
   }, HEARTBEAT_MS)
   heartbeat.unref?.()
@@ -235,21 +236,23 @@ function startHeartbeat(): void {
 function startCompletionPoll(): void {
   stopCompletionPoll()
   completionPoll = setInterval(() => {
-    const active = data?.active
-    if (!active) {
+    const actives = data?.actives ?? []
+    if (!actives.length) {
       stopCompletionPoll()
       return
     }
     void (async () => {
-      const endedAt = await readCompletion(active.id, 0)
-      if (endedAt) await finishPlaySession({ endedAt, exitCode: null })
+      for (const active of [...actives]) {
+        const endedAt = await readCompletion(active.id, 0)
+        if (endedAt) await finishPlaySession({ sessionId: active.id, endedAt, exitCode: null })
+      }
     })()
   }, COMPLETION_POLL_MS)
   completionPoll.unref?.()
 }
 
 function startTimers(): void {
-  if (!data?.active) return
+  if (!data?.actives.length) return
   startHeartbeat()
   startCompletionPoll()
 }
@@ -270,41 +273,44 @@ async function loadData(): Promise<PlaytimeData> {
           .map(normalizeSession)
           .filter((session): session is StoredPlaytimeSession => session !== null)
       : []
+    const rawActives = Array.isArray(raw.actives)
+      ? raw.actives
+      : raw.active
+        ? [raw.active]
+        : []
     const next: PlaytimeData = {
       sessions: trimSessions(sessions),
-      active: normalizeActive(raw.active)
+      actives: rawActives
+        .map(normalizeActive)
+        .filter((active): active is ActivePlaytimeSession => active !== null)
     }
-    if (next.active) {
-      const activeId = next.active.id
+    for (const active of [...next.actives]) {
+      const activeId = active.id
       // 原生监视进程在游戏退出时写好结束时间；启动器可能在那之后才重新打开。
       const completedAt = await readCompletion(activeId, 500)
       if (completedAt) {
-        const recovered = sessionFromActive(next.active, completedAt, null)
+        const recovered = sessionFromActive(active, completedAt, null)
         if (recovered) {
           next.sessions.push(recovered)
           next.sessions = trimSessions(next.sessions)
         }
-        next.active = null
+        next.actives = next.actives.filter((item) => item.id !== activeId)
         void removeCompletion(activeId)
-      } else if (processAlive(next.active.pid)) {
+      } else if (processAlive(active.pid)) {
         // 启动器关闭/重开时游戏仍在运行：保留会话，继续计时并等待完成文件。
       } else {
-        const recovered = sessionFromActive(
-          next.active,
-          next.active.lastHeartbeat,
-          null
-        )
+        const recovered = sessionFromActive(active, active.lastHeartbeat, null)
         if (recovered) {
           next.sessions.push(recovered)
           next.sessions = trimSessions(next.sessions)
         }
-        next.active = null
+        next.actives = next.actives.filter((item) => item.id !== activeId)
         void removeCompletion(activeId)
       }
     }
     data = next
     await persist()
-    if (data.active) startTimers()
+    if (data.actives.length) startTimers()
     return next
   })()
   try {
@@ -348,22 +354,11 @@ export async function startPlaySession(input: {
   pid?: number | null
 }): Promise<{ id: string; donePath: string }> {
   const db = await loadData()
-  if (db.active) {
-    const previous = db.active
-    const completedAt = await readCompletion(previous.id, 0)
-    const session = sessionFromActive(previous, completedAt ?? Date.now(), null)
-    if (session) {
-      db.sessions.push(session)
-      db.sessions = trimSessions(db.sessions)
-    }
-    db.active = null
-    await removeCompletion(previous.id)
-  }
   await fs.mkdir(pendingDir(), { recursive: true })
   const startedAt = Date.now()
   const versionId = text(input.versionId, 'unknown', 120)
   const pid = Number(input.pid)
-  db.active = {
+  const active: ActivePlaytimeSession = {
     id: randomUUID(),
     instanceId: input.instanceId ? text(input.instanceId, '', 80) : null,
     name: text(input.name, versionId, 120),
@@ -372,21 +367,31 @@ export async function startPlaySession(input: {
     lastHeartbeat: startedAt,
     pid: Number.isFinite(pid) && pid > 0 ? Math.round(pid) : null
   }
+  db.actives.push(active)
   await persist()
   startTimers()
-  return { id: db.active.id, donePath: completionPath(db.active.id) }
+  return { id: active.id, donePath: completionPath(active.id) }
 }
 
 export async function finishPlaySession(input?: {
+  sessionId?: string
+  pid?: number | null
   exitCode?: number | null
   endedAt?: number
 }): Promise<void> {
   const db = await loadData()
-  const active = db.active
+  const active =
+    (input?.sessionId
+      ? db.actives.find((item) => item.id === input.sessionId)
+      : undefined) ??
+    (input?.pid != null
+      ? db.actives.find((item) => item.pid === input.pid)
+      : undefined) ??
+    (db.actives.length === 1 ? db.actives[0] : undefined)
   if (!active) return
   const completedAt = await readCompletion(active.id, 800)
-  db.active = null
-  stopTimers()
+  db.actives = db.actives.filter((item) => item.id !== active.id)
+  if (!db.actives.length) stopTimers()
   const session = sessionFromActive(
     active,
     completedAt ?? (Number.isFinite(input?.endedAt) ? Number(input?.endedAt) : Date.now()),
@@ -526,6 +531,7 @@ export async function getPlaytimeReport(now = Date.now()): Promise<PlaytimeRepor
     days,
     instances,
     recent,
-    active: activeView(db.active)
+    active: activeView(db.actives[0] ?? null),
+    actives: db.actives.map((active) => activeView(active)).filter((view): view is PlaytimeActiveView => view !== null)
   }
 }

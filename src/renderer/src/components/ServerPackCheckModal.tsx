@@ -37,12 +37,14 @@ export function ServerPackCheckModal({
   open,
   instance,
   initialPath,
-  onClose
+  onClose,
+  onExclude
 }: {
   open: boolean
   instance: InstanceSummary | null
   initialPath: string
   onClose: () => void
+  onExclude?: (files: string[]) => void
 }) {
   const [path, setPath] = useState(initialPath)
   const [report, setReport] = useState<ServerPackInspectReport | null>(null)
@@ -423,6 +425,42 @@ export function ServerPackCheckModal({
                         <span>{check.detail}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {verifyReport && !verifyReport.ok && verifyReport.suspects.length > 0 && (
+                  <div className="serverpack-suspects">
+                    <header>
+                      <AlertTriangle size={13} />
+                      <strong>失败日志指向这些模组</strong>
+                    </header>
+                    <ul>
+                      {verifyReport.suspects.map((suspect) => (
+                        <li key={suspect.modId}>
+                          <span className="serverpack-suspect-name" title={suspect.file ?? suspect.modId}>
+                            {suspect.file ?? suspect.modId}
+                          </span>
+                          <span className="serverpack-suspect-reason">{suspect.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {onExclude && verifyReport.suspects.some((suspect) => suspect.file) && (
+                      <button
+                        type="button"
+                        className="button button--soft button--sm"
+                        onClick={() => {
+                          onExclude(
+                            verifyReport.suspects
+                              .filter((suspect) => suspect.file)
+                              .map((suspect) => suspect.file!)
+                          )
+                          onClose()
+                        }}
+                      >
+                        <Square size={12} />
+                        排除这些模组并返回制作
+                      </button>
+                    )}
                   </div>
                 )}
 

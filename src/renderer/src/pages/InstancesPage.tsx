@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import {
   Archive,
   ArrowRightLeft,
@@ -60,7 +60,7 @@ import { WorldVaultModal } from '../components/WorldVaultModal'
 import { ScreenshotGalleryModal } from '../components/ScreenshotGalleryModal'
 import { InstanceTransferModal } from '../components/InstanceTransferModal'
 import { ServerPackModal } from '../components/ServerPackModal'
-import { PackWorkshopModal } from '../components/PackWorkshopModal'
+import { PackWorkshopModalLazy as PackWorkshopModal } from '../components/lazyModals'
 import { TranslationModal } from '../components/TranslationModal'
 import { VanillaInstanceModal } from '../components/VanillaInstanceModal'
 import { BackupManagerModal } from '../components/BackupManagerModal'
@@ -91,6 +91,7 @@ export function InstancesPage() {
   const selectInstance = useLauncher((state) => state.selectInstance)
   const translationSession = useTranslationSession()
   const startInstance = useLauncher((state) => state.startInstance)
+  const stopInstance = useLauncher((state) => state.stopInstance)
   const importModpack = useLauncher((state) => state.importModpack)
   const installModrinth = useLauncher((state) => state.installModrinth)
   const removeInstance = useLauncher((state) => state.removeInstance)
@@ -115,6 +116,8 @@ export function InstancesPage() {
   const [backupInstance, setBackupInstance] = useState<InstanceSummary | null>(null)
   const [settingsInstance, setSettingsInstance] = useState<InstanceSummary | null>(null)
   const [contentInstance, setContentInstance] = useState<InstanceSummary | null>(null)
+  const [contentFocusUpdates, setContentFocusUpdates] = useState(false)
+  const updateCounts = useLauncher((state) => state.updateCounts)
   const [contentInitialTab, setContentInitialTab] = useState<'resourcepack' | null>(null)
   const [worldInstance, setWorldInstance] = useState<InstanceSummary | null>(null)
   const [screenshotInstance, setScreenshotInstance] = useState<InstanceSummary | null>(null)
@@ -216,12 +219,12 @@ export function InstancesPage() {
       toast('info', '先添加一个账户', '离线账户也可以启动本地整合包')
       return
     }
-    if (launchActive) {
-      toast(
-        'info',
-        '已有游戏正在运行',
-        launch.instanceId === instance.id ? '请回到启动页结束当前进程' : '请先结束当前游戏'
-      )
+    const busyHere =
+      launch.running.some((item) => item.instanceId === instance.id) ||
+      (launch.instanceId === instance.id &&
+        (launch.status === 'preparing' || launch.status === 'starting'))
+    if (busyHere) {
+      toast('info', '该实例已在运行', '可以在卡片上直接结束进程')
       return
     }
     void startInstance(instance.id)
@@ -349,8 +352,11 @@ export function InstancesPage() {
             <div className="instance-grid">
               {instances.map((instance) => {
                 const isSelected = instance.id === selectedInstanceId
-                const isRunning = launchActive && launch.instanceId === instance.id
-                const canLaunch = !launchActive
+                const isRunning = launch.running.some((item) => item.instanceId === instance.id)
+                const isPreparingThis =
+                  launch.instanceId === instance.id &&
+                  (launch.status === 'preparing' || launch.status === 'starting')
+                const canLaunch = !isRunning && !isPreparingThis
                 const translating =
                   translationSession.busy && translationSession.instanceId === instance.id
                 const translatingElsewhere =
@@ -388,6 +394,21 @@ export function InstancesPage() {
                       )}
                       {isSelected && <Badge tone="accent">当前</Badge>}
                       {isRunning && <Badge tone="success">运行中</Badge>}
+                      {(updateCounts[instance.id] ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          className="instance-update-badge"
+                          title="打开内容页查看可更新项"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setContentInitialTab(null)
+                            setContentFocusUpdates(true)
+                            setContentInstance(instance)
+                          }}
+                        >
+                          <Badge tone="warning">{updateCounts[instance.id]} 可更新</Badge>
+                        </button>
+                      )}
                     </div>
 
                     <div className="instance-tags">
@@ -422,11 +443,14 @@ export function InstancesPage() {
                       <button
                         type="button"
                         className={`button button--primary button--sm ${isRunning ? 'is-running' : ''}`}
-                        disabled={launchActive || !canLaunch}
-                        title={isRunning ? '请回到启动页结束游戏' : undefined}
+                        disabled={!isRunning && !canLaunch}
+                        title={isRunning ? '结束这个实例的游戏进程' : undefined}
                         onClick={(event) => {
                           event.stopPropagation()
-                          if (isRunning) return
+                          if (isRunning) {
+                            void stopInstance(instance.id)
+                            return
+                          }
                           handleLaunch(instance)
                         }}
                       >
@@ -437,7 +461,7 @@ export function InstancesPage() {
                         ) : (
                           <Play size={13} fill="currentColor" />
                         )}
-                        {isRunning ? '运行中' : '启动'}
+                        {isRunning ? '结束' : '启动'}
                       </button>
                       <button
                         type="button"
@@ -445,6 +469,7 @@ export function InstancesPage() {
                         onClick={(event) => {
                           event.stopPropagation()
                           setContentInitialTab(null)
+                          setContentFocusUpdates(false)
                           setContentInstance(instance)
                         }}
                       >
@@ -464,6 +489,7 @@ export function InstancesPage() {
                         onClick={(event) => {
                           event.stopPropagation()
                           setContentInitialTab('resourcepack')
+                          setContentFocusUpdates(false)
                           setContentInstance(instance)
                         }}
                       >
@@ -840,7 +866,12 @@ export function InstancesPage() {
         open={contentInstance !== null}
         instance={contentInstance}
         initialTab={contentInitialTab}
-        onClose={() => setContentInstance(null)}
+        focusUpdates={contentFocusUpdates}
+        onClose={() => {
+          setContentInstance(null)
+          setContentFocusUpdates(false)
+          void useLauncher.getState().refreshUpdateCounts()
+        }}
       />
 
       <WorldVaultModal
@@ -864,10 +895,14 @@ export function InstancesPage() {
         onClose={() => setServerPackInstance(null)}
       />
 
-      <PackWorkshopModal
-        instance={workshopInstance}
-        onClose={() => setWorkshopInstance(null)}
-      />
+      {workshopInstance && (
+        <Suspense fallback={null}>
+          <PackWorkshopModal
+            instance={workshopInstance}
+            onClose={() => setWorkshopInstance(null)}
+          />
+        </Suspense>
+      )}
 
       <TranslationModal
         instance={translationInstance}

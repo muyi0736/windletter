@@ -1,6 +1,6 @@
 {
   "name": "windletter-launcher",
-  "version": "0.60.60",
+  "version": "0.60.61",
   "private": true,
   "description": "月月月启动器 - 月无边。一个受 PCL2 启发的 Minecraft 启动器",
   "main": "./out/main/index.js",
@@ -27,6 +27,10 @@
       "output": "release"
     },
     "electronDist": "node_modules/electron/dist",
+    "disableAsarIntegrity": true,
+    "electronFuses": {
+      "enableEmbeddedAsarIntegrityValidation": false
+    },
     "files": [
       "out/**/*"
     ],
@@ -45,6 +49,10 @@
       {
         "from": "build/playtime-watch.exe",
         "to": "playtime-watch.exe"
+      },
+      {
+        "from": "build/update-capability.json",
+        "to": "update-capability.json"
       },
       {
         "from": "resources/glossary",

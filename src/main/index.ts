@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from 'electron'
 import { existsSync, promises as fs } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
@@ -131,6 +131,7 @@ import {
   kubeJsTemplates,
   listKubeJsFiles,
   listKubeJsHistory,
+  fixMissingDependencies,
   pruneKubeJsHistory,
   readKubeJsFile,
   readKubeJsHistory,
@@ -156,8 +157,17 @@ import {
   markKnownGood,
   runDiagnostics
 } from './core/diagnostics'
+import { buildCrashAssist } from './core/crashAssist'
+import { cleanOrphans, scanDiskUsage } from './core/diskUsage'
+import {
+  cancelPowerCountdown,
+  getPowerCountdown,
+  setPowerNotifier,
+  startPowerCountdown
+} from './core/powerAction'
 import {
   checkContentUpdates,
+  contentUpdateCounts,
   fingerprintOfBuffer,
   getContentChangelog,
   lookupModrinthFilesByHash,
@@ -166,6 +176,7 @@ import {
   updateContent
 } from './core/contentLedger'
 import { explainContentUpdate } from './core/updateExplain'
+import { applyResourcePacks, listResourcePacks } from './core/resourcePacks'
 import {
   previewContentDir,
   previewContentFile,
@@ -179,6 +190,7 @@ import {
   listInstalledMods,
   listModVersions,
   removeMod,
+  bulkToggleMods,
   searchModrinthMods,
   toggleMod
 } from './core/mods'
@@ -199,7 +211,7 @@ import {
   loadCustomSearchAliases,
   removeCustomSearchAlias
 } from './core/customSearchAliases'
-import { CancellationError, setUserAgentVersion } from './core/net'
+import { CancellationError, downloadFile, setDownloadRetries, setDownloadSpeedLimit, setUserAgentVersion } from './core/net'
 import { emptyDetail } from './core/progress'
 import {
   importInstalledPack,
@@ -220,7 +232,8 @@ import {
   isGameActive,
   launchGame,
   setLauncherEvents,
-  stopGame
+  stopGame,
+  stopInstanceGame
 } from './core/launcher'
 import { getVersionManifest, versionView } from './core/mojang'
 import {
@@ -283,6 +296,7 @@ import { cleanupBackups, getBackupOverview } from './core/backupManager'
 import {
   cancelLauncherUpdate,
   checkForLauncherUpdate,
+  cleanupAfterIncrementalSwap,
   downloadLauncherUpdate,
   getLauncherUpdateState,
   installLauncherUpdate,
@@ -334,8 +348,77 @@ if (memorySaver) {
 
 let mainWindow: BrowserWindow | null = null
 let allowClose = false
+let tray: Tray | null = null
+let prevTasksRunning = false
+const seenDoneTasks = new Set<string>()
+const BOOT_T0 = Date.now()
+function bootLog(label: string): void {
+  if (process.env.WINDLETTER_BOOT_TRACE) {
+    console.log(`[boot] +${Date.now() - BOOT_T0}ms ${label}`)
+  }
+}
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
+
+function applyLaunchAtLogin(on: boolean): void {
+  try {
+    app.setLoginItemSettings({ openAtLogin: on })
+  } catch {
+    /* 某些环境不支持登录项 */
+  }
+}
+
+function applyUiScale(scale: number): void {
+  const factor = Math.max(0.9, Math.min(1.25, scale / 100))
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setZoomFactor(factor)
+}
+
+const TRAY_ICON =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAWElEQVR42mP8z8Dwn4GBgYGRkZGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGBgYGRkYGB4T8DAwMAK+4H0Z1pJ1EAAAAASUVORK5CYII='
+
+function syncTray(enabled: boolean): void {
+  if (enabled && !tray) {
+    tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON))
+    tray.setToolTip('月月月启动器')
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        {
+          label: '显示主界面',
+          click: () => {
+            mainWindow?.show()
+            mainWindow?.focus()
+          }
+        },
+        {
+          label: '启动上次实例',
+          click: () => {
+            const s = getSettings()
+            if (s.lastVersionId) {
+              void launchGame(s.lastVersionId, s.lastInstanceId ?? undefined).catch(() => undefined)
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: '退出',
+          click: () => {
+            allowClose = true
+            tray?.destroy()
+            tray = null
+            app.quit()
+          }
+        }
+      ])
+    )
+    tray.on('double-click', () => {
+      mainWindow?.show()
+      mainWindow?.focus()
+    })
+  } else if (!enabled && tray) {
+    tray.destroy()
+    tray = null
+  }
+}
 
 function send(channel: string, payload: unknown): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
@@ -1279,6 +1362,15 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     return getWorkshopReport(requireInstanceId(rawId))
   })
 
+  ipcMain.handle('workshop:fix-missing', async (event, rawId: unknown) => {
+    const id = requireInstanceId(rawId)
+    return fixMissingDependencies(id, (stage, percent) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('workshop:fix-progress', { stage, percent })
+      }
+    })
+  })
+
   ipcMain.handle('workshop:kubejs-files', async (_event, rawId: unknown) => {
     return listKubeJsFiles(requireInstanceId(rawId))
   })
@@ -1628,11 +1720,26 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     if (before.downloadProxy !== settings.downloadProxy) {
       applyDownloadProxy(settings.downloadProxy)
     }
+    if (before.downloadRetries !== settings.downloadRetries) {
+      setDownloadRetries(settings.downloadRetries)
+    }
+    if (before.downloadSpeedLimitKbps !== settings.downloadSpeedLimitKbps) {
+      setDownloadSpeedLimit(settings.downloadSpeedLimitKbps)
+    }
     if (before.cacheLimitMb !== settings.cacheLimitMb) {
       setContentCacheLimit(settings.cacheLimitMb)
     }
     if (before.backgroundImages.join('\n') !== settings.backgroundImages.join('\n')) {
       await pruneBackgrounds(settings.backgroundImages)
+    }
+    if (before.launchAtLogin !== settings.launchAtLogin) {
+      applyLaunchAtLogin(settings.launchAtLogin)
+    }
+    if (before.closeToTray !== settings.closeToTray) {
+      syncTray(settings.closeToTray)
+    }
+    if (before.uiScale !== settings.uiScale) {
+      applyUiScale(settings.uiScale)
     }
     return settings
   })
@@ -1858,18 +1965,7 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     })
   })
 
-  ipcMain.handle('instances:install-modrinth', async (_event, rawRequest: unknown) => {
-    const request = parseModrinthRequest(rawRequest)
-    const running = taskManager
-      .list()
-      .find(
-        (task) =>
-          task.status === 'running' &&
-          task.kind === 'modpack' &&
-          task.projectId === request.projectId
-      )
-    if (running) return running
-
+function startModrinthPackInstall(request: ModrinthInstallRequest) {
     const settings = getSettings()
     return taskManager.start({
       kind: 'modpack',
@@ -1948,19 +2044,9 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
         }
       }
     })
-  })
+}
 
-  ipcMain.handle('instances:install-curseforge', async (_event, rawRequest: unknown) => {
-    const request = parseCurseForgeRequest(rawRequest)
-    const running = taskManager
-      .list()
-      .find(
-        (task) =>
-          task.status === 'running' &&
-          task.kind === 'modpack' &&
-          task.projectId === request.projectId
-      )
-    if (running) return running
+function startCurseForgePackInstall(request: CurseForgeInstallRequest) {
     const settings = getSettings()
     return taskManager.start({
       kind: 'modpack',
@@ -1981,8 +2067,130 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
         return finalizeModpack(result.instance)
       }
     })
+}
+
+  ipcMain.handle('instances:install-modrinth', async (_event, rawRequest: unknown) => {
+    const request = parseModrinthRequest(rawRequest)
+    const running = taskManager
+      .list()
+      .find(
+        (task) =>
+          task.status === 'running' &&
+          task.kind === 'modpack' &&
+          task.projectId === request.projectId
+      )
+    if (running) return running
+
+    return startModrinthPackInstall(request)
   })
 
+  ipcMain.handle('instances:install-curseforge', async (_event, rawRequest: unknown) => {
+    const request = parseCurseForgeRequest(rawRequest)
+    const running = taskManager
+      .list()
+      .find(
+        (task) =>
+          task.status === 'running' &&
+          task.kind === 'modpack' &&
+          task.projectId === request.projectId
+      )
+    if (running) return running
+    return startCurseForgePackInstall(request)
+  })
+
+  ipcMain.handle('instances:install-url', async (_event, rawUrl: unknown) => {
+    if (typeof rawUrl !== 'string' || !rawUrl.trim()) throw new Error('请输入整合包链接')
+    let url: URL
+    try {
+      url = new URL(rawUrl.trim())
+    } catch {
+      throw new Error('链接格式不正确')
+    }
+    if (url.protocol !== 'https:') {
+      const loopback = ['127.0.0.1', 'localhost', '::1'].includes(url.hostname.toLowerCase())
+      if (!(url.protocol === 'http:' && loopback)) throw new Error('仅支持 https 链接')
+    }
+    const host = url.hostname.toLowerCase()
+    const mr = /^\/(?:modpack|mod)\/([A-Za-z0-9_-]{1,64})/.exec(url.pathname)
+    if (host === 'modrinth.com' && mr) {
+      const view = await searchModpacks(mr[1], 0)
+      const hit = view.hits.find((item) => item.slug === mr[1]) ?? view.hits[0]
+      if (!hit) throw new Error('Modrinth 上找不到该整合包')
+      return startModrinthPackInstall({
+        projectId: hit.projectId,
+        title: hit.title,
+        iconUrl: hit.iconUrl,
+        summary: hit.description
+      })
+    }
+    const cf = /^\/minecraft\/modpacks\/([A-Za-z0-9_-]{1,80})/.exec(url.pathname)
+    if ((host === 'www.curseforge.com' || host === 'curseforge.com') && cf) {
+      const settings = getSettings()
+      const view = await searchCurseForgeModpacks(cf[1], '', '', 0, settings)
+      const hit = view.hits.find((item) => item.slug === cf[1]) ?? view.hits[0]
+      if (!hit) throw new Error('CurseForge 上找不到该整合包')
+      const versions = await listCurseForgeModpackVersions(hit.projectId, settings, 'client')
+      const latest = versions[0]
+      if (!latest) throw new Error('该整合包没有可用的客户端文件')
+      return startCurseForgePackInstall({
+        projectId: hit.projectId,
+        title: hit.title,
+        iconUrl: hit.iconUrl,
+        summary: hit.description,
+        fileId: latest.id
+      })
+    }
+    if (/\.(mrpack|zip)$/i.test(url.pathname)) {
+      const fileName = decodeURIComponent(url.pathname.split('/').pop() ?? 'pack.zip')
+      const displayName = fileName.replace(/\.(mrpack|zip)$/i, '').slice(0, 80) || '链接整合包'
+      const settings = getSettings()
+      return taskManager.start({
+        kind: 'modpack',
+        title: `安装整合包 ${displayName}`,
+        run: async ({ signal, progress }) => {
+          const tempDir = join(app.getPath('temp'), 'windletter-modpacks')
+          await fs.mkdir(tempDir, { recursive: true })
+          const archivePath = join(tempDir, `url-${Date.now()}-${fileName}`)
+          let done = 0
+          let tick = Date.now()
+          let last = 0
+          await downloadFile([url.toString()], archivePath, {
+            signal,
+            onBytes: (bytes) => {
+              done += bytes
+              const now = Date.now()
+              if (now - tick < 400) return
+              const speed = (done - last) / ((now - tick) / 1000)
+              tick = now
+              last = done
+              progress({
+                stage: `下载 ${fileName}`,
+                percent: Math.min(9, (done / Math.max(1, done)) * 9),
+                detail: { current: 0, total: 1, bytesDone: done, bytesTotal: 0, speed }
+              })
+            }
+          })
+          try {
+            const result = await importModpack({
+              archivePath,
+              displayName,
+              source: 'local',
+              gameDir: settings.gameDir,
+              settings,
+              downloadSource: settings.source,
+              concurrency: settings.downloadConcurrency,
+              signal,
+              onProgress: (info) => progress({ ...info, percent: 10 + info.percent * 0.9 })
+            })
+            return finalizeModpack(result.instance)
+          } finally {
+            await fs.rm(archivePath, { force: true }).catch(() => undefined)
+          }
+        }
+      })
+    }
+    throw new Error('仅支持 Modrinth / CurseForge 整合包页或 .mrpack / .zip 直链')
+  })
   ipcMain.handle('instances:create-loader', async (_event, rawRequest: unknown) => {
     const request = parseLoaderRequest(rawRequest)
     const settings = getSettings()
@@ -2167,7 +2375,8 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
       typeof value.versionId === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(value.versionId)
         ? value.versionId
         : null
-    return downloadModPackage(
+    const settings = getSettings()
+    const result = await downloadModPackage(
       {
         provider,
         projectId,
@@ -2177,8 +2386,12 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
         kind: parseContentKind(value.kind),
         includeDependencies: value.includeDependencies !== false
       },
-      getSettings()
+      settings
     )
+    if (settings.openFolderAfterDownload && result.file) {
+      shell.showItemInFolder(result.file)
+    }
+    return result
   })
 
   ipcMain.handle('local-packs:import-many', async (_event, rawRequests: unknown) => {
@@ -2376,6 +2589,14 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     return checkContentUpdates(parseInstanceId(rawInstance), rawForce === true)
   })
 
+  ipcMain.handle('ledger:update-counts', () => contentUpdateCounts())
+
+  ipcMain.handle('power:state', () => getPowerCountdown())
+  ipcMain.handle('power:cancel', () => {
+    cancelPowerCountdown()
+    return null
+  })
+
   ipcMain.handle('ledger:explain-update', async (_event, rawInstance: unknown) => {
     return explainContentUpdate(parseInstanceId(rawInstance))
   })
@@ -2496,6 +2717,14 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
 
   ipcMain.handle('mods:list', async (_event, rawInstance: unknown) => {
     return listInstalledMods(parseInstanceId(rawInstance))
+  })
+
+  ipcMain.handle('mods:bulk-toggle', async (_event, rawInstance: unknown, rawFiles: unknown, rawEnabled: unknown) => {
+    const id = requireInstanceId(rawInstance)
+    const files = Array.isArray(rawFiles)
+      ? rawFiles.filter((item): item is string => typeof item === 'string').slice(0, 500)
+      : []
+    return bulkToggleMods(id, files, rawEnabled === true)
   })
 
   ipcMain.handle('mods:remove', async (_event, rawInstance: unknown, rawFile: unknown) => {
@@ -3062,10 +3291,38 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     }
   })
 
-  ipcMain.handle('instances:launch', async (_event, rawId: unknown) => {
+  ipcMain.handle('instances:resource-packs', async (_event, rawId: unknown) => {
+    return listResourcePacks(requireInstanceId(rawId))
+  })
+
+  ipcMain.handle('instances:apply-resource-packs', async (_event, rawId: unknown, rawNames: unknown) => {
+    const names = (Array.isArray(rawNames) ? rawNames : [])
+      .filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+      .slice(0, 200)
+    return applyResourcePacks(requireInstanceId(rawId), names)
+  })
+
+  ipcMain.handle('instances:launch', async (_event, rawId: unknown, rawOptions: unknown) => {
     const id = requireInstanceId(rawId)
     const instance = await getInstance(id)
-    await launchGame(instance.versionId, instance.id)
+    let server: { host: string; port: number; name?: string } | null = null
+    if (rawOptions && typeof rawOptions === 'object') {
+      const value = (rawOptions as Record<string, unknown>).server
+      if (value && typeof value === 'object') {
+        const target = value as Record<string, unknown>
+        const host = typeof target.host === 'string' ? target.host.trim() : ''
+        const port = Number(target.port)
+        if (!host || host.length > 253 || !Number.isInteger(port) || port < 1 || port > 65535) {
+          throw new Error('无效的服务器地址')
+        }
+        server = {
+          host,
+          port,
+          name: typeof target.name === 'string' ? target.name.slice(0, 80) : undefined
+        }
+      }
+    }
+    await launchGame(instance.versionId, instance.id, server ? { server } : undefined)
   })
 
   ipcMain.handle('screenshots:list', async (_event, rawId: unknown) => {
@@ -3317,7 +3574,9 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
           settings,
           signal,
           onProgress: progress,
-          onComplete: (path) => shell.showItemInFolder(path)
+          onComplete: (path) => {
+            if (getSettings().openFolderAfterDownload) shell.showItemInFolder(path)
+          }
         })
         return { message: `已保存到 ${result.path}` }
       }
@@ -3370,6 +3629,9 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
   })
   ipcMain.handle('launch:cancel', () => cancelLaunch())
   ipcMain.handle('launch:stop', () => stopGame())
+  ipcMain.handle('launch:stop-instance', (_event, rawId: unknown) =>
+    stopInstanceGame(requireInstanceId(rawId))
+  )
   ipcMain.handle('launch:get-state', () => getLaunchState())
   ipcMain.handle('launch:get-logs', () => getLaunchLogs())
   ipcMain.handle('running-game:inspect', () => inspectRunningGame())
@@ -3416,6 +3678,29 @@ $payload | ConvertTo-Json -Compress | Set-Content -Path $resultPath -Encoding UT
     shell.showItemInFolder(result.filePath)
     return result.filePath
   })
+  ipcMain.handle('disk:usage', () => scanDiskUsage())
+  ipcMain.handle('disk:clean', async (_event, rawScope: unknown) => {
+    if (rawScope !== 'libraries' && rawScope !== 'assets') throw new Error('无效的清理范围')
+    return cleanOrphans(rawScope)
+  })
+  ipcMain.handle('app:export-text', async (_event, rawName: unknown, rawContent: unknown) => {
+    const name = typeof rawName === 'string' ? rawName.replace(/[\/:*?"<>|]/g, '_').slice(0, 80) : ''
+    const content = typeof rawContent === 'string' ? rawContent : ''
+    if (!name || !content) throw new Error('导出内容无效')
+    if (content.length > 4 * 1024 * 1024) throw new Error('导出内容过大')
+    const result = await dialog.showSaveDialog({
+      title: '导出文本',
+      defaultPath: join(app.getPath('downloads'), name),
+      filters: [
+        { name: 'Markdown', extensions: ['md'] },
+        { name: '文本文件', extensions: ['txt'] }
+      ]
+    })
+    if (result.canceled || !result.filePath) return null
+    await fs.writeFile(result.filePath, content, 'utf8')
+    shell.showItemInFolder(result.filePath)
+    return result.filePath
+  })
   ipcMain.handle('download-logs:network-check', () => runDownloadNetworkCheck())
   ipcMain.handle('logs:latest-path', async () => latestLogFile())
   ipcMain.handle('logs:read-latest', async () => {
@@ -3452,7 +3737,10 @@ function createWindow(): void {
   mainWindow = win
   allowClose = false
 
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    bootLog('ready-to-show')
+    win.show()
+  })
   win.on('maximize', () => send('window:maximized', true))
   win.on('unmaximize', () => send('window:maximized', false))
   win.on('closed', () => {
@@ -3460,7 +3748,14 @@ function createWindow(): void {
   })
 
   win.on('close', (event) => {
-    if (allowClose || !isGameActive()) return
+    if (allowClose) return
+    if (getSettings().closeToTray && !isGameActive()) {
+      event.preventDefault()
+      win.hide()
+      syncTray(true)
+      return
+    }
+    if (!isGameActive()) return
     event.preventDefault()
     void dialog
       .showMessageBox(win, {
@@ -3516,23 +3811,58 @@ app.on('second-instance', (_event, argv) => {
 })
 
 app.whenReady().then(async () => {
+  bootLog('whenReady')
   await loadConfig()
+  bootLog('loadConfig')
   await registerBackgroundProtocol()
   await registerScreenshotProtocol()
+  bootLog('protocols')
   await loadCustomSearchAliases()
+  bootLog('aliases')
   applyDownloadProxy(getSettings().downloadProxy)
+  setDownloadRetries(getSettings().downloadRetries)
+  setDownloadSpeedLimit(getSettings().downloadSpeedLimitKbps)
   await ensureDirs()
+  bootLog('ensureDirs')
   setContentCacheDir(join(getCacheDir(), 'objects'))
   setContentCacheLimit(getSettings().cacheLimitMb)
   Menu.setApplicationMenu(null)
+  applyLaunchAtLogin(getSettings().launchAtLogin)
+  syncTray(getSettings().closeToTray)
+  bootLog('tray/login')
 
-  taskManager.setListener((task) => send('tasks:update', task))
+  taskManager.setListener((task) => {
+    send('tasks:update', task)
+    const list = taskManager.list()
+    const running = list.some((item) => item.status === 'running' || item.status === 'paused')
+    if (running) {
+      if (!prevTasksRunning) cancelPowerCountdown()
+    } else if (prevTasksRunning) {
+      const newDone = list.filter((item) => item.status === 'done' && !seenDoneTasks.has(item.id))
+      for (const item of list) {
+        if (item.status === 'done') seenDoneTasks.add(item.id)
+      }
+      if (seenDoneTasks.size > 500) seenDoneTasks.clear()
+      if (newDone.length > 0) {
+        const action = getSettings().afterDownloadAction
+        if (action !== 'none') startPowerCountdown(action)
+      }
+    }
+    prevTasksRunning = running
+  })
+  setPowerNotifier((state) => send('power:countdown', state))
   setAccountNotifier((payload) => send('auth:changed', payload))
   setLauncherEvents({
     onState: (state) => send('launch:state', state),
     onLog: (line) => send('launch:log', line),
     onGameStarted: () => {
       if (getSettings().hideAfterLaunch) mainWindow?.minimize()
+    },
+    onCrashAssist: (info) => {
+      if (!getSettings().crashAutoAssist) return
+      void buildCrashAssist(info)
+        .then((view) => send('crash-assist', view))
+        .catch(() => undefined)
     }
   })
   setPlaytimeChangedListener(() => send('playtime:changed', null))
@@ -3540,6 +3870,9 @@ app.whenReady().then(async () => {
 
   registerIpc()
   createWindow()
+  bootLog('createWindow')
+  applyUiScale(getSettings().uiScale)
+  void cleanupAfterIncrementalSwap()
 
   const launchId = launchInstanceFromArgv(process.argv)
   if (launchId) {
@@ -3556,5 +3889,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  // 托盘模式下主窗口只是被隐藏；真正关闭所有窗口时若仍开着托盘就常驻。
+  if (getSettings().closeToTray && tray) return
   app.quit()
 })

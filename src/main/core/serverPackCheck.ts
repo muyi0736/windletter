@@ -10,6 +10,7 @@ import type {
   JavaInfo,
   ServerPackCheckItem,
   ServerPackInspectReport,
+  ServerPackSuspect,
   ServerPackVerifyProgress,
   ServerPackVerifyReport
 } from '../../shared/types'
@@ -17,7 +18,7 @@ import { getCacheDir, getLogDir, getSettings } from './config'
 import { getInstance } from './instances'
 import { chooseJava, detectJava } from './java'
 import { CancellationError } from './net'
-import { looksClientOnlyMod } from './serverPack'
+import { looksClientOnlyMod, prestageVanillaServerJar, readModMeta } from './serverPack'
 import { pathExists } from './version'
 
 const RUNTIME_LOADERS = new Set(['vanilla', 'fabric', 'forge', 'neoforge'])
@@ -69,6 +70,33 @@ function tail(lines: string[], count = TAIL_LINES): string {
   return lines.slice(-count).join('\n')
 }
 
+const SUSPECT_BUILTIN_DEPS = new Set(['minecraft', 'neoforge', 'forge', 'java', 'fabricloader', 'quilt_loader'])
+
+/** 从启动失败日志中提取可疑模组：构造/注册失败、mixin 应用失败、缺依赖。 */
+function collectSuspectMod(line: string, suspects: Map<string, string>): void {
+  if (suspects.size >= 20) return
+  const add = (id: string, reason: string): void => {
+    const key = id.toLowerCase()
+    if (!suspects.has(key)) suspects.set(key, reason)
+  }
+  const construct = line.match(
+    /Failed to (?:create mod instance|register automatic subscribers)\. ModID: ([\w.-]+)/i
+  )
+  if (construct) {
+    add(construct[1], '服务端构造/注册失败，疑似仅客户端模组')
+    return
+  }
+  const mixin = line.match(/from mod ([\w.-]+)\][^\n]*FAILED during APPLY/i)
+  if (mixin) {
+    add(mixin[1], 'mixin 在服务端应用失败（引用了客户端内容）')
+    return
+  }
+  const missing = line.match(/Mod ID: '([^']+)', Requested by: '([^']+)'/i)
+  if (missing && !SUSPECT_BUILTIN_DEPS.has(missing[1].toLowerCase())) {
+    add(missing[2], `缺少依赖 ${missing[1]}`)
+  }
+}
+
 function sizeLabel(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(0, bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -76,6 +104,27 @@ function sizeLabel(bytes: number): string {
 
 function entryKey(name: string): string {
   return name.replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase()
+}
+
+/** 部分服务端 zip 带单层外包装目录（如 aqs-server/）；剥掉它让根目录语义成立。 */
+function stripWrapperRoot(zip: AdmZip): string {
+  const entries = zip.getEntries()
+  if (entries.length === 0) return ''
+  let prefix: string | null = null
+  for (const entry of entries) {
+    const name = entry.entryName.replace(/\\/g, '/')
+    const i = name.indexOf('/')
+    if (i <= 0) return ''
+    const top = name.slice(0, i + 1)
+    if (prefix === null) prefix = top
+    else if (prefix !== top) return ''
+  }
+  if (!prefix) return ''
+  for (const entry of entries) {
+    const name = entry.entryName.replace(/\\/g, '/')
+    entry.entryName = name === prefix ? '' : name.slice(prefix.length)
+  }
+  return prefix
 }
 
 function readSmallEntry(entry: AdmZip.IZipEntry, limit = 1_000_000): string {
@@ -239,6 +288,7 @@ export async function inspectServerPack(
   }
 
   const checks: ServerPackCheckItem[] = []
+  stripWrapperRoot(zip)
   const allEntries = zip.getEntries()
   const entries = allEntries.filter((entry) => !entry.isDirectory)
   const byName = new Map<string, AdmZip.IZipEntry>()
@@ -351,9 +401,21 @@ export async function inspectServerPack(
 
   const bat = text('start-server.bat', 200_000)
   const sh = text('start-server.sh', 200_000)
-  const script = `${bat}\n${sh}`
-  if (!bat && !sh) {
-    checks.push(item('scripts', '启动脚本', 'fail', '缺少 start-server.bat / start-server.sh。'))
+  // 第三方服务端包通常自带安装后的 run.bat/run.sh，而不是启动器导出的 start-server.*。
+  const runBat = bat ? '' : text('run.bat', 200_000)
+  const runSh = sh ? '' : text('run.sh', 200_000)
+  const script = `${bat}\n${sh}\n${runBat}\n${runSh}`
+  if (!bat && !sh && !runBat && !runSh) {
+    checks.push(item('scripts', '启动脚本', 'fail', '缺少 start-server.bat / start-server.sh，也没有 run.bat / run.sh。'))
+  } else if (!bat && !sh) {
+    checks.push(
+      item(
+        'scripts',
+        '启动脚本',
+        'pass',
+        `第三方服务端包：使用包内 ${[runBat && 'run.bat', runSh && 'run.sh'].filter(Boolean).join(' / ')} 启动。`
+      )
+    )
   } else if (!bat || !sh) {
     checks.push(
       item(
@@ -572,13 +634,25 @@ export async function inspectServerPack(
     }
   }
 
-  const configNames = ['config', 'defaultconfigs', 'serverconfig', 'scripts', 'kubejs']
+  const configNames = ['config', 'defaultconfigs', 'serverconfig', 'scripts', 'kubejs', 'ldlib2']
   const configCounts = configNames
     .map((name) => {
       const count = entries.filter((entry) => entryKey(entry.entryName).startsWith(`${name}/`)).length
       return count > 0 ? `${name} ${count}` : null
     })
     .filter(Boolean)
+  const hasMbd2 = entries.some((entry) => /^mods\/.*multiblocked2.*\.jar$/i.test(entryKey(entry.entryName)))
+  const hasLdlib2Dir = entries.some((entry) => entryKey(entry.entryName).startsWith('ldlib2/'))
+  if (hasMbd2 && !hasLdlib2Dir) {
+    checks.push(
+      item(
+        'mbd2-data',
+        'Multiblocked2 机器定义',
+        'warn',
+        '包内有 Multiblocked2 但缺少 ldlib2/ 目录：自定义机器与机器配方（.sm/.mb/.rt/.recipe）不会加载。把客户端实例的 ldlib2/ 复制到服务端根目录，或用启动器重新导出服务端包。'
+      )
+    )
+  }
   checks.push(
     item(
       'config',
@@ -1021,6 +1095,7 @@ export async function verifyServerPack(
   const instance = await getInstance(instanceId)
   const checks: ServerPackCheckItem[] = []
   const log: string[] = []
+  const suspects = new Map<string, string>()
   let logChars = 0
   let temp = ''
   let javaPath = ''
@@ -1035,6 +1110,7 @@ export async function verifyServerPack(
   }
   const addLog = (line: string): void => {
     if (!line) return
+    collectSuspectMod(line, suspects)
     log.push(line)
     logChars += line.length + 1
     while (log.length > 5000 || logChars > MAX_LOG_CHARS) {
@@ -1062,6 +1138,7 @@ export async function verifyServerPack(
       summary,
       durationMs: Math.max(0, Date.now() - startedAt),
       checks,
+      suspects: [],
       logPath: null,
       logTail: tail(log, 100)
     }
@@ -1110,6 +1187,7 @@ export async function verifyServerPack(
     await fs.mkdir(temp, { recursive: true })
     progress('解压到临时目录', 8)
     const zip = new AdmZip(path)
+    stripWrapperRoot(zip)
     await new Promise<void>((resolve, reject) => {
       zip.extractAllToAsync(temp, true, false, (error) => {
         if (error) reject(error)
@@ -1197,6 +1275,9 @@ export async function verifyServerPack(
           pushCheck('install', `${label} 服务端`, 'pass', `使用已安装的 ${loose}。`)
           installNote = `使用已有 ${loose}`
         } else {
+          await prestageVanillaServerJar(instance.gameVersion, temp, signal, (bytes) =>
+            progress('预下载原版服务端核心', 16, `${(bytes / 1_048_576).toFixed(1)} MB`)
+          )
           progress(`运行 ${label} 安装器`, 18)
           const outcome = await runProcess({
             file: javaPath,
@@ -1441,6 +1522,34 @@ export async function verifyServerPack(
     if (finalReport && log.length > 0) {
       finalReport.logPath = await writeVerificationLog(path, instance, javaPath, log)
       finalReport.logTail = tail(log, 100)
+    }
+    if (finalReport && !finalReport.ok && !finalReport.cancelled && suspects.size > 0 && temp) {
+      const fileById = new Map<string, string>()
+      try {
+        const entries = await fs.readdir(join(temp, 'mods'), { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.jar')) continue
+          const meta = readModMeta(join(temp, 'mods', entry.name))
+          if (meta?.id) fileById.set(meta.id, entry.name)
+        }
+      } catch {
+        /* mods 目录可能不存在 */
+      }
+      const resolved: ServerPackSuspect[] = [...suspects.entries()].map(([modId, reason]) => ({
+        modId,
+        file: fileById.get(modId) ?? null,
+        reason
+      }))
+      finalReport.suspects = resolved
+      const named = resolved.filter((item) => item.file).map((item) => item.file!)
+      pushCheck(
+        'suspects',
+        '可疑模组归因',
+        'warn',
+        named.length > 0
+          ? `日志指向这些模组：${named.join('、')}。可在制作界面取消勾选后重新生成。`
+          : `日志指向模组 ID：${resolved.map((item) => item.modId).join('、')}，但未在包内找到对应文件。`
+      )
     }
     if (temp) {
       await fs.rm(temp, { recursive: true, force: true }).catch(() => undefined)

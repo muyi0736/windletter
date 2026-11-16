@@ -40,32 +40,51 @@ function normalizeRecord(raw: unknown): RunningGameInfo | null {
   }
 }
 
-async function readRecord(): Promise<RunningGameInfo | null> {
+async function readRecords(): Promise<RunningGameInfo[]> {
   try {
-    return normalizeRecord(JSON.parse(await fs.readFile(recordPath(), 'utf8')))
+    const raw: unknown = JSON.parse(await fs.readFile(recordPath(), 'utf8'))
+    if (Array.isArray(raw)) {
+      return raw
+        .map(normalizeRecord)
+        .filter((record): record is RunningGameInfo => record !== null)
+    }
+    // 旧版单记录格式迁移
+    const single = normalizeRecord(raw)
+    return single ? [single] : []
   } catch {
-    return null
+    return []
   }
+}
+
+async function writeRecords(records: RunningGameInfo[]): Promise<void> {
+  const path = recordPath()
+  await fs.mkdir(getConfigDir(), { recursive: true })
+  if (!records.length) {
+    await fs.rm(path, { force: true }).catch(() => undefined)
+    return
+  }
+  const tmp = `${path}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(records, null, 2), 'utf8')
+  await fs.rename(tmp, path)
 }
 
 export async function recordRunningGame(info: RunningGameInfo): Promise<void> {
   const record = normalizeRecord(info)
   if (!record) return
-  const path = recordPath()
-  await fs.mkdir(getConfigDir(), { recursive: true })
-  const tmp = `${path}.tmp`
-  await fs.writeFile(tmp, JSON.stringify(record, null, 2), 'utf8')
-  await fs.rename(tmp, path)
+  const records = await readRecords()
+  const next = records.filter((item) => item.pid !== record.pid)
+  next.push(record)
+  await writeRecords(next)
 }
 
 export async function clearRunningGame(pid?: number | null): Promise<void> {
-  const record = await readRecord()
-  if (!record) {
+  const records = await readRecords()
+  if (!records.length) {
     await fs.rm(recordPath(), { force: true }).catch(() => undefined)
     return
   }
-  if (pid != null && record.pid !== pid) return
-  await fs.rm(recordPath(), { force: true }).catch(() => undefined)
+  const next = pid == null ? [] : records.filter((item) => item.pid !== pid)
+  await writeRecords(next)
 }
 
 function processAlive(pid: number): boolean {
@@ -140,14 +159,14 @@ function matchesGame(record: RunningGameInfo, details: ProcessDetails): boolean 
 }
 
 export async function inspectRunningGame(): Promise<RunningGameInfo | null> {
-  const record = await readRecord()
-  if (!record) return null
-  const details = await inspectProcess(record.pid)
-  if (!matchesGame(record, details)) {
-    await clearRunningGame(record.pid)
-    return null
+  const records = await readRecords()
+  const alive: RunningGameInfo[] = []
+  for (const record of records) {
+    const details = await inspectProcess(record.pid)
+    if (matchesGame(record, details)) alive.push(record)
   }
-  return record
+  if (alive.length !== records.length) await writeRecords(alive)
+  return alive[0] ?? null
 }
 
 async function waitForExit(pid: number, timeoutMs = 5000): Promise<boolean> {

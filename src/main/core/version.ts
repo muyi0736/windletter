@@ -311,6 +311,8 @@ export interface BuildCommandOptions {
   launcherVersion: string
   loggingPath?: string | null
   server?: { host: string; port: number } | null
+  /** 多开时每个会话独立的 natives 目录；省略时用版本目录下的共享 natives。 */
+  nativesDir?: string | null
 }
 
 export interface BuiltCommand {
@@ -341,7 +343,7 @@ export function buildLaunchCommand(options: BuildCommandOptions): BuiltCommand {
   const assetsDir = join(baseDir, 'assets')
   const libraryDir = join(baseDir, 'libraries')
   const versionDir = join(baseDir, 'versions', version.chain[0])
-  const nativesDir = join(versionDir, 'natives')
+  const nativesDir = options.nativesDir ?? join(versionDir, 'natives')
 
   const classpathEntries: string[] = []
   const appendLibrary = (lib: Library) => {
@@ -464,6 +466,13 @@ export function buildLaunchCommand(options: BuildCommandOptions): BuiltCommand {
       '--versionType',
       json.type ?? 'release'
     ]
+  }
+
+  if (settings.windowMode === 'fullscreen' && !gameArgs.includes('--fullscreen')) {
+    gameArgs.push('--fullscreen')
+  }
+  if (settings.gameLanguage && !gameArgs.includes('--lang')) {
+    gameArgs.push('--lang', settings.gameLanguage)
   }
 
   if (options.server) {

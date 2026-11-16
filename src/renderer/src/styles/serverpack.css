@@ -843,6 +843,57 @@
   color: var(--danger-ink);
 }
 
+.serverpack-suspects {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--warning-ink);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.serverpack-suspects > header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--warning-ink);
+  font-size: 8px;
+}
+
+.serverpack-suspects ul {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.serverpack-suspects li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 7.5px;
+  line-height: 1.5;
+}
+
+.serverpack-suspect-name {
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.serverpack-suspect-reason {
+  color: var(--text-3);
+}
+
+.serverpack-suspects > button {
+  align-self: flex-start;
+}
+
 .serverpack-check-log {
   max-height: 220px;
   margin: 0;

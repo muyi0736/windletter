@@ -4,6 +4,7 @@ import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type {
   InstanceLoader,
   InstanceMetaPatch,
+  InstanceServerTarget,
   InstanceSettingsPatch,
   InstanceSource,
   InstanceSummary
@@ -31,6 +32,21 @@ function safeIconUrl(value: unknown): string | null {
     return url.protocol === 'https:' ? url.toString() : null
   } catch {
     return null
+  }
+}
+
+function normalizeServer(value: unknown): InstanceServerTarget | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Record<string, unknown>
+  const host = typeof raw.host === 'string' ? raw.host.trim() : ''
+  const port = Number(raw.port)
+  if (!host || host.length > 253 || !Number.isInteger(port) || port < 1 || port > 65535) {
+    return null
+  }
+  return {
+    host,
+    port,
+    name: typeof raw.name === 'string' ? raw.name.slice(0, 80) : undefined
   }
 }
 
@@ -176,6 +192,7 @@ function normalize(raw: unknown, folderId: string): StoredInstance | null {
       typeof value.javaAuto === 'boolean' ? value.javaAuto : value.javaPath == null,
     category: cleanText(value.category, 20),
     favorite: Boolean(value.favorite),
+    lastServer: normalizeServer(value.lastServer),
     external
   }
 }
@@ -382,6 +399,15 @@ export async function updateInstanceSettings(
   }
   await writeInstance(next)
   return next
+}
+
+/** 记录实例最近一次直连的服务器，供崩溃后一键回服使用。 */
+export async function recordInstanceServer(
+  id: string,
+  server: { host: string; port: number; name?: string } | null
+): Promise<void> {
+  const instance = await getInstance(id)
+  await writeInstance({ ...instance, lastServer: server })
 }
 
 export function makeInstanceId(name: string): string {

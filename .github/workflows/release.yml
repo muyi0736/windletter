@@ -68,7 +68,15 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           INSTALLER="release/Yueyueyue-Launcher-${VERSION}-setup.exe"
+          ASSETS=("${INSTALLER}#月月月启动器-${VERSION}-setup.exe" release/latest.json)
+          # 增量包由 update:manifest 生成；latest.json 的 incremental 块指向它，必须同发布。
+          INCREMENTAL="release/incremental-${VERSION}.zip"
+          if [ -f "$INCREMENTAL" ]; then
+            ASSETS+=("$INCREMENTAL")
+          else
+            echo "警告：未生成增量包 $INCREMENTAL" >&2
+          fi
           gh release create "$GITHUB_REF_NAME" \
-            "${INSTALLER}#月月月启动器-${VERSION}-setup.exe" release/latest.json \
+            "${ASSETS[@]}" \
             --title "月月月启动器 ${VERSION}" \
             --notes-file build/update-notes.txt

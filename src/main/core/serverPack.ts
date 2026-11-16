@@ -13,6 +13,7 @@ import type {
 import { getAiRuntimeConfig } from './ai'
 import { getCacheDir, getSettings } from './config'
 import { getInstance, getInstanceGameDir } from './instances'
+import { getVersionEntry, getVersionJson } from './mojang'
 import { CancellationError } from './net'
 import { downloadFile, fetchText } from './net'
 import type { TaskProgress } from './progress'
@@ -22,7 +23,7 @@ import { writeStoreZip, type StoreZipEntry } from './zipStore'
 
 const MAX_AI_MODS = 360
 const AI_TIMEOUT_MS = 65_000
-const CONFIG_DIRS = ['config', 'defaultconfigs', 'serverconfig', 'scripts', 'kubejs']
+const CONFIG_DIRS = ['config', 'defaultconfigs', 'serverconfig', 'scripts', 'kubejs', 'ldlib2']
 const CLIENT_ONLY_IDS = new Set([
   'sodium',
   'sodium-extra',
@@ -86,9 +87,13 @@ const CLIENT_ONLY_IDS = new Set([
   'tweakeroo',
   'itemscroller',
   'screenshotviewer',
-  'betteradvancements'
+  'betteradvancements',
+  'ruok',
+  'ruokmod',
+  'searchonmcmod',
+  'kubejei'
 ])
-const CLIENT_ONLY_NAME = /(?:sodium|iris|oculus|optifine|embeddium|rubidium|entityculling|zoomify|fancymenu|drippyloadingscreen|drippy|konkrete|melody|modmenu|controllable|mousetweaks|inventorytweaks|chatheads|notenoughanimations|freshanimations|xaeros?minimap|xaeros?worldmap|journeymap|appleskin|skinlayers|screenshotviewer|litematica|minihud|malilib|tweakeroo|itemscroller|imblocker|inputmethodblocker|lootbeams|mafglib|minecraftcapes|tweakerge|shut_up_gl_error|jecharacters|justenoughcharacters)/i
+const CLIENT_ONLY_NAME = /(?:sodium|iris|oculus|optifine|embeddium|rubidium|entityculling|zoomify|fancymenu|drippyloadingscreen|drippy|konkrete|melody|modmenu|controllable|mousetweaks|inventorytweaks|chatheads|notenoughanimations|freshanimations|xaeros?minimap|xaeros?worldmap|journeymap|appleskin|skinlayers|screenshotviewer|litematica|minihud|malilib|tweakeroo|itemscroller|imblocker|inputmethodblocker|lootbeams|mafglib|minecraftcapes|tweakerge|shut_up_gl_error|jecharacters|justenoughcharacters|ruok|searchonmcmod|kubejei)/i
 const ESSENTIAL_CLIENT = /(?:^|[^a-z])essential(?:[_\-.\s]|$)/i
 const CONFIG_FILE = /\.(?:properties|json5?|toml|ya?ml|txt|cfg|conf|ini|snbt)$/i
 
@@ -98,6 +103,7 @@ export interface ModMeta {
   version: string | null
   environment: 'client' | 'server' | 'both' | null
   requires: string[]
+  provides: string[]
 }
 
 interface EntryWithSize extends StoreZipEntry {
@@ -123,6 +129,36 @@ const BUILTIN_DEPENDENCIES = new Set([
   'quilt_loader',
   'fml'
 ])
+
+/** Fabric API 等伞项目把模块 jar 嵌套在 META-INF/jars/ 内，这些 id 也算 provides。 */
+function nestedFabricIds(zip: AdmZip): string[] {
+  const ids: string[] = []
+  try {
+    for (const entry of zip.getEntries()) {
+      if (ids.length >= 200) break
+      if (!entry.entryName.startsWith('META-INF/jars/') || !entry.entryName.endsWith('.jar')) continue
+      try {
+        const inner = new AdmZip(entry.getData())
+        const meta = inner.getEntry('fabric.mod.json')
+        if (!meta) continue
+        const data = JSON.parse(meta.getData().toString('utf8')) as { id?: unknown }
+        if (typeof data.id === 'string') ids.push(data.id.toLowerCase())
+      } catch {
+        /* ignore bad nested jar */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return ids
+}
+
+function parseProvides(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.toLowerCase())
+}
 
 function cleanRequires(list: unknown[]): string[] {
   const result = new Set<string>()
@@ -157,6 +193,7 @@ export function readModMeta(path: string): ModMeta | null {
   } catch {
     return null
   }
+  let meta: ModMeta | null = null
   try {
     const fabric = zip.getEntry('fabric.mod.json')
     if (fabric) {
@@ -167,7 +204,7 @@ export function readModMeta(path: string): ModMeta | null {
             data.depends && typeof data.depends === 'object' && !Array.isArray(data.depends)
               ? Object.keys(data.depends as Record<string, unknown>)
               : []
-          return {
+          meta = {
             id: data.id.toLowerCase(),
             name: String(data.name || data.id),
             version: typeof data.version === 'string' ? data.version : null,
@@ -177,14 +214,15 @@ export function readModMeta(path: string): ModMeta | null {
                 : data.environment === 'server'
                   ? 'server'
                   : 'both',
-            requires: cleanRequires(depends)
+            requires: cleanRequires(depends),
+            provides: [...parseProvides(data.provides), ...nestedFabricIds(zip)]
           }
         }
       } catch {
         /* try next */
       }
     }
-    const quilt = zip.getEntry('quilt.mod.json')
+    const quilt = !meta ? zip.getEntry('quilt.mod.json') : null
     if (quilt) {
       try {
         const data = JSON.parse(quilt.getData().toString('utf8')) as {
@@ -198,7 +236,7 @@ export function readModMeta(path: string): ModMeta | null {
         }
         const loader = data.quilt_loader
         if (loader?.id) {
-          return {
+          meta = {
             id: loader.id.toLowerCase(),
             name: String(loader.metadata?.name || loader.id),
             version: loader.version ?? null,
@@ -210,36 +248,42 @@ export function readModMeta(path: string): ModMeta | null {
                   : 'both',
             requires: cleanRequires(
               Array.isArray(loader.depends) ? loader.depends.map((item) => item?.id) : []
-            )
+            ),
+            provides: parseProvides((loader as { provides?: unknown }).provides)
           }
         }
       } catch {
         /* try next */
       }
     }
-    for (const entryName of ['META-INF/neoforge.mods.toml', 'META-INF/mods.toml']) {
-      const entry = zip.getEntry(entryName)
-      if (!entry || entry.header.size > 1_000_000) continue
-      try {
-        const text = entry.getData().toString('utf8')
-        const section = text.match(/\[\[mods\]\]([\s\S]*?)(?=\n\s*\[\[|$)/i)?.[1] ?? ''
-        const id = section.match(/^\s*modId\s*=\s*["']([^"']+)["']/im)?.[1]
-        if (id) {
-          const name = section.match(/^\s*displayName\s*=\s*["']([^"']+)["']/im)?.[1]
-          const version = section.match(/^\s*version\s*=\s*["']([^"']+)["']/im)?.[1]
-          return {
-            id: id.toLowerCase(),
-            name: name || id,
-            version: version ?? null,
-            environment: null,
-            requires: parseForgeRequires(text)
+    if (!meta) {
+      for (const entryName of ['META-INF/neoforge.mods.toml', 'META-INF/mods.toml']) {
+        const entry = zip.getEntry(entryName)
+        if (!entry || entry.header.size > 1_000_000) continue
+        try {
+          const text = entry.getData().toString('utf8')
+          const section = text.match(/\[\[mods\]\]([\s\S]*?)(?=\n\s*\[\[|$)/i)?.[1] ?? ''
+          const id = section.match(/^\s*modId\s*=\s*["']([^"']+)["']/im)?.[1]
+          if (id) {
+            const name = section.match(/^\s*displayName\s*=\s*["']([^"']+)["']/im)?.[1]
+            const version = section.match(/^\s*version\s*=\s*["']([^"']+)["']/im)?.[1]
+            const clientSideOnly = /^\s*clientSideOnly\s*=\s*true/im.test(text)
+            meta = {
+              id: id.toLowerCase(),
+              name: name || id,
+              version: version ?? null,
+              environment: clientSideOnly ? 'client' : null,
+              requires: parseForgeRequires(text),
+              provides: []
+            }
+            break
           }
+        } catch {
+          /* try next */
         }
-      } catch {
-        /* try next */
       }
     }
-    const legacy = zip.getEntry('mcmod.info')
+    const legacy = !meta ? zip.getEntry('mcmod.info') : null
     if (legacy) {
       try {
         const raw = JSON.parse(legacy.getData().toString('utf8')) as
@@ -247,12 +291,13 @@ export function readModMeta(path: string): ModMeta | null {
           | { modid?: string; name?: string; version?: string }[]
         const first = (Array.isArray(raw) ? raw : raw.modList ?? [])[0]
         if (first?.modid) {
-          return {
+          meta = {
             id: first.modid.toLowerCase(),
             name: first.name || first.modid,
             version: first.version ?? null,
             environment: null,
-            requires: []
+            requires: [],
+            provides: []
           }
         }
       } catch {
@@ -262,7 +307,7 @@ export function readModMeta(path: string): ModMeta | null {
   } catch {
     return null
   }
-  return null
+  return meta
 }
 
 /** 快速按文件名判断常见的仅客户端模组，供导出后的静态检查使用。 */
@@ -278,7 +323,7 @@ export function classifyMod(file: string, meta: ModMeta | null): {
   const id = meta?.id?.toLowerCase() ?? ''
   const name = basename(file).toLowerCase()
   if (meta?.environment === 'client') {
-    return { side: 'client', reason: 'Fabric/Quilt 标记为仅客户端' }
+    return { side: 'client', reason: '元数据声明仅客户端（environment/clientSideOnly）' }
   }
   if (id && CLIENT_ONLY_IDS.has(id)) {
     return { side: 'client', reason: '常见客户端模组' }
@@ -378,6 +423,46 @@ async function downloadInstaller(
     onBytes,
     probeSources: false
   })
+}
+
+/**
+ * NeoForge/Forge 安装器会从 Mojang 直连下载原版服务端核心，部分网络下超时或校验失败。
+ * 先用启动器的多线路下载把核心预置到安装器期望的路径，安装器见到有效文件会跳过下载。
+ * 失败时返回 null，交回安装器自行下载。
+ */
+export async function prestageVanillaServerJar(
+  gameVersion: string,
+  rootDir: string,
+  signal: AbortSignal,
+  onBytes?: (bytes: number) => void
+): Promise<string | null> {
+  const target = join(
+    rootDir,
+    'libraries',
+    'net',
+    'minecraft',
+    'server',
+    gameVersion,
+    `server-${gameVersion}.jar`
+  )
+  if (await pathExists(target)) return target
+  try {
+    const source = getSettings().source
+    const entry = await getVersionEntry(gameVersion, source)
+    const { json } = await getVersionJson(entry, source, signal)
+    const server = json.downloads?.server
+    if (!server?.url) return null
+    await downloadInstaller(
+      orderedUrls(server.url, source),
+      target,
+      { sha1: server.sha1 ?? null, size: server.size ?? null },
+      signal,
+      onBytes ?? (() => undefined)
+    )
+    return target
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -818,6 +903,24 @@ export async function createServerPack(
         )
         if (instance.loader === 'neoforge') patchNeoForgeInstaller(target)
         await addSource(installerName, target)
+        progress({
+          stage: '预下载原版服务端核心',
+          percent: 32,
+          detail: { current: 0, total: 1, bytesDone: 0, bytesTotal: 0, speed: 0 }
+        })
+        const core = await prestageVanillaServerJar(instance.gameVersion, temp, signal, (bytes) =>
+          progress({
+            stage: '预下载原版服务端核心',
+            percent: 32,
+            detail: { current: bytes, total: bytes, bytesDone: bytes, bytesTotal: bytes, speed: 0 }
+          })
+        )
+        if (core) {
+          await addSource(
+            `libraries/net/minecraft/server/${instance.gameVersion}/server-${instance.gameVersion}.jar`,
+            core
+          )
+        }
       }
     }
 

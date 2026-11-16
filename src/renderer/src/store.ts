@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import type {
   AccountView,
   AccountsPayload,
+  AiFixAction,
   AppInfo,
+  CrashAssistView,
   CurseForgeInstallRequest,
   DownloadSource,
   InstanceMetaPatch,
@@ -18,6 +20,7 @@ import type {
   LocalPackView,
   ManualPackFile,
   ModrinthProjectView,
+  PowerCountdown,
   PresetCheckResult,
   PresetInstallItem,
   ServerInput,
@@ -59,7 +62,8 @@ const EMPTY_LAUNCH: LaunchState = {
   startedAt: null,
   exitCode: null,
   error: null,
-  speed: null
+  speed: null,
+  running: []
 }
 
 const EMPTY_ACCOUNTS: AccountsPayload = { accounts: [], activeId: null }
@@ -117,6 +121,8 @@ interface LauncherStore {
   installedLoading: boolean
   instances: InstanceSummary[]
   instancesLoading: boolean
+  updateCounts: Record<string, number>
+  refreshUpdateCounts: () => Promise<void>
   manifest: VersionManifestView | null
   manifestLoading: boolean
   manifestError: string | null
@@ -212,9 +218,16 @@ interface LauncherStore {
   diagnosticTarget: { instanceId: string; instanceName: string; auto: boolean } | null
   openDiagnosis: (id?: string | null, auto?: boolean) => void
   closeDiagnosis: () => void
+  crashAssist: CrashAssistView | null
+  closeCrashAssist: () => void
+  powerCountdown: PowerCountdown | null
+  cancelPower: () => Promise<void>
+  applyCrashFix: (action: AiFixAction) => Promise<void>
+  relaunchFromCrash: (withServer: boolean) => Promise<void>
 
   startLaunch: (versionId?: string) => Promise<void>
   startInstance: (id?: string) => Promise<void>
+  stopInstance: (id: string) => Promise<void>
   loadServers: () => Promise<void>
   refreshServers: () => Promise<void>
   refreshServer: (id: string) => Promise<void>
@@ -249,6 +262,7 @@ export const useLauncher = create<LauncherStore>()((set, get) => ({
   installedLoading: false,
   instances: [],
   instancesLoading: false,
+  updateCounts: {},
   manifest: null,
   manifestLoading: false,
   manifestError: null,
@@ -268,6 +282,8 @@ export const useLauncher = create<LauncherStore>()((set, get) => ({
   selectedVersionId: null,
   selectedInstanceId: null,
   diagnosticTarget: null,
+  crashAssist: null,
+  powerCountdown: null,
   servers: [],
   serversLoading: false,
   serversChecking: false,
@@ -279,22 +295,30 @@ export const useLauncher = create<LauncherStore>()((set, get) => ({
     if (initializing || get().booted) return
     initializing = true
     wireEvents(set, get)
+    const bootT0 = performance.now()
+    const timed = <T,>(label: string, promise: Promise<T>): Promise<T> => {
+      const start = performance.now()
+      return promise.finally(() => {
+        console.debug(`[boot] ipc ${label} ${Math.round(performance.now() - start)}ms`)
+      })
+    }
     try {
-      const settings = await window.ccl.settings.get()
+      const settings = await timed('settings', window.ccl.settings.get())
       set({ settings, selectedVersionId: settings.lastVersionId })
 
       const [appInfo, updateState, accounts, installed, instances, tasks, launch, logs, servers] =
         await Promise.all([
-          window.ccl.app.info().catch(() => null),
-          window.ccl.updater.state().catch(() => EMPTY_UPDATE),
-          window.ccl.auth.list().catch(() => EMPTY_ACCOUNTS),
-          window.ccl.versions.installed().catch(() => [] as InstalledVersion[]),
-          window.ccl.instances.list().catch(() => [] as InstanceSummary[]),
-          window.ccl.tasks.list().catch(() => [] as TaskState[]),
-          window.ccl.launch.getState().catch(() => EMPTY_LAUNCH),
-          window.ccl.launch.getLogs().catch(() => [] as LaunchLogLine[]),
-          window.ccl.servers.list().catch(() => [] as ServerView[])
+          timed('app.info', window.ccl.app.info().catch(() => null)),
+          timed('updater.state', window.ccl.updater.state().catch(() => EMPTY_UPDATE)),
+          timed('auth.list', window.ccl.auth.list().catch(() => EMPTY_ACCOUNTS)),
+          timed('versions.installed', window.ccl.versions.installed().catch(() => [] as InstalledVersion[])),
+          timed('instances.list', window.ccl.instances.list().catch(() => [] as InstanceSummary[])),
+          timed('tasks.list', window.ccl.tasks.list().catch(() => [] as TaskState[])),
+          timed('launch.getState', window.ccl.launch.getState().catch(() => EMPTY_LAUNCH)),
+          timed('launch.getLogs', window.ccl.launch.getLogs().catch(() => [] as LaunchLogLine[])),
+          timed('servers.list', window.ccl.servers.list().catch(() => [] as ServerView[]))
         ])
+      console.debug(`[boot] renderer data ready ${Math.round(performance.now() - bootT0)}ms`)
       const selectedInstanceId =
         settings.lastInstanceId && instances.some((instance) => instance.id === settings.lastInstanceId)
           ? settings.lastInstanceId
@@ -473,6 +497,7 @@ export const useLauncher = create<LauncherStore>()((set, get) => ({
         instancesLoading: false,
         selectedInstanceId: current && ids.has(current) ? current : null
       })
+      void get().refreshUpdateCounts()
       return instances
     } catch (error) {
       set({ instancesLoading: false })
@@ -1096,6 +1121,15 @@ export const useLauncher = create<LauncherStore>()((set, get) => ({
     }
   },
 
+  stopInstance: async (id) => {
+    try {
+      await window.ccl.launch.stopInstance(id)
+      get().toast('info', '正在结束游戏', '进程退出后卡片会恢复可启动状态')
+    } catch (error) {
+      get().toast('error', '结束游戏失败', cleanError(error))
+    }
+  },
+
   loadServers: async () => {
     set({ serversLoading: true })
     try {
@@ -1245,6 +1279,63 @@ export const useLauncher = create<LauncherStore>()((set, get) => ({
   },
 
   closeDiagnosis: () => set({ diagnosticTarget: null }),
+
+  closeCrashAssist: () => set({ crashAssist: null }),
+
+  cancelPower: async () => {
+    await window.ccl.power.cancel().catch(() => undefined)
+    set({ powerCountdown: null })
+  },
+
+  refreshUpdateCounts: async () => {
+    try {
+      set({ updateCounts: await window.ccl.ledger.updateCounts() })
+    } catch {
+      /* 徽章计数失败不影响主流程 */
+    }
+  },
+
+  applyCrashFix: async (action) => {
+    const view = get().crashAssist
+    if (!view || !view.instanceId) return
+    try {
+      const result = await window.ccl.ai.applyFix({
+        instanceId: view.instanceId,
+        type: action.type,
+        file: action.file,
+        memoryMb: action.memoryMb
+      })
+      set({
+        crashAssist: {
+          ...view,
+          actions: view.actions.filter((item) => item !== action),
+          summary: result.message
+        }
+      })
+      get().toast('success', '修复已应用', result.message)
+      void get().refreshInstances()
+    } catch (error) {
+      get().toast('error', '修复未执行', cleanError(error))
+    }
+  },
+
+  relaunchFromCrash: async (withServer) => {
+    const view = get().crashAssist
+    set({ crashAssist: null })
+    if (!view) return
+    try {
+      if (view.instanceId) {
+        await window.ccl.instances.launch(
+          view.instanceId,
+          withServer && view.lastServer ? { server: view.lastServer } : undefined
+        )
+      } else {
+        await window.ccl.launch.start(view.versionId)
+      }
+    } catch (error) {
+      get().toast('error', '重新启动失败', cleanError(error))
+    }
+  },
 
   cancelLaunch: async () => {
     try {
@@ -1564,7 +1655,7 @@ function wireEvents(set: SetState, get: () => LauncherStore): void {
       state.exitCode !== 0 &&
       !stopRequested
     ) {
-      get().openDiagnosis(state.instanceId, true)
+      // 自动弹窗改由主进程 crash-assist 事件驱动（含本地诊断与一键修复）。
     }
     if (
       state.status === 'exited' &&
@@ -1598,6 +1689,15 @@ function wireEvents(set: SetState, get: () => LauncherStore): void {
       void get().refreshInstalled()
       if (state.instanceId) void get().refreshInstances()
     }
+  })
+
+  window.ccl.launch.onCrashAssist((view) => {
+    if (get().settings?.crashAutoAssist === false) return
+    set({ crashAssist: view })
+  })
+
+  window.ccl.power.onCountdown((state) => {
+    set({ powerCountdown: state })
   })
 
   window.ccl.launch.onLog((line) => {

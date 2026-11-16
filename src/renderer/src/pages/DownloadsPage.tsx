@@ -7,6 +7,7 @@ import {
   ExternalLink,
   FolderOpen,
   FolderSearch,
+  Link2,
   Gamepad2,
   Globe,
   Layers,
@@ -138,6 +139,8 @@ export function DownloadsPage() {
   const [loaderVersion, setLoaderVersion] = useState('')
 
   const [packQuery, setPackQuery] = useState('')
+  const [packUrl, setPackUrl] = useState('')
+  const [packUrlBusy, setPackUrlBusy] = useState(false)
   const [packVersion, setPackVersion] = useState('')
   const [packSource, setPackSource] = useState<ModSearchProvider>('all')
   const [packType, setPackType] = useState('all')
@@ -274,6 +277,21 @@ export function DownloadsPage() {
     () => [...new Set((manifest?.versions ?? []).map((version) => groupOf(version.id)))].slice(0, 20),
     [manifest]
   )
+
+  const installFromUrl = async () => {
+    const value = packUrl.trim()
+    if (!value || packUrlBusy) return
+    setPackUrlBusy(true)
+    try {
+      await window.ccl.instances.installUrl(value)
+      setPackUrl('')
+      toast('info', '已加入安装任务', '进度见任务浮窗')
+    } catch (err) {
+      toast('error', '链接安装失败', cleanError(err))
+    } finally {
+      setPackUrlBusy(false)
+    }
+  }
 
   const runPackSearch = async (append = false) => {
     const sequence = ++packSearchSeq.current
@@ -1191,6 +1209,28 @@ export function DownloadsPage() {
                     安装已有整合包
                   </button>
                 </div>
+              </div>
+              <div className="modpack-urlbar">
+                <div className="text-input">
+                  <Link2 size={14} />
+                  <input
+                    value={packUrl}
+                    placeholder="粘贴 Modrinth / CurseForge 整合包页或 .mrpack / .zip 直链"
+                    onChange={(event) => setPackUrl(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void installFromUrl()
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="button button--soft button--sm"
+                  disabled={packUrlBusy || !packUrl.trim()}
+                  onClick={() => void installFromUrl()}
+                >
+                  {packUrlBusy ? <Spinner size={13} /> : <Download size={13} />}
+                  链接安装
+                </button>
               </div>
               <div className="modpack-form">
                 <label className="form-field">

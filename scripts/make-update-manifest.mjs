@@ -2,7 +2,8 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
-import { basename, dirname, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import AdmZip from 'adm-zip'
 
 function usage() {
   console.log(`用法：
@@ -16,6 +17,8 @@ function usage() {
   --page-url <地址>      发布页地址
   --mirror <地址>        安装包备用下载地址，可重复
   --mandatory            标记为重要更新
+  --no-incremental       不生成增量包（默认从 release/win-unpacked 打包 app.asar）
+  --unpacked <目录>      win-unpacked 目录，默认 release/win-unpacked
   --out <文件>           默认与安装包同目录的 latest.json
 `)
 }
@@ -34,6 +37,8 @@ let notesInline = ''
 let pageUrl = ''
 let mandatory = false
 let out = ''
+let noIncremental = false
+let unpacked = resolve('release/win-unpacked')
 const mirrors = []
 
 for (let index = 1; index < args.length; index += 1) {
@@ -45,6 +50,8 @@ for (let index = 1; index < args.length; index += 1) {
   else if (arg === '--page-url') pageUrl = args[++index] ?? ''
   else if (arg === '--mirror') mirrors.push(args[++index] ?? '')
   else if (arg === '--mandatory') mandatory = true
+  else if (arg === '--no-incremental') noIncremental = true
+  else if (arg === '--unpacked') unpacked = resolve(args[++index] ?? unpacked)
   else if (arg === '--out') out = args[++index] ?? ''
   else {
     console.error(`未知参数：${arg}`)
@@ -140,10 +147,51 @@ const manifest = {
   ...(mandatory ? { mandatory: true } : {})
 }
 
+// 增量包：只带应用文件（app.asar + 时长监视器），老版本覆盖安装后可跳过整包下载。
+let incrementalInfo = null
+if (!noIncremental) {
+  const asarPath = join(unpacked, 'resources', 'app.asar')
+  const asarStat = await stat(asarPath).catch(() => null)
+  if (asarStat?.isFile()) {
+    const zipPath = resolve(dirname(installer), `incremental-${version}.zip`)
+    const zip = new AdmZip()
+    zip.addLocalFile(asarPath)
+    const watchPath = join(unpacked, 'resources', 'playtime-watch.exe')
+    if (await stat(watchPath).then((s) => s.isFile()).catch(() => false)) {
+      zip.addLocalFile(watchPath)
+    }
+    zip.writeZip(zipPath)
+    const zipStat = await stat(zipPath)
+    const zipHash = createHash('sha256')
+    await new Promise((resolveHash, reject) => {
+      const stream = createReadStream(zipPath)
+      stream.on('error', reject)
+      stream.on('data', (chunk) => zipHash.update(chunk))
+      stream.on('end', resolveHash)
+    })
+    let incUrl = basename(zipPath)
+    if (base.trim()) {
+      incUrl = new URL(encodeURIComponent(basename(zipPath)), base.trim().endsWith('/') ? base.trim() : `${base.trim()}/`).toString()
+    }
+    manifest.incremental = {
+      kind: 'asar-swap',
+      url: incUrl,
+      size: zipStat.size,
+      sha256: zipHash.digest('hex')
+    }
+    incrementalInfo = { zipPath, size: zipStat.size }
+  } else {
+    console.log('[incremental] 未找到 release/win-unpacked/resources/app.asar，跳过增量包')
+  }
+}
+
 const target = out ? resolve(out) : resolve(dirname(installer), 'latest.json')
 await writeFile(target, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 console.log(`已生成 ${target}`)
 console.log(`版本 ${version} · ${info.size} 字节 · SHA-256 ${sha256}`)
 console.log(`下载地址 ${url}`)
+if (incrementalInfo) {
+  console.log(`增量包 ${incrementalInfo.zipPath} · ${incrementalInfo.size} 字节（完整包的 ${Math.round((incrementalInfo.size / info.size) * 100)}%）`)
+}
 if (mirrorUrls.length) console.log(`备用地址 ${mirrorUrls.join(' , ')}`)
-console.log('把安装包与 latest.json 一起上传到同一目录后，在启动器“更多 → 启动器更新”填写 latest.json 地址。')
+console.log('把安装包、增量包（如有）与 latest.json 一起上传到同一目录后，在启动器“更多 → 启动器更新”填写 latest.json 地址。')

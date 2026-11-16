@@ -10,6 +10,7 @@ export function RhineInstanceDossier() {
   const startInstance = useLauncher((state) => state.startInstance)
   const setAccountModalOpen = useLauncher((state) => state.setAccountModalOpen)
   const toast = useLauncher((state) => state.toast)
+  const updateCounts = useLauncher((state) => state.updateCounts)
 
   const sorted = useMemo(
     () =>
@@ -20,7 +21,7 @@ export function RhineInstanceDossier() {
   )
   const instance = instances.find((item) => item.id === selectedId) ?? sorted[0] ?? null
   const account = accounts.accounts.find((item) => item.id === accounts.activeId) ?? null
-  const running = launch.status === 'running' && launch.instanceId === instance?.id
+  const running = launch.running.some((item) => item.instanceId === instance?.id)
   const launchBusy = launch.status === 'preparing' || launch.status === 'starting'
 
   if (!instance) {
@@ -76,6 +77,7 @@ export function RhineInstanceDossier() {
           <div className="rhine-profile-row"><span>JAVA</span><b>{instance.javaMajor ?? 'AUTO'}</b></div>
           <div className="rhine-profile-row"><span>MEMORY</span><b>{instance.memoryMb ? formatMemory(instance.memoryMb) : 'AUTO'}</b></div>
           <div className="rhine-profile-row"><span>LAST PLAYED</span><b>{relativeTime(instance.lastPlayed).toUpperCase()}</b></div>
+          <div className="rhine-profile-row"><span>UPDATES</span><b>{(updateCounts[instance.id] ?? 0) > 0 ? `${updateCounts[instance.id]} AVAILABLE` : 'NONE'}</b></div>
         </div>
         <div className="rhine-auth">
           <div className="rhine-auth-head"><span>LAUNCH AUTHORIZATION</span><span>LEVEL-A</span></div>

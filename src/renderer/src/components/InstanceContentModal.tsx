@@ -41,6 +41,7 @@ import { ModVersionModal } from './ModVersionModal'
 import type { ModVersionActionOptions, ModVersionTarget } from './ModVersionModal'
 import { ContentPackPreviewModal } from './ContentPackPreviewModal'
 import { ContentUpdateSummaryModal } from './ContentUpdateSummaryModal'
+import { ResourcePackOrderPanel } from './ResourcePackOrderPanel'
 import {
   MERGED_PAGE_SIZE,
   searchDualSource,
@@ -72,11 +73,13 @@ export function InstanceContentModal({
   open,
   instance,
   initialTab,
+  focusUpdates = false,
   onClose
 }: {
   open: boolean
   instance: InstanceSummary | null
   initialTab?: 'mod' | 'datapack' | 'resourcepack' | 'shader' | null
+  focusUpdates?: boolean
   onClose: () => void
 }) {
   const toast = useLauncher((state) => state.toast)
@@ -112,6 +115,9 @@ export function InstanceContentModal({
   const [ledgerChecking, setLedgerChecking] = useState(false)
   const [ledgerError, setLedgerError] = useState('')
   const [ledgerFilter, setLedgerFilter] = useState<'all' | 'updates'>('all')
+  useEffect(() => {
+    if (open && focusUpdates) setLedgerFilter('updates')
+  }, [open, focusUpdates])
   const [selectedUpdates, setSelectedUpdates] = useState<Set<string>>(new Set())
   const [updating, setUpdating] = useState(false)
   const [rollingBack, setRollingBack] = useState(false)
@@ -443,6 +449,7 @@ export function InstanceContentModal({
       ? kindEntries.filter((entry) => entry.updateAvailable)
       : kindEntries
   const kindUpdateEntries = kindEntries.filter((entry) => entry.updateAvailable)
+  const allUpdateEntries = (ledger?.entries ?? []).filter((entry) => entry.updateAvailable)
   const selectedEntries = (ledger?.entries ?? []).filter(
     (entry) => entry.updateAvailable && selectedUpdates.has(ledgerEntryKey(entry))
   )
@@ -479,8 +486,9 @@ export function InstanceContentModal({
     })
   }
 
-  const runUpdates = async () => {
-    if (!instance || updating || rollingBack || selectedEntries.length === 0) return
+  const runUpdates = async (entriesOverride?: ContentLedgerEntryView[]) => {
+    const entries = entriesOverride ?? selectedEntries
+    if (!instance || updating || rollingBack || entries.length === 0) return
     setUpdating(true)
     setLedgerError('')
     setProgressSpeed(0)
@@ -499,7 +507,7 @@ export function InstanceContentModal({
     try {
       const result = await window.ccl.ledger.update({
         instanceId: instance.id,
-        files: selectedEntries.map((entry) => ({
+        files: entries.map((entry) => ({
           kind: entry.kind,
           file: entry.file
         }))
@@ -726,6 +734,10 @@ export function InstanceContentModal({
             onChange={(value) => setView(value as 'installed' | 'browse')}
           />
         </div>
+
+        {tab === 'resourcepack' && instance && (
+          <ResourcePackOrderPanel instanceId={instance.id} />
+        )}
 
         {view === 'browse' ? (
           <>
@@ -1248,7 +1260,7 @@ export function InstanceContentModal({
                         {selectedBytes > 0 ? ` · 约 ${formatBytes(selectedBytes)}` : ''}
                       </strong>
                       <span>
-                        更新前会自动创建已知可运行快照并备份原文件；失败自动回滚。
+                        更新前会自动创建已知可运行快照、备份原文件与 config 目录；失败自动回滚。
                       </span>
                     </div>
                   )}
@@ -1262,6 +1274,17 @@ export function InstanceContentModal({
                           onClick={toggleSelectKind}
                         >
                           {allKindSelected ? '取消全选本类' : '全选本类'}
+                        </button>
+                      )}
+                      {allUpdateEntries.length > 0 && (
+                        <button
+                          type="button"
+                          className="button button--soft button--sm"
+                          disabled={updating || rollingBack}
+                          onClick={() => void runUpdates(allUpdateEntries)}
+                        >
+                          <Download size={12} />
+                          一键全更 ({allUpdateEntries.length})
                         </button>
                       )}
                       <button

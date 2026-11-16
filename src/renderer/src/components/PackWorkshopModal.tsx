@@ -79,8 +79,18 @@ export function PackWorkshopModal({
   const [kubeFileCount, setKubeFileCount] = useState(0)
   const [kubeDirty, setKubeDirty] = useState(false)
   const [kubeBusy, setKubeBusy] = useState(false)
+  const [fixing, setFixing] = useState(false)
+  const [fixStage, setFixStage] = useState('')
 
   const instanceId = instance?.id ?? ''
+
+  useEffect(() => {
+    return window.ccl.workshop.onFixProgress((progress) => {
+      setFixStage(progress.stage)
+    })
+  }, [])
+
+
 
   const loadReport = useCallback(async () => {
     if (!instanceId) return
@@ -97,6 +107,31 @@ export function PackWorkshopModal({
       setLoading(false)
     }
   }, [instanceId])
+
+  const fixMissing = useCallback(async () => {
+    if (!instanceId || fixing) return
+    setFixing(true)
+    setFixStage('正在扫描缺失依赖…')
+    try {
+      const result = await window.ccl.workshop.fixMissing(instanceId)
+      const failedText = result.failed.length
+        ? `；${result.failed.length} 项失败：${result.failed.map((item) => `${item.id}（${item.reason}）`).join('、')}`
+        : ''
+      useLauncher
+        .getState()
+        .toast(
+          result.failed.length ? 'info' : 'success',
+          `已补齐 ${result.installed.length} 个依赖`,
+          failedText || '模组文件已放入实例 mods 目录'
+        )
+      await loadReport()
+    } catch (cause) {
+      useLauncher.getState().toast('error', '补齐依赖失败', cleanError(cause))
+    } finally {
+      setFixing(false)
+      setFixStage('')
+    }
+  }, [instanceId, fixing, loadReport])
 
   useEffect(() => {
     if (!instanceId) return
@@ -341,6 +376,20 @@ export function PackWorkshopModal({
                   </button>
                 ))}
               </div>
+              {report && report.counts.missing > 0 && (
+                <div className="workshop-fixmissing">
+                  <button
+                    type="button"
+                    className="button button--soft button--sm"
+                    disabled={fixing}
+                    onClick={() => void fixMissing()}
+                  >
+                    {fixing ? <Spinner size={12} /> : <Download size={12} />}
+                    补齐缺失依赖 ({report.counts.missing})
+                  </button>
+                  {fixing && fixStage && <span className="workshop-fixstage">{fixStage}</span>}
+                </div>
+              )}
             </div>
 
             <div className="workshop-bulk">

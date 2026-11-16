@@ -578,7 +578,9 @@
   .rhine-quick-links { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .rhine-app .page-transition, .rhine-rotor, .rhine-rotor.rev { animation: none !important; }
+  html:not([data-motion='full']) .rhine-app .page-transition,
+  html:not([data-motion='full']) .rhine-rotor,
+  html:not([data-motion='full']) .rhine-rotor.rev { animation: none !important; }
 }
 
 /* portalled modals render outside .rhine-app */

@@ -1,7 +1,8 @@
 import { RemoteIcon } from '../components/RemoteIcon'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronRight,
+  Copy,
   Download,
   ExternalLink,
   FolderOpen,
@@ -21,6 +22,7 @@ import type {
   ModVersionView
 } from '@shared/types'
 import { useLauncher } from '../store'
+import { copyText } from '../lib/clipboard'
 import { cleanError, formatCount, loaderLabel } from '../lib/format'
 import { Badge, Modal, Segmented, Spinner } from './ui'
 import { ModVersionModal } from './ModVersionModal'
@@ -66,6 +68,8 @@ export function ModsModal({
   const [error, setError] = useState('')
   const searchSeq = useRef(0)
   const [installed, setInstalled] = useState<InstalledModView[]>([])
+  const [modFilter, setModFilter] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
   const [installing, setInstalling] = useState<string | null>(null)
   const [versionProject, setVersionProject] = useState<ModProjectView | null>(null)
   const [manual, setManual] = useState<ManualModDownload[]>([])
@@ -219,6 +223,25 @@ export function ModsModal({
     void runSearch(next, query)
   }
 
+  const modListText = () => {
+    const enabledCount = installed.filter((mod) => mod.enabled).length
+    return [
+      `# 模组清单 · ${instance?.name ?? ''}`,
+      `Minecraft ${instance?.gameVersion ?? ''} · ${loaderLabel(instance?.loader ?? 'vanilla') ?? '原版'} · ${new Date().toLocaleString('zh-CN')}`,
+      `共 ${installed.length} 个模组（启用 ${enabledCount} / 禁用 ${installed.length - enabledCount}）`,
+      '',
+      ...installed.map(
+        (mod) => `- [${mod.enabled ? 'x' : ' '}] ${mod.file}（${Math.round(mod.size / 1024)} KB）`
+      )
+    ].join('\n')
+  }
+
+  const filteredMods = useMemo(() => {
+    const keyword = modFilter.trim().toLowerCase()
+    if (!keyword) return installed
+    return installed.filter((mod) => mod.file.toLowerCase().includes(keyword))
+  }, [installed, modFilter])
+
   if (!instance) return null
 
   const installVersion = async (
@@ -254,6 +277,8 @@ export function ModsModal({
     }
   }
 
+
+
   const toggle = async (mod: InstalledModView) => {
     setBusyFile(mod.file)
     try {
@@ -262,6 +287,26 @@ export function ModsModal({
       toast('error', '无法切换模组状态', cleanError(err))
     } finally {
       setBusyFile(null)
+    }
+  }
+
+  const bulkToggle = async (enabled: boolean) => {
+    const targets = filteredMods.filter((mod) => mod.enabled !== enabled)
+    if (targets.length === 0 || bulkBusy) return
+    setBulkBusy(true)
+    try {
+      setInstalled(
+        await window.ccl.mods.bulkToggle(
+          instance.id,
+          targets.map((mod) => mod.file),
+          enabled
+        )
+      )
+      toast('success', enabled ? '批量启用完成' : '批量禁用完成', `${targets.length} 个模组`)
+    } catch (err) {
+      toast('error', '批量操作失败', cleanError(err))
+    } finally {
+      setBulkBusy(false)
     }
   }
 
@@ -309,6 +354,36 @@ export function ModsModal({
           <div className="mods-footer">
             <span>{installed.length} 个模组</span>
             <div>
+              <button
+                type="button"
+                className="button button--soft button--sm"
+                disabled={installed.length === 0}
+                onClick={() => {
+                  void copyText(modListText()).then((ok) => {
+                    toast(ok ? 'success' : 'error', ok ? '模组清单已复制' : '复制失败', ok ? `${installed.length} 个模组，可直接粘贴到群里` : '请重试')
+                  })
+                }}
+              >
+                <Copy size={12} />
+                复制清单
+              </button>
+              <button
+                type="button"
+                className="button button--soft button--sm"
+                disabled={installed.length === 0}
+                onClick={() => {
+                  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+                  void window.ccl.app
+                    .exportText(`模组清单-${instance.name}-${stamp}.md`, modListText())
+                    .then((path) => {
+                      if (path) toast('success', '模组清单已导出', path)
+                    })
+                    .catch((err) => toast('error', '导出失败', cleanError(err)))
+                }}
+              >
+                <Upload size={12} />
+                导出清单
+              </button>
               <button type="button" className="button button--soft button--sm" onClick={openFolder}>
                 <FolderOpen size={12} />
                 打开目录
@@ -327,11 +402,40 @@ export function ModsModal({
             <span>已安装</span>
             <Badge tone={installed.length ? 'neutral' : 'warning'}>{installed.length}</Badge>
           </div>
+          {installed.length > 0 && (
+            <div className="mods-bulkbar">
+              <div className="text-input mods-bulk-filter">
+                <input
+                  value={modFilter}
+                  placeholder="筛选文件名，批量操作只作用于筛选结果"
+                  onChange={(event) => setModFilter(event.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="button button--soft button--sm"
+                disabled={bulkBusy || filteredMods.every((mod) => mod.enabled)}
+                onClick={() => void bulkToggle(true)}
+              >
+                <Power size={12} />
+                启用筛选 ({filteredMods.filter((mod) => !mod.enabled).length})
+              </button>
+              <button
+                type="button"
+                className="button button--soft button--sm"
+                disabled={bulkBusy || filteredMods.every((mod) => !mod.enabled)}
+                onClick={() => void bulkToggle(false)}
+              >
+                <PowerOff size={12} />
+                禁用筛选 ({filteredMods.filter((mod) => mod.enabled).length})
+              </button>
+            </div>
+          )}
           {installed.length === 0 ? (
             <p className="mods-empty">这个实例还没有模组。</p>
           ) : (
             <div className="mods-installed-list">
-              {installed.map((mod) => (
+              {filteredMods.map((mod) => (
                 <div key={mod.file} className={`mods-installed-row ${mod.enabled ? '' : 'is-disabled'}`}>
                   <span className="mods-file" title={mod.file}>
                     {mod.file}

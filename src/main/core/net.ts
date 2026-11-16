@@ -13,6 +13,44 @@ export function setUserAgentVersion(version: string): void {
   const value = version.trim()
   if (value) USER_AGENT = `WindletterLauncher/${value}`
 }
+
+let DOWNLOAD_RETRIES = 3
+
+/** 每条线路下载失败后的重试次数（0–10），由设置注入；不含首次尝试。 */
+export function setDownloadRetries(retries: number): void {
+  DOWNLOAD_RETRIES = Math.max(0, Math.min(10, Math.floor(retries)))
+}
+
+let speedLimitBytesPerSec = 0
+let throttleTokens = 0
+let throttleLastRefill = Date.now()
+
+/** 全局下载限速（KB/s）；0 表示不限速。所有下载流共享同一个令牌桶。 */
+export function setDownloadSpeedLimit(kbps: number): void {
+  speedLimitBytesPerSec = Math.max(0, Math.min(102400, Math.floor(kbps))) * 1024
+  throttleTokens = 0
+  throttleLastRefill = Date.now()
+}
+
+export function getDownloadSpeedLimitKbps(): number {
+  return Math.round(speedLimitBytesPerSec / 1024)
+}
+
+async function consumeThrottle(bytes: number): Promise<void> {
+  if (speedLimitBytesPerSec <= 0) return
+  const now = Date.now()
+  throttleTokens += ((now - throttleLastRefill) / 1000) * speedLimitBytesPerSec
+  throttleLastRefill = now
+  throttleTokens -= bytes
+  while (throttleTokens < 0 && speedLimitBytesPerSec > 0) {
+    const waitMs = Math.min(250, Math.max(5, (-throttleTokens / speedLimitBytesPerSec) * 1000))
+    await sleep(waitMs)
+    const refillNow = Date.now()
+    throttleTokens += ((refillNow - throttleLastRefill) / 1000) * speedLimitBytesPerSec
+    throttleLastRefill = refillNow
+  }
+}
+
 const JSON_TIMEOUT = 30_000
 const FILE_TIMEOUT = 5 * 60_000
 const STALL_TIMEOUT = 20_000
@@ -788,7 +826,8 @@ async function downloadFileSegmented(
           throw new NetworkError('分段范围不匹配', url)
         }
         const meter = new Transform({
-          transform(chunk: Buffer, _encoding, callback) {
+          async transform(chunk: Buffer, _encoding, callback) {
+            await consumeThrottle(chunk.length)
             options.onBytes?.(chunk.length)
             stall.touch()
             attemptBytes += chunk.length
@@ -1237,7 +1276,8 @@ async function downloadFileMultiSource(
           throw new NetworkError('分段范围不匹配', source.url)
         }
         const meter = new Transform({
-          transform(chunk: Buffer, _encoding, callback) {
+          async transform(chunk: Buffer, _encoding, callback) {
+            await consumeThrottle(chunk.length)
             options.onBytes?.(chunk.length)
             stall.touch()
             attemptBytes += chunk.length
@@ -1495,7 +1535,8 @@ export async function downloadFile(
 
   for (const url of candidates) {
     let attempt = 0
-    while (attempt < 2) {
+    const maxAttempts = DOWNLOAD_RETRIES + 1
+    while (attempt < maxAttempts) {
       if (options.signal?.aborted) throw new CancellationError()
       let releaseHost: (() => void) | null = null
       let stall: ReturnType<typeof createStallGuard> | null = null
@@ -1616,7 +1657,8 @@ export async function downloadFile(
         }
 
         const meter = new Transform({
-          transform(chunk: Buffer, _encoding, callback) {
+          async transform(chunk: Buffer, _encoding, callback) {
+            await consumeThrottle(chunk.length)
             received += chunk.length
             hash.update(chunk)
             options.onBytes?.(chunk.length)
@@ -1667,7 +1709,7 @@ export async function downloadFile(
           message: lastError.message
         })
         attempt += 1
-        if (attempt < 2) await sleep(500)
+        if (attempt < maxAttempts) await sleep(500)
       } finally {
         stall?.clear()
         releaseHost?.()

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
+  AppWindow,
   Archive,
   Check,
   Coffee,
@@ -52,10 +53,19 @@ import { SearchAliasModal } from '../components/SearchAliasModal'
 import { BackupManagerModal } from '../components/BackupManagerModal'
 import { Avatar } from '../components/visuals'
 
-type SectionKey = 'launch' | 'java' | 'download' | 'worlds' | 'performance' | 'appearance' | 'account'
+type SectionKey =
+  | 'launch'
+  | 'behavior'
+  | 'java'
+  | 'download'
+  | 'worlds'
+  | 'performance'
+  | 'appearance'
+  | 'account'
 
 const NAV: { key: SectionKey; label: string; icon: typeof SlidersHorizontal }[] = [
   { key: 'launch', label: '启动设置', icon: SlidersHorizontal },
+  { key: 'behavior', label: '启动器行为', icon: AppWindow },
   { key: 'java', label: 'Java 环境', icon: Coffee },
   { key: 'download', label: '下载设置', icon: Download },
   { key: 'worlds', label: '备份管理', icon: Archive },
@@ -543,6 +553,43 @@ export function SettingsPage() {
             </SettingsRow>
 
             <SettingsRow
+              title="游戏窗口模式"
+              description="全屏会以独占全屏启动游戏；窗口大小仍可在上方自定义分辨率里设置"
+            >
+              <Segmented
+                size="sm"
+                value={settings.windowMode}
+                options={[
+                  { value: 'windowed', label: '窗口' },
+                  { value: 'fullscreen', label: '全屏' }
+                ]}
+                onChange={(value) =>
+                  void patchSettings({ windowMode: value === 'fullscreen' ? 'fullscreen' : 'windowed' })
+                }
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="游戏语言"
+              description="启动时强制指定游戏语言；跟随游戏则使用游戏内自己的设置"
+            >
+              <Segmented
+                size="sm"
+                value={settings.gameLanguage || 'auto'}
+                options={[
+                  { value: 'auto', label: '跟随游戏' },
+                  { value: 'zh_cn', label: '简体中文' },
+                  { value: 'en_us', label: 'English' }
+                ]}
+                onChange={(value) =>
+                  void patchSettings({
+                    gameLanguage: value === 'zh_cn' || value === 'en_us' ? value : ''
+                  })
+                }
+              />
+            </SettingsRow>
+
+            <SettingsRow
               wide
               title="额外 JVM 参数"
               description="高级选项，留空即使用启动器默认参数。修改后离开输入框立即保存"
@@ -589,6 +636,46 @@ export function SettingsPage() {
                 {settings.extraJvmArgs ? '已添加自定义 JVM 参数' : '默认 JVM 参数'}
               </span>
             </div>
+          </SettingsSection>
+
+          <SettingsSection
+            id="behavior"
+            icon={<AppWindow size={18} />}
+            title="启动器行为"
+            subtitle="托盘、开机自启等启动器自身的运行方式"
+          >
+            <SettingsRow
+              title="关闭时最小化到托盘"
+              description="点关闭按钮不退出，而是隐藏到系统托盘；托盘右键可以显示主界面、启动上次实例或真正退出。游戏运行时仍会先询问"
+            >
+              <Switch
+                checked={settings.closeToTray}
+                label="关闭时最小化到托盘"
+                onChange={(checked) => void patchSettings({ closeToTray: checked })}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="开机自动启动"
+              description="登录 Windows 后自动运行启动器（写入当前用户的启动项，不需要管理员权限）"
+            >
+              <Switch
+                checked={settings.launchAtLogin}
+                label="开机自动启动"
+                onChange={(checked) => void patchSettings({ launchAtLogin: checked })}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="崩溃自动诊断"
+              description="游戏异常退出或启动失败后自动弹出诊断结论与一键修复；关闭后仍可从实例菜单手动打开故障医生"
+            >
+              <Switch
+                checked={settings.crashAutoAssist}
+                label="崩溃自动诊断"
+                onChange={(checked) => void patchSettings({ crashAutoAssist: checked })}
+              />
+            </SettingsRow>
           </SettingsSection>
 
           <SettingsSection
@@ -805,6 +892,68 @@ export function SettingsPage() {
                 step={4}
                 format={(value) => `${value} 个`}
                 onCommit={(value) => void patchSettings({ downloadConcurrency: value })}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="下载失败重试次数"
+              description="每条线路失败后的额外重试次数；多线路分片下载内部仍有自己的换源策略"
+            >
+              <SettingSlider
+                ariaLabel="下载失败重试次数"
+                value={settings.downloadRetries}
+                min={0}
+                max={10}
+                step={1}
+                format={(value) => (value === 0 ? '不重试' : `${value} 次`)}
+                onCommit={(value) => void patchSettings({ downloadRetries: value })}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="下载限速"
+              description="全局共享限速，适合边玩边下或共享网络；0 为不限速，修改立即生效"
+            >
+              <SettingSlider
+                ariaLabel="下载限速"
+                value={settings.downloadSpeedLimitKbps}
+                min={0}
+                max={20480}
+                step={256}
+                format={(value) => (value === 0 ? '不限速' : `${value} KB/s`)}
+                onCommit={(value) => void patchSettings({ downloadSpeedLimitKbps: value })}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="下载完成后打开文件夹"
+              description="单独下载模组 / 资源包 / 服务端包完成后，自动在资源管理器里定位文件"
+            >
+              <Switch
+                checked={settings.openFolderAfterDownload}
+                label="下载完成后打开文件夹"
+                onChange={(checked) => void patchSettings({ openFolderAfterDownload: checked })}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="全部下载完成后"
+              description="所有下载/安装任务结束后倒计时 60 秒执行，期间可随时取消；开始新任务也会自动取消"
+            >
+              <Segmented
+                size="sm"
+                value={settings.afterDownloadAction}
+                options={[
+                  { value: 'none', label: '无动作' },
+                  { value: 'sleep', label: '睡眠' },
+                  { value: 'shutdown', label: '关机' },
+                  { value: 'quit', label: '退出启动器' }
+                ]}
+                onChange={(value) => {
+                  if (value === 'none' || value === 'sleep' || value === 'shutdown' || value === 'quit') {
+                    void patchSettings({ afterDownloadAction: value })
+                  }
+                }}
               />
             </SettingsRow>
 
@@ -1326,6 +1475,46 @@ export function SettingsPage() {
                   { value: 'classic', label: '工作台' }
                 ]}
                 onChange={(value) => void patchSettings({ homeLayout: value as HomeLayout })}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="界面字号"
+              description="整体缩放界面文字与控件，立即生效"
+            >
+              <Segmented
+                size="sm"
+                value={String(settings.uiScale)}
+                options={[
+                  { value: '90', label: '紧凑' },
+                  { value: '100', label: '标准' },
+                  { value: '110', label: '偏大' },
+                  { value: '125', label: '特大' }
+                ]}
+                onChange={(value) => {
+                  const scale = Number(value)
+                  if ([90, 100, 110, 125].includes(scale)) void patchSettings({ uiScale: scale })
+                }}
+              />
+            </SettingsRow>
+
+            <SettingsRow
+              title="界面动效"
+              description="跟随系统会尊重 Windows 的「减弱动态效果」；完整动效忽略该设置，减弱则关闭所有动画"
+            >
+              <Segmented
+                size="sm"
+                value={settings.motion}
+                options={[
+                  { value: 'system', label: '跟随系统' },
+                  { value: 'full', label: '完整动效' },
+                  { value: 'reduced', label: '减弱动效' }
+                ]}
+                onChange={(value) => {
+                  if (value === 'full' || value === 'reduced' || value === 'system') {
+                    void patchSettings({ motion: value })
+                  }
+                }}
               />
             </SettingsRow>
 

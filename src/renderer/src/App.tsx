@@ -13,6 +13,8 @@ import { ConsoleDrawer } from './components/ConsoleDrawer'
 import { ManualPackModal } from './components/ManualPackModal'
 import { JavaIssueModal } from './components/JavaIssueModal'
 import { FaultDoctorModal } from './components/FaultDoctorModal'
+import { CrashAssistModal } from './components/CrashAssistModal'
+import { PowerCountdownBanner } from './components/PowerCountdownBanner'
 import { AccountModal } from './components/AccountModal'
 import { VersionPicker } from './components/VersionPicker'
 import { PresetModsModal } from './components/PresetModsModal'
@@ -66,6 +68,7 @@ export default function App() {
   const backgroundDim = useLauncher((state) => state.settings?.backgroundDim ?? 35)
   const backgroundBlur = useLauncher((state) => state.settings?.backgroundBlur ?? 0)
   const memorySaver = useLauncher((state) => state.settings?.memorySaver)
+  const motion = useLauncher((state) => state.settings?.motion ?? 'system')
   const consoleOpen = useLauncher((state) => state.consoleOpen)
   const presetManagerOpen = useLauncher((state) => state.presetManagerOpen)
   const setPresetManagerOpen = useLauncher((state) => state.setPresetManagerOpen)
@@ -76,14 +79,20 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false)
   const [dragging, setDragging] = useState(false)
   const dragDepth = useRef(0)
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const reduceMotion =
+    motion === 'reduced' ||
+    (motion !== 'full' && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+
+  useEffect(() => {
+    document.documentElement.dataset.motion = motion
+  }, [motion])
 
   useEffect(() => {
     void initialize()
   }, [initialize])
 
   useEffect(() => {
-    const timer = setTimeout(() => setMinimumElapsed(true), reduceMotion ? 220 : 900)
+    const timer = setTimeout(() => setMinimumElapsed(true), reduceMotion ? 220 : 500)
     return () => clearTimeout(timer)
   }, [reduceMotion])
 
@@ -91,8 +100,8 @@ export default function App() {
 
   useEffect(() => {
     if (!splashReady || splashDone) return
-    const hold = setTimeout(() => setSplashLeaving(true), reduceMotion ? 80 : 280)
-    const finish = setTimeout(() => setSplashDone(true), reduceMotion ? 260 : 880)
+    const hold = setTimeout(() => setSplashLeaving(true), reduceMotion ? 80 : 140)
+    const finish = setTimeout(() => setSplashDone(true), reduceMotion ? 260 : 620)
     return () => {
       clearTimeout(hold)
       clearTimeout(finish)
@@ -277,6 +286,8 @@ export default function App() {
           <ManualPackModal />
           <JavaIssueModal />
           <FaultDoctorModal />
+          <CrashAssistModal />
+          <PowerCountdownBanner />
           <AccountModal />
           <VersionPicker />
           <PresetModsModal

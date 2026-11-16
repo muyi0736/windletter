@@ -3322,38 +3322,38 @@ input[type="password"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .splash,
-  .splash.is-leaving {
+  html:not([data-motion='full']) .splash,
+  html:not([data-motion='full']) .splash.is-leaving {
     transition: none;
   }
 
-  .splash::after,
-  .splash-mark,
-  .splash-kicker,
-  .splash-sub,
-  .splash-status,
-  .splash-wordmark span {
+  html:not([data-motion='full']) .splash::after,
+  html:not([data-motion='full']) .splash-mark,
+  html:not([data-motion='full']) .splash-kicker,
+  html:not([data-motion='full']) .splash-sub,
+  html:not([data-motion='full']) .splash-status,
+  html:not([data-motion='full']) .splash-wordmark span {
     animation: none;
     opacity: 1;
     transform: none;
   }
 
-  .splash-path {
+  html:not([data-motion='full']) .splash-path {
     animation: none;
     stroke-dashoffset: 0;
   }
 
-  .splash-progress::after {
+  html:not([data-motion='full']) .splash-progress::after {
     display: none;
   }
 
-  .splash-progress-fill {
+  html:not([data-motion='full']) .splash-progress-fill {
     transition: none;
     transform: scaleX(1);
   }
 
-  .titlebar,
-  .app-main {
+  html:not([data-motion='full']) .titlebar,
+  html:not([data-motion='full']) .app-main {
     animation: none;
   }
 }
@@ -3519,7 +3519,7 @@ html[data-custom-background="true"] body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .custom-background-layer.is-current {
+  html:not([data-motion='full']) .custom-background-layer.is-current {
     animation: none;
   }
 }

@@ -39,6 +39,7 @@ export function ServerPackModal({
   const [aiConfig, setAiConfig] = useState<AiConfigView | null>(null)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiNotes, setAiNotes] = useState('')
+  const [excludeNote, setExcludeNote] = useState('')
   const [aiReasons, setAiReasons] = useState<Record<string, string>>({})
   const [query, setQuery] = useState('')
   const [outputPath, setOutputPath] = useState('')
@@ -81,6 +82,7 @@ export function ServerPackModal({
     setMods([])
     setQuery('')
     setAiNotes('')
+    setExcludeNote('')
     setAiReasons({})
     setError('')
     void load()
@@ -135,6 +137,17 @@ export function ServerPackModal({
     } finally {
       setAiBusy(false)
     }
+  }
+
+  const excludeSuspects = (files: string[]) => {
+    const picked = new Set(files)
+    setMods((current) =>
+      current.map((mod) => (picked.has(mod.file) ? { ...mod, include: false } : mod))
+    )
+    setExcludeNote(
+      `已按启动测试结果排除 ${files.length} 个可疑模组：${files.join('、')}。请重新生成服务端包后再测一次。`
+    )
+    toast('info', '可疑模组已排除', '重新生成服务端包后再做一次启动测试')
   }
 
   const submit = async () => {
@@ -343,6 +356,13 @@ export function ServerPackModal({
               </div>
             )}
 
+            {excludeNote && (
+              <div className="serverpack-ai-note">
+                <ShieldCheck size={13} />
+                <span>{excludeNote}</span>
+              </div>
+            )}
+
             <div className="serverpack-search">
               <Search size={13} />
               <input
@@ -411,6 +431,7 @@ export function ServerPackModal({
       instance={instance}
       initialPath={outputPath}
       onClose={() => setCheckOpen(false)}
+      onExclude={excludeSuspects}
     />
     </>
   )

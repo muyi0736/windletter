@@ -64,9 +64,11 @@ function statusCopy(update: LauncherUpdateState): { title: string; detail: strin
       return {
         title: update.info ? `发现新版本 v${update.info.version}` : '发现新版本',
         detail: update.info
-          ? `${current} · 安装包 ${formatBytes(update.info.size)}${
-              update.info.publishedAt ? ` · 发布于 ${formatDate(update.info.publishedAt)}` : ''
-            }`
+          ? `${current} · ${update.info.incremental ? '增量包' : '安装包'} ${formatBytes(update.info.size)}${
+              update.info.incremental && update.info.fullSize
+                ? `（完整包 ${formatBytes(update.info.fullSize)}）`
+                : ''
+            }${update.info.publishedAt ? ` · 发布于 ${formatDate(update.info.publishedAt)}` : ''}`
           : current
       }
     case 'downloading':
@@ -82,7 +84,9 @@ function statusCopy(update: LauncherUpdateState): { title: string; detail: strin
     case 'ready':
       return {
         title: '更新已就绪',
-        detail: '安装时启动器会退出，安装完成后自动重新打开新版本。'
+        detail: update.info?.incremental
+          ? '安装时启动器会退出，只替换应用文件（保留旧版备份），完成后自动重新打开新版本。'
+          : '安装时启动器会退出，安装完成后自动重新打开新版本。'
       }
     case 'installing':
       return {
@@ -326,7 +330,10 @@ export function LauncherUpdateCard() {
       {info && (phase === 'available' || phase === 'ready' || phase === 'downloading' || phase === 'cancelled') && (
         <div className="update-release-meta">
           <span>v{info.version}</span>
-          <span>{formatBytes(info.size)}</span>
+          <span title={info.incremental && info.fullSize ? `完整安装包 ${formatBytes(info.fullSize)}` : undefined}>
+            {formatBytes(info.size)}
+          </span>
+          {info.incremental && <Badge tone="accent">增量更新</Badge>}
           {info.publishedAt && (
             <span>
               <Timer size={11} />

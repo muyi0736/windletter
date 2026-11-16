@@ -57,6 +57,58 @@ export interface LauncherSettings {
   autoCheckUpdates: boolean
   /** latest.json 地址或所在目录；为空表示尚未配置更新源。 */
   updateFeed: string
+  /** 关闭主窗口时最小化到托盘而不是退出。 */
+  closeToTray: boolean
+  /** 开机自动启动。 */
+  launchAtLogin: boolean
+  /** 游戏窗口模式。 */
+  windowMode: 'windowed' | 'fullscreen'
+  /** 游戏语言；空串表示跟随游戏默认。 */
+  gameLanguage: '' | 'zh_cn' | 'en_us'
+  /** 界面字号缩放百分比（90/100/110/125）。 */
+  uiScale: number
+  /** 动效强度。 */
+  motion: 'system' | 'full' | 'reduced'
+  /** 下载失败自动重试次数。 */
+  downloadRetries: number
+  /** 下载完成后打开所在文件夹。 */
+  openFolderAfterDownload: boolean
+  /** 游戏异常退出/启动失败后自动弹出诊断与一键修复；关闭后仍可手动打开故障医生。 */
+  crashAutoAssist: boolean
+  /** 全部下载任务结束后的动作；倒计时 60 秒内可取消。 */
+  afterDownloadAction: AfterDownloadAction
+  /** 全局下载限速 KB/s；0 表示不限速。 */
+  downloadSpeedLimitKbps: number
+}
+
+export type AfterDownloadAction = 'none' | 'sleep' | 'shutdown' | 'quit'
+
+export interface DiskOrphanEntry {
+  path: string
+  size: number
+}
+
+export interface DiskUsageReport {
+  scannedAt: number
+  gameDir: string
+  /** 参与引用判定的版本文件夹（游戏目录 + 自定义版本文件夹 + 实例绑定目录）。 */
+  bases: string[]
+  /** 参与引用判定的版本 JSON 数量（含继承链）。 */
+  versionsChecked: number
+  versionsBytes: number
+  librariesBytes: number
+  assetsBytes: number
+  runtimeBytes: number
+  instancesBytes: number
+  orphanLibraries: DiskOrphanEntry[]
+  orphanAssets: DiskOrphanEntry[]
+  orphanLibrariesBytes: number
+  orphanAssetsBytes: number
+}
+
+export interface PowerCountdown {
+  action: Exclude<AfterDownloadAction, 'none'>
+  secondsLeft: number
 }
 
 export interface StoredAccount {
@@ -118,6 +170,10 @@ export interface LauncherUpdateInfo {
   size: number
   mandatory: boolean
   pageUrl: string | null
+  /** 本次将下载增量包（仅替换 app.asar 等应用文件），而非完整安装包。 */
+  incremental: boolean
+  /** 增量更新时完整安装包的大小，用于对比展示；否则为 null。 */
+  fullSize: number | null
 }
 
 export interface LauncherUpdateProgress {
@@ -252,6 +308,8 @@ export interface PlaytimeReport {
   instances: PlaytimeInstanceStat[]
   recent: PlaytimeSessionView[]
   active: PlaytimeActiveView | null
+  /** 多开时所有仍在计时的会话。 */
+  actives: PlaytimeActiveView[]
 }
 
 export type ServerPackModSide = 'client' | 'server' | 'both' | 'unknown'
@@ -380,6 +438,16 @@ export interface WorkshopReport {
     duplicates: number
     clientDependency: number
   }
+}
+
+export interface WorkshopFixProgress {
+  stage: string
+  percent: number
+}
+
+export interface WorkshopFixMissingResult {
+  installed: { id: string; title: string }[]
+  failed: { id: string; reason: string }[]
 }
 
 export interface WorkshopExportOptions {
@@ -881,12 +949,19 @@ export interface ServerPackVerifyProgress {
   line: string | null
 }
 
+export interface ServerPackSuspect {
+  modId: string
+  file: string | null
+  reason: string
+}
+
 export interface ServerPackVerifyReport {
   ok: boolean
   cancelled: boolean
   summary: string
   durationMs: number
   checks: ServerPackCheckItem[]
+  suspects: ServerPackSuspect[]
   logPath: string | null
   logTail: string
 }
@@ -1059,6 +1134,17 @@ export interface LaunchState {
   exitCode: number | null
   error: string | null
   speed: number | null
+  /** 当前所有活跃游戏会话（多开）；主状态为最后一次启动的会话。 */
+  running: RunningSessionView[]
+}
+
+export interface RunningSessionView {
+  key: string
+  instanceId: string | null
+  versionId: string
+  pid: number | null
+  startedAt: number | null
+  status: LaunchStatus
 }
 
 export interface InstanceSummary {
@@ -1087,6 +1173,8 @@ export interface InstanceSummary {
   javaPath?: string | null
   /** true 表示 Java 路径由自动分配管理；false 表示用户手动指定。 */
   javaAuto?: boolean
+  /** 最近一次启动时直连的服务器，用于崩溃后一键回服。 */
+  lastServer?: InstanceServerTarget | null
   external?: {
     baseDir: string
     gameDir: string
@@ -1099,6 +1187,12 @@ export interface InstanceSettingsPatch {
   extraJvmArgs?: string
   javaPath?: string | null
   javaAuto?: boolean
+}
+
+export interface InstanceServerTarget {
+  host: string
+  port: number
+  name?: string
 }
 
 export interface InstanceTransferRequest {
@@ -1285,6 +1379,21 @@ export interface DiagnosticReport {
   crash: CrashReportView | null
 }
 
+/** 崩溃/启动失败后的自动诊断弹窗载荷；动作全部走服务端 guarded 校验。 */
+export interface CrashAssistView {
+  instanceId: string | null
+  instanceName: string
+  versionId: string
+  kind: 'exit' | 'launch-error'
+  exitCode: number | null
+  message: string
+  summary: string
+  issues: DiagnosticIssue[]
+  actions: AiFixAction[]
+  lastServer: InstanceServerTarget | null
+  checkedAt: number
+}
+
 export interface AiConfigView {
   enabled: boolean
   baseUrl: string
@@ -1393,6 +1502,18 @@ export interface ModpackExportOptions {
 export interface ModpackExportPreview {
   resourcepacks: string[]
   shaderpacks: string[]
+}
+
+export interface ResourcePackEntry {
+  name: string
+  kind: 'zip' | 'dir'
+  enabled: boolean
+  order: number
+}
+
+export interface ResourcePackList {
+  packs: ResourcePackEntry[]
+  hasOptions: boolean
 }
 
 export interface ModpackExportProgress {
@@ -1995,6 +2116,9 @@ export interface LauncherApi {
   }
   app: {
     info: () => Promise<AppInfo>
+    exportText: (name: string, content: string) => Promise<string | null>
+    diskUsage: () => Promise<DiskUsageReport>
+    diskClean: (scope: 'libraries' | 'assets') => Promise<{ removed: number; freedBytes: number }>
     openExternal: (url: string) => Promise<void>
     restart: () => Promise<void>
     releaseMemory: (scope?: 'app' | 'system') => Promise<{ beforeKb: number; afterKb: number; processes?: number }>
@@ -2064,6 +2188,7 @@ export interface LauncherApi {
     importFile: () => Promise<TaskState | null>
     installModrinth: (request: ModrinthInstallRequest) => Promise<TaskState>
     installCurseForge: (request: CurseForgeInstallRequest) => Promise<TaskState>
+    installUrl: (url: string) => Promise<TaskState>
     createLoader: (request: LoaderInstanceRequest) => Promise<TaskState>
     createVanilla: (request: VanillaInstanceRequest) => Promise<TaskState>
     updateLoader: (request: InstanceLoaderUpdateRequest) => Promise<TaskState>
@@ -2086,10 +2211,12 @@ export interface LauncherApi {
       path: string
     ) => Promise<ModpackExportResult>
     exportPreview: (id: string) => Promise<ModpackExportPreview>
+    resourcePacks: (id: string) => Promise<ResourcePackList>
+    applyResourcePacks: (id: string, names: string[]) => Promise<ResourcePackList>
     onExportProgress: (cb: (progress: ModpackExportProgress) => void) => () => void
     exportScript: (id: string) => Promise<string | null>
     repair: (id: string) => Promise<TaskState>
-    launch: (id: string) => Promise<void>
+    launch: (id: string, options?: { server?: InstanceServerTarget }) => Promise<void>
     transfer: (request: InstanceTransferRequest) => Promise<TaskState>
   }
   serverPacks: {
@@ -2112,6 +2239,8 @@ export interface LauncherApi {
   }
   workshop: {
     report: (instanceId: string) => Promise<WorkshopReport>
+    fixMissing: (instanceId: string) => Promise<WorkshopFixMissingResult>
+    onFixProgress: (cb: (progress: WorkshopFixProgress) => void) => () => void
     exportPack: (request: WorkshopExportRequest) => Promise<WorkshopExportResult>
     onExportProgress: (cb: (progress: WorkshopExportProgress) => void) => () => void
     kubejsFiles: (instanceId: string) => Promise<{ exists: boolean; files: KubeJsFileView[] }>
@@ -2237,12 +2366,18 @@ export interface LauncherApi {
     list: (instanceId: string) => Promise<InstalledModView[]>
     remove: (instanceId: string, file: string) => Promise<InstalledModView[]>
     toggle: (instanceId: string, file: string, enabled: boolean) => Promise<InstalledModView[]>
+    bulkToggle: (
+      instanceId: string,
+      files: string[],
+      enabled: boolean
+    ) => Promise<InstalledModView[]>
     importFiles: (instanceId: string) => Promise<InstalledModView[] | null>
     openFolder: (instanceId: string) => Promise<void>
   }
   ledger: {
     scan: (instanceId: string, force?: boolean) => Promise<ContentLedgerView>
     check: (instanceId: string, force?: boolean) => Promise<ContentLedgerView>
+    updateCounts: () => Promise<Record<string, number>>
     update: (request: ContentUpdateRequest) => Promise<ContentUpdateResult>
     rollback: (instanceId: string) => Promise<ContentRollbackResult>
     onProgress: (callback: (progress: ContentUpdateProgress) => void) => () => void
@@ -2310,10 +2445,17 @@ export interface LauncherApi {
     start: (versionId: string) => Promise<void>
     cancel: () => Promise<void>
     stop: () => Promise<void>
+    stopInstance: (id: string) => Promise<void>
     getState: () => Promise<LaunchState>
     getLogs: () => Promise<LaunchLogLine[]>
     onState: (cb: (state: LaunchState) => void) => () => void
     onLog: (cb: (line: LaunchLogLine) => void) => () => void
+    onCrashAssist: (cb: (view: CrashAssistView) => void) => () => void
+  }
+  power: {
+    state: () => Promise<PowerCountdown | null>
+    cancel: () => Promise<null>
+    onCountdown: (cb: (state: PowerCountdown | null) => void) => () => void
   }
   runningGame: {
     inspect: () => Promise<RunningGameInfo | null>

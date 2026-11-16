@@ -28,6 +28,8 @@ import type {
   WorkshopReport
 } from '../../shared/types'
 import { getAiRuntimeConfig } from './ai'
+import { searchCurseForgeMods } from './curseforge'
+import { installMod, searchModrinthMods } from './mods'
 import { getSettings } from './config'
 import { getInstance, getInstanceDir, getInstanceGameDir } from './instances'
 import {
@@ -450,9 +452,19 @@ export async function getWorkshopReport(instanceId: string): Promise<WorkshopRep
     return row
   })
 
+  const providedBy = new Map<string, WorkshopModView[]>()
+  for (const mod of scanned) {
+    for (const provided of mod.meta?.provides ?? []) {
+      const list = providedBy.get(provided) ?? []
+      const row = rows.find((item) => item.file === mod.file)
+      if (row) list.push(row)
+      providedBy.set(provided, list)
+    }
+  }
+
   for (const row of rows) {
     for (const dependency of row.requires) {
-      const depRows = byId.get(dependency)
+      const depRows = byId.get(dependency) ?? providedBy.get(dependency)
       if (depRows && depRows.length > 0) {
         for (const dep of depRows) {
           if (!dep.requiredBy.includes(row.id ?? row.file)) {
@@ -1132,4 +1144,80 @@ export async function generateKubeJsScript(
     /* fall through */
   }
   throw new Error('AI 没有返回可用的 KubeJS 脚本')
+}
+
+/** 一键补齐工坊扫描出的缺失依赖：Modrinth 优先（slug 精确匹配），CurseForge 兜底。 */
+export async function fixMissingDependencies(
+  instanceId: string,
+  onProgress?: (stage: string, percent: number) => void
+): Promise<{ installed: { id: string; title: string }[]; failed: { id: string; reason: string }[] }> {
+  const instance = await getInstance(instanceId)
+  const settings = getSettings()
+  let report = await getWorkshopReport(instanceId)
+  let ids = [...new Set(report.mods.flatMap((mod) => mod.missing))]
+  const installed: { id: string; title: string }[] = []
+  const failed: { id: string; reason: string }[] = []
+  const tried = new Set<string>()
+  let guard = 0
+  while (ids.length > 0 && guard < 40) {
+    guard += 1
+    const id = ids.find((item) => !tried.has(item))
+    if (!id) break
+    tried.add(id)
+    const index = tried.size - 1
+    onProgress?.(`补齐 ${id}（${index + 1}）`, Math.min(95, index * 12))
+    try {
+      let provider: 'modrinth' | 'curseforge' = 'modrinth'
+      let projectId: string | null = null
+      let title = id
+      // Fabric/Quilt 的模块 ID（如 fabric-screen-api-v1）由伞项目提供
+      const candidates = [id]
+      if (id.startsWith('fabric-')) candidates.push('fabric-api')
+      if (id.startsWith('quilt-')) candidates.push('qsl')
+      for (const candidate of candidates) {
+        const mr = await searchModrinthMods(candidate, instance.gameVersion, instance.loader, 0).catch(() => null)
+        const mrHit =
+          mr?.hits.find((hit) => hit.slug === candidate || hit.projectId === candidate) ??
+          mr?.hits[0] ??
+          null
+        if (mrHit) {
+          projectId = mrHit.projectId
+          title = mrHit.title
+          break
+        }
+        const cf = await searchCurseForgeMods(candidate, instance.gameVersion, instance.loader, 0, settings).catch(() => null)
+        const cfHit =
+          cf?.hits.find((hit) => hit.slug === candidate || hit.projectId === candidate) ??
+          cf?.hits[0] ??
+          null
+        if (cfHit) {
+          provider = 'curseforge'
+          projectId = cfHit.projectId
+          title = cfHit.title
+          break
+        }
+      }
+      if (!projectId) {
+        failed.push({ id, reason: 'Modrinth / CurseForge 均未找到匹配项目' })
+        continue
+      }
+      const result = await installMod(
+        { instanceId, provider, projectId, title, includeDependencies: true },
+        settings
+      )
+      if (result.installed.length > 0 || result.skipped.length > 0) {
+        installed.push({ id, title })
+        report = await getWorkshopReport(instanceId)
+        ids = [...new Set(report.mods.flatMap((mod) => mod.missing))]
+      } else {
+        failed.push({ id, reason: result.manual[0]?.title ?? '没有可安装的文件' })
+        ids = ids.filter((item) => item !== id)
+      }
+    } catch (error) {
+      failed.push({ id, reason: error instanceof Error ? error.message : String(error) })
+      ids = ids.filter((item) => item !== id)
+    }
+  }
+  onProgress?.('补齐完成', 100)
+  return { installed, failed }
 }

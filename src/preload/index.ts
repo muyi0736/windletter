@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   AccountsPayload,
   ContentUpdateProgress,
+  CrashAssistView,
   FileFilter,
   KubeJsIndexProgress,
   KubeJsRuntimeProgress,
@@ -11,9 +12,11 @@ import type {
   LauncherUpdateState,
   MsDeviceCode,
   MsPollResult,
+  PowerCountdown,
   ServerPackVerifyProgress,
   TaskState,
-  WorkshopExportProgress
+  WorkshopExportProgress,
+  WorkshopFixProgress
 } from '../shared/types'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
@@ -32,6 +35,9 @@ const api: LauncherApi = {
   },
   app: {
     info: () => ipcRenderer.invoke('app:info'),
+    exportText: (name, content) => ipcRenderer.invoke('app:export-text', name, content),
+    diskUsage: () => ipcRenderer.invoke('disk:usage'),
+    diskClean: (scope) => ipcRenderer.invoke('disk:clean', scope),
     openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
     restart: () => ipcRenderer.invoke('app:restart'),
     releaseMemory: (scope) => ipcRenderer.invoke('app:release-memory', scope),
@@ -93,6 +99,7 @@ const api: LauncherApi = {
     installModrinth: (request) => ipcRenderer.invoke('instances:install-modrinth', request),
     installCurseForge: (request) =>
       ipcRenderer.invoke('instances:install-curseforge', request),
+    installUrl: (url) => ipcRenderer.invoke('instances:install-url', url),
     createLoader: (request) => ipcRenderer.invoke('instances:create-loader', request),
     createVanilla: (request) => ipcRenderer.invoke('instances:create-vanilla', request),
     updateLoader: (request) => ipcRenderer.invoke('instances:update-loader', request),
@@ -111,8 +118,10 @@ const api: LauncherApi = {
     exportModpack: (id, options, path) =>
       ipcRenderer.invoke('instances:export-modpack', id, options, path),
     exportPreview: (id) => ipcRenderer.invoke('instances:export-preview', id),
+    resourcePacks: (id) => ipcRenderer.invoke('instances:resource-packs', id),
+    applyResourcePacks: (id, names) => ipcRenderer.invoke('instances:apply-resource-packs', id, names),
     onExportProgress: (cb) => subscribe<{ done: number; total: number; bytes: number }>('instances:export-progress', cb),
-    launch: (id) => ipcRenderer.invoke('instances:launch', id),
+    launch: (id, options) => ipcRenderer.invoke('instances:launch', id, options),
     transfer: (request) => ipcRenderer.invoke('instances:transfer', request)
   },
   serverPacks: {
@@ -137,6 +146,8 @@ const api: LauncherApi = {
   },
   workshop: {
     report: (instanceId) => ipcRenderer.invoke('workshop:report', instanceId),
+    fixMissing: (instanceId) => ipcRenderer.invoke('workshop:fix-missing', instanceId),
+    onFixProgress: (cb) => subscribe<WorkshopFixProgress>('workshop:fix-progress', cb),
     exportPack: (request) => ipcRenderer.invoke('workshop:export-pack', request),
     onExportProgress: (cb) =>
       subscribe<WorkshopExportProgress>('workshop:export-progress', cb),
@@ -264,12 +275,15 @@ const api: LauncherApi = {
     remove: (instanceId, file) => ipcRenderer.invoke('mods:remove', instanceId, file),
     toggle: (instanceId, file, enabled) =>
       ipcRenderer.invoke('mods:toggle', instanceId, file, enabled),
+    bulkToggle: (instanceId, files, enabled) =>
+      ipcRenderer.invoke('mods:bulk-toggle', instanceId, files, enabled),
     importFiles: (instanceId) => ipcRenderer.invoke('mods:import-files', instanceId),
     openFolder: (instanceId) => ipcRenderer.invoke('mods:open-folder', instanceId)
   },
   ledger: {
     scan: (instanceId, force) => ipcRenderer.invoke('ledger:scan', instanceId, force === true),
     check: (instanceId, force) => ipcRenderer.invoke('ledger:check', instanceId, force === true),
+    updateCounts: () => ipcRenderer.invoke('ledger:update-counts'),
     update: (request) => ipcRenderer.invoke('ledger:update', request),
     rollback: (instanceId) => ipcRenderer.invoke('ledger:rollback', instanceId),
     onProgress: (cb) => subscribe<ContentUpdateProgress>('ledger:progress', cb),
@@ -311,10 +325,17 @@ const api: LauncherApi = {
     start: (versionId) => ipcRenderer.invoke('launch:start', versionId),
     cancel: () => ipcRenderer.invoke('launch:cancel'),
     stop: () => ipcRenderer.invoke('launch:stop'),
+    stopInstance: (id) => ipcRenderer.invoke('launch:stop-instance', id),
     getState: () => ipcRenderer.invoke('launch:get-state'),
     getLogs: () => ipcRenderer.invoke('launch:get-logs'),
     onState: (cb) => subscribe<LaunchState>('launch:state', cb),
-    onLog: (cb) => subscribe<LaunchLogLine>('launch:log', cb)
+    onLog: (cb) => subscribe<LaunchLogLine>('launch:log', cb),
+    onCrashAssist: (cb) => subscribe<CrashAssistView>('crash-assist', cb)
+  },
+  power: {
+    state: () => ipcRenderer.invoke('power:state'),
+    cancel: () => ipcRenderer.invoke('power:cancel'),
+    onCountdown: (cb) => subscribe<PowerCountdown | null>('power:countdown', cb)
   },
   runningGame: {
     inspect: () => ipcRenderer.invoke('running-game:inspect'),

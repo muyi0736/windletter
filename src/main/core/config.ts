@@ -100,7 +100,18 @@ export function defaultSettings(): LauncherSettings {
     windowWidth: 1280,
     windowHeight: 720,
     autoCheckUpdates: true,
-    updateFeed: DEFAULT_UPDATE_FEED
+    updateFeed: DEFAULT_UPDATE_FEED,
+    closeToTray: false,
+    launchAtLogin: false,
+    windowMode: 'windowed',
+    gameLanguage: '',
+    uiScale: 100,
+    motion: 'system',
+    downloadRetries: 3,
+    openFolderAfterDownload: false,
+    crashAutoAssist: true,
+    afterDownloadAction: 'none',
+    downloadSpeedLimitKbps: 0
   }
 }
 
@@ -236,7 +247,27 @@ function sanitizeSettings(input: Partial<LauncherSettings>, base: LauncherSettin
     windowHeight: clamp(merged.windowHeight, 240, 4320, base.windowHeight),
     autoCheckUpdates: merged.autoCheckUpdates !== false,
     updateFeed:
-      typeof merged.updateFeed === 'string' ? merged.updateFeed.trim().slice(0, 500) : ''
+      typeof merged.updateFeed === 'string' ? merged.updateFeed.trim().slice(0, 500) : '',
+    closeToTray: Boolean(merged.closeToTray),
+    launchAtLogin: Boolean(merged.launchAtLogin),
+    windowMode: merged.windowMode === 'fullscreen' ? 'fullscreen' : 'windowed',
+    gameLanguage:
+      merged.gameLanguage === 'zh_cn' || merged.gameLanguage === 'en_us'
+        ? merged.gameLanguage
+        : '',
+    uiScale: [90, 100, 110, 125].includes(merged.uiScale) ? merged.uiScale : base.uiScale,
+    motion:
+      merged.motion === 'full' || merged.motion === 'reduced' ? merged.motion : 'system',
+    downloadRetries: clamp(merged.downloadRetries, 0, 10, base.downloadRetries),
+    openFolderAfterDownload: Boolean(merged.openFolderAfterDownload),
+    crashAutoAssist: merged.crashAutoAssist !== false,
+    afterDownloadAction:
+      merged.afterDownloadAction === 'sleep' ||
+      merged.afterDownloadAction === 'shutdown' ||
+      merged.afterDownloadAction === 'quit'
+        ? merged.afterDownloadAction
+        : 'none',
+    downloadSpeedLimitKbps: clamp(merged.downloadSpeedLimitKbps, 0, 102400, 0)
   }
 }
 

@@ -4352,3 +4352,398 @@
   opacity: 0.8;
 }
 
+
+/* ---------- 资源包启用与排序 ---------- */
+.rp-order-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  margin-bottom: 12px;
+}
+.rp-order-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rp-order-count {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+.rp-order-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rp-order-note {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.rp-order-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+  padding: 6px 0;
+}
+.rp-order-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+.rp-order-row.is-disabled {
+  opacity: 0.75;
+}
+.rp-order-index {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+.rp-order-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+.rp-order-actions {
+  display: flex;
+  gap: 4px;
+}
+.rp-order-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.rp-order-actions button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent-ink);
+}
+.rp-order-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rp-order-disabled {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rp-order-sub {
+  font-size: 10.5px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+
+/* 崩溃/启动失败自动诊断弹窗 */
+.crash-assist {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.crash-assist-summary {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.crash-assist-issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.crash-assist-issue {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.crash-assist-issue > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.crash-assist-issue strong {
+  font-size: 12.5px;
+}
+.crash-assist-issue small {
+  color: var(--text-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.crash-assist-fixes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.crash-assist-fixes-title {
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.crash-assist-fix {
+  justify-content: flex-start;
+  gap: 8px;
+}
+.crash-assist-fix span {
+  flex: 1;
+  text-align: left;
+}
+.crash-assist-java {
+  align-self: flex-start;
+}
+.crash-assist-empty {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.crash-assist-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.crash-assist-auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.crash-assist-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 实例卡可更新徽章按钮 */
+.instance-update-badge {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+}
+.instance-update-badge:hover .badge {
+  filter: brightness(1.08);
+}
+
+/* 下载完成后电源动作倒计时横幅 */
+.power-countdown {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+.power-countdown b {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+/* 工坊缺失依赖补齐 */
+.workshop-fixmissing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.workshop-fixstage {
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+/* 模组批量启停工具条 */
+.mods-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.mods-bulk-filter {
+  flex: 1;
+  min-width: 180px;
+}
+
+/* 整合包链接安装条 */
+.modpack-urlbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+.modpack-urlbar .text-input {
+  flex: 1;
+}
+
+/* 磁盘空间卡片（整行宽，避免 12 列网格里被挤成单列） */
+.page--more .more-disk {
+  grid-column: 1 / -1;
+}
+.more-disk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.more-disk .more-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.more-disk .more-card-desc {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.disk-report {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.disk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.disk-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.disk-chip em {
+  font-style: normal;
+  color: var(--text-2);
+}
+.disk-chip b {
+  font-variant-numeric: tabular-nums;
+}
+.disk-basis {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.disk-scope {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.disk-scope-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+.disk-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.disk-group {
+  font-size: 11px;
+  color: var(--text-2);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 3px 8px;
+}
+.disk-list summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.disk-list ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.disk-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.disk-list li span {
+  overflow-wrap: anywhere;
+}
+.disk-list li em {
+  font-style: normal;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.disk-list-more {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.rhine-app .disk-chip,
+.rhine-app .disk-scope,
+.rhine-app .disk-group {
+  border-radius: 0;
+}
